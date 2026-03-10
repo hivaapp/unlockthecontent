@@ -1,0 +1,29 @@
+﻿src/components/dashboard/CreateLinkSheet.tsx(3,23): error TS6133: 'CheckCircle2' is declared but its value is never read.
+src/components/dashboard/CreateLinkSheet.tsx(4,29): error TS2307: Cannot find module '../../../context/ProgressContext' or its corresponding type declarations.
+src/components/dashboard/DashboardLayout.tsx(1,10): error TS1484: 'ReactNode' is a type and must be imported using a type-only import when 'verbatimModuleSyntax' is enabled.
+src/components/dashboard/EditLinkSheet.tsx(3,20): error TS6133: 'ShieldAlert' is declared but its value is never read.
+src/components/dashboard/EditLinkSheet.tsx(4,29): error TS2307: Cannot find module '../../../context/ProgressContext' or its corresponding type declarations.
+src/components/dashboard/MoreActionSheet.tsx(1,10): error TS6133: 'Link' is declared but its value is never read.
+src/components/dashboard/MoreActionSheet.tsx(3,26): error TS2307: Cannot find module '../../../context/ToastContext' or its corresponding type declarations.
+src/components/dashboard/OnboardingCarousel.tsx(2,25): error TS2307: Cannot find module '../../../context/AuthContext' or its corresponding type declarations.
+src/components/dashboard/OnboardingCarousel.tsx(3,22): error TS6133: 'Circle' is declared but its value is never read.
+src/components/dashboard/OnboardingCarousel.tsx(3,30): error TS6133: 'Coins' is declared but its value is never read.
+src/components/dashboard/OnboardingCarousel.tsx(3,37): error TS6133: 'File' is declared but its value is never read.
+src/components/dashboard/OnboardingCarousel.tsx(3,51): error TS6133: 'LinkIcon' is declared but its value is never read.
+src/components/dashboard/OnboardingCarousel.tsx(3,61): error TS6133: 'TreePine' is declared but its value is never read.
+src/components/dashboard/OnboardingCarousel.tsx(7,11): error TS6133: 'user' is declared but its value is never read.
+src/components/dashboard/tabs/AccountTab.tsx(18,41): error TS2339: Property 'username' does not exist on type 'User'.
+src/components/dashboard/tabs/EarningsTab.tsx(4,29): error TS2307: Cannot find module '../ui/BottomSheet' or its corresponding type declarations.
+src/components/dashboard/tabs/EarningsTab.tsx(119,47): error TS6133: 'idx' is declared but its value is never read.
+src/components/dashboard/tabs/LinksTab.tsx(16,12): error TS6133: 'isRefreshing' is declared but its value is never read.
+src/components/dashboard/tabs/LinksTab.tsx(16,26): error TS6133: 'setIsRefreshing' is declared but its value is never read.
+src/components/dashboard/tabs/LinksTab.tsx(18,11): error TS6198: All destructured elements are unused.
+src/components/dashboard/tabs/LinksTab.tsx(62,11): error TS6133: 'handlePullToRefresh' is declared but its value is never read.
+src/components/dashboard/tabs/LinksTab.tsx(62,34): error TS6133: 'e' is declared but its value is never read.
+src/components/ui/BottomSheet.tsx(1,10): error TS1484: 'ReactNode' is a type and must be imported using a type-only import when 'verbatimModuleSyntax' is enabled.
+src/components/ui/PullToRefresh.tsx(1,28): error TS6133: 'useEffect' is declared but its value is never read.
+src/components/ui/PullToRefresh.tsx(1,39): error TS1484: 'ReactNode' is a type and must be imported using a type-only import when 'verbatimModuleSyntax' is enabled.
+src/context/ProgressContext.tsx(1,47): error TS1484: 'ReactNode' is a type and must be imported using a type-only import when 'verbatimModuleSyntax' is enabled.
+src/context/ToastContext.tsx(1,47): error TS1484: 'ReactNode' is a type and must be imported using a type-only import when 'verbatimModuleSyntax' is enabled.
+src/pages/ResourceUnlock.tsx(7,11): error TS6133: 'slug' is declared but its value is never read.
+src/pages/ResourceUnlock.tsx(20,20): error TS2503: Cannot find namespace 'NodeJS'.

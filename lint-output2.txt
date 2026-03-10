@@ -1,0 +1,204 @@
+﻿
+> adgate@0.0.0 lint
+> eslint .
+
+
+D:\download\ADGATE\src\components\AdInterstitial.tsx
+   9:16  error  Unexpected any. Specify a different type                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    @typescript-eslint/no-explicit-any
+  21:13  error  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+D:\download\ADGATE\src\components\AdInterstitial.tsx:21:13
+  19 |             return () => clearTimeout(timer);
+  20 |         } else {
+> 21 |             setCanDismiss(true);
+     |             ^^^^^^^^^^^^^ Avoid calling setState() directly within an effect
+  22 |         }
+  23 |     }, [countdown]);
+  24 |  react-hooks/set-state-in-effect
+
+D:\download\ADGATE\src\components\AdSourceSelector.tsx
+  31:34  error  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+D:\download\ADGATE\src\components\AdSourceSelector.tsx:31:34
+  29 |
+  30 |     useEffect(() => {
+> 31 |         if (value !== undefined) setSource(value);
+     |                                  ^^^^^^^^^ Avoid calling setState() directly within an effect
+  32 |     }, [value]);
+  33 |
+  34 |     const handleSourceChange = (newSource: AdSourceType) => {  react-hooks/set-state-in-effect
+
+D:\download\ADGATE\src\components\AdTypeSelector.tsx
+  24:13  error  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+D:\download\ADGATE\src\components\AdTypeSelector.tsx:24:13
+  22 |     useEffect(() => {
+  23 |         if (value !== undefined) {
+> 24 |             setInternalValue(value);
+     |             ^^^^^^^^^^^^^^^^ Avoid calling setState() directly within an effect
+  25 |         }
+  26 |     }, [value]);
+  27 |  react-hooks/set-state-in-effect
+
+D:\download\ADGATE\src\components\CustomSponsorForm.tsx
+  41:13  error    Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+D:\download\ADGATE\src\components\CustomSponsorForm.tsx:41:13
+  39 |     useEffect(() => {
+  40 |         if (value) {
+> 41 |             setData(value);
+     |             ^^^^^^^ Avoid calling setState() directly within an effect
+  42 |             setAcknowledged(true);
+  43 |         }
+  44 |     }, [value]);  react-hooks/set-state-in-effect
+  54:8   warning  React Hook useEffect has missing dependencies: 'onChange' and 'onErrorStateChange'. Either include them or remove the dependency array. If 'onErrorStateChange' changes too often, find the parent component that defines it and wrap that definition in useCallback                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           react-hooks/exhaustive-deps
+
+D:\download\ADGATE\src\components\TreesLandingSection.tsx
+   68:8   warning  React Hook useEffect has a missing dependency: 'liveTotal'. Either include it or remove the dependency array. You can also replace multiple useState variables with useReducer if 'setCount' needs the current value of 'liveTotal'  react-hooks/exhaustive-deps
+   93:8   warning  React Hook useEffect has a missing dependency: 'MOCK_TICKERS.length'. Either include it or remove the dependency array                                                                                                               react-hooks/exhaustive-deps
+  161:65  error    Unexpected any. Specify a different type                                                                                                                                                                                             @typescript-eslint/no-explicit-any
+
+D:\download\ADGATE\src\components\VideoAdViewer.tsx
+  10:16  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+D:\download\ADGATE\src\components\dashboard\DashboardLayout.tsx
+  36:66  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  67:66  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+D:\download\ADGATE\src\components\dashboard\EditLinkSheet.tsx
+  12:11  error  Unexpected any. Specify a different type                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       @typescript-eslint/no-explicit-any
+  28:13  error  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+D:\download\ADGATE\src\components\dashboard\EditLinkSheet.tsx:28:13
+  26 |     useEffect(() => {
+  27 |         if (link) {
+> 28 |             setTitle(link.title);
+     |             ^^^^^^^^ Avoid calling setState() directly within an effect
+  29 |             setDesc(link.description || '');
+  30 |             setAdCount(link.adCount);
+  31 |             setAdType(link.adType || 'click');  react-hooks/set-state-in-effect
+
+D:\download\ADGATE\src\components\dashboard\LinkCard.tsx
+  5:11  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+D:\download\ADGATE\src\components\dashboard\MoreActionSheet.tsx
+  8:11  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+D:\download\ADGATE\src\components\dashboard\tabs\AccountTab.tsx
+  376:54  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+D:\download\ADGATE\src\components\dashboard\tabs\HomeTab.tsx
+  8:63  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+D:\download\ADGATE\src\components\dashboard\tabs\LinksTab.tsx
+  13:54  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  14:58  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+D:\download\ADGATE\src\components\dashboard\tabs\TreesDetailScreen.tsx
+  16:9  error  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+D:\download\ADGATE\src\components\dashboard\tabs\TreesDetailScreen.tsx:16:9
+  14 |
+  15 |     useEffect(() => {
+> 16 |         setAnimate(true);
+     |         ^^^^^^^^^^ Avoid calling setState() directly within an effect
+  17 |     }, []);
+  18 |
+  19 |     const trees = currentUser.myTrees!;  react-hooks/set-state-in-effect
+
+D:\download\ADGATE\src\context\AuthContext.tsx
+    7:17  error  Unexpected any. Specify a different type                                                                                        @typescript-eslint/no-explicit-any
+    8:21  error  Unexpected any. Specify a different type                                                                                        @typescript-eslint/no-explicit-any
+  102:28  error  Unexpected any. Specify a different type                                                                                        @typescript-eslint/no-explicit-any
+  215:14  error  Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components  react-refresh/only-export-components
+
+D:\download\ADGATE\src\context\ProgressContext.tsx
+  27:20  error  Unexpected any. Specify a different type                                                                                        @typescript-eslint/no-explicit-any
+  31:34  error  Unexpected any. Specify a different type                                                                                        @typescript-eslint/no-explicit-any
+  56:14  error  Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components  react-refresh/only-export-components
+
+D:\download\ADGATE\src\context\ToastContext.tsx
+  94:14  error  Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components  react-refresh/only-export-components
+
+D:\download\ADGATE\src\lib\mockData.ts
+  279:36  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+D:\download\ADGATE\src\pages\ExplorePage.tsx
+  157:60  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  191:60  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  219:51  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+D:\download\ADGATE\src\pages\ResourceUnlock.tsx
+   16:48  error  Unexpected any. Specify a different type                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              @typescript-eslint/no-explicit-any
+   67:13  error  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+D:\download\ADGATE\src\pages\ResourceUnlock.tsx:67:13
+  65 |     useEffect(() => {
+  66 |         if (isComplete && !isRevealing) {
+> 67 |             setIsRevealing(true);
+     |             ^^^^^^^^^^^^^^ Avoid calling setState() directly within an effect
+  68 |             setNextAdCountdown(null);
+  69 |         }
+  70 |     }, [isComplete, isRevealing]);                                          react-hooks/set-state-in-effect
+   77:13  error  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+D:\download\ADGATE\src\pages\ResourceUnlock.tsx:77:13
+  75 |             return () => clearTimeout(timer);
+  76 |         } else if (nextAdCountdown === 0) {
+> 77 |             setNextAdCountdown(null);
+     |             ^^^^^^^^^^^^^^^^^^ Avoid calling setState() directly within an effect
+  78 |             handleUnlockClick();
+  79 |         }
+  80 |     }, [nextAdCountdown, handleUnlockClick]);  react-hooks/set-state-in-effect
+  565:67  error  Unexpected any. Specify a different type                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              @typescript-eslint/no-explicit-any
+
+Γ£û 37 problems (34 errors, 3 warnings)
+

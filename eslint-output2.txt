@@ -1,0 +1,23 @@
+﻿
+C:\Users\Prem\Downloads\Adgate-main\Adgate-main\src\components\dashboard\AccountabilityConfigForm.tsx
+  46:8   warning  React Hook useEffect has missing dependencies: 'onChange' and 'onErrorStateChange'. Either include them or remove the dependency array. If 'onErrorStateChange' changes too often, find the parent component that defines it and wrap that definition in useCallback  react-hooks/exhaustive-deps
+  48:71  error    Unexpected any. Specify a different type                                                                                                                                                                                                                              @typescript-eslint/no-explicit-any
+
+C:\Users\Prem\Downloads\Adgate-main\Adgate-main\src\components\dashboard\EmailConfigForm.tsx
+  45:8   warning  React Hook useEffect has missing dependencies: 'onChange' and 'onErrorStateChange'. Either include them or remove the dependency array. If 'onErrorStateChange' changes too often, find the parent component that defines it and wrap that definition in useCallback  react-hooks/exhaustive-deps
+  47:62  error    Unexpected any. Specify a different type                                                                                                                                                                                                                              @typescript-eslint/no-explicit-any
+
+C:\Users\Prem\Downloads\Adgate-main\Adgate-main\src\components\dashboard\SocialConfigForm.tsx
+  54:8   warning  React Hook useEffect has missing dependencies: 'onChange' and 'onErrorStateChange'. Either include them or remove the dependency array. If 'onErrorStateChange' changes too often, find the parent component that defines it and wrap that definition in useCallback  react-hooks/exhaustive-deps
+  56:63  error    Unexpected any. Specify a different type                                                                                                                                                                                                                              @typescript-eslint/no-explicit-any
+
+C:\Users\Prem\Downloads\Adgate-main\Adgate-main\src\components\dashboard\tabs\LinksTab.tsx
+  29:19  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  30:20  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  31:28  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\Prem\Downloads\Adgate-main\Adgate-main\src\pages\Landing.tsx
+  84:8  warning  React Hook useEffect has a missing dependency: 'unlockType'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+
+Γ£û 10 problems (6 errors, 4 warnings)
+

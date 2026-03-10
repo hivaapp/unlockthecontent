@@ -1,0 +1,16 @@
+﻿
+> adgate@0.0.0 build
+> tsc -b && vite build
+
+src/pages/Landing.tsx(473,45): error TS2607: JSX element class does not support attributes because it does not have a 'props' property.
+src/pages/Landing.tsx(473,46): error TS2786: 'File' cannot be used as a JSX component.
+  Its type '{ new (fileBits: BlobPart[], fileName: string, options?: FilePropertyBag | undefined): File; prototype: File; }' is not a valid JSX element type.
+    Type '{ new (fileBits: BlobPart[], fileName: string, options?: FilePropertyBag | undefined): File; prototype: File; }' is not assignable to type 'new (props: any, context: any) => Component<any, any, any>'.
+      Type 'File' is missing the following properties from type 'Component<any, any, any>': context, setState, forceUpdate, render, and 2 more.
+src/pages/Landing.tsx(481,42): error TS2304: Cannot find name 'X'.
+src/pages/Landing.tsx(499,38): error TS2304: Cannot find name 'Settings'.
+src/pages/Landing.tsx(529,34): error TS2304: Cannot find name 'Settings'.
+src/pages/Landing.tsx(987,14): error TS2304: Cannot find name 'BottomSheet'.
+src/pages/Landing.tsx(1025,15): error TS2304: Cannot find name 'BottomSheet'.
+src/pages/Landing.tsx(1027,14): error TS2304: Cannot find name 'BottomSheet'.
+src/pages/Landing.tsx(1047,15): error TS2304: Cannot find name 'BottomSheet'.

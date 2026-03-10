@@ -1,0 +1,41 @@
+﻿
+> adgate@0.0.0 lint
+> eslint .
+
+
+D:\download\ADGATE\src\components\TreesLandingSection.tsx
+  68:8  warning  React Hook useEffect has a missing dependency: 'liveTotal'. Either include it or remove the dependency array. You can also replace multiple useState variables with useReducer if 'setCount' needs the current value of 'liveTotal'  react-hooks/exhaustive-deps
+  93:8  warning  React Hook useEffect has a missing dependency: 'MOCK_TICKERS.length'. Either include it or remove the dependency array                                                                                                               react-hooks/exhaustive-deps
+
+D:\download\ADGATE\src\components\dashboard\tabs\AccountTab.tsx
+  376:54  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+D:\download\ADGATE\src\components\dashboard\tabs\HomeTab.tsx
+  8:63  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+D:\download\ADGATE\src\components\dashboard\tabs\LinksTab.tsx
+  13:54  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  14:58  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+D:\download\ADGATE\src\context\AuthContext.tsx
+    7:17  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+    8:21  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  102:28  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+D:\download\ADGATE\src\context\ProgressContext.tsx
+  27:20  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  31:34  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+D:\download\ADGATE\src\lib\mockData.ts
+  279:36  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+D:\download\ADGATE\src\pages\ExplorePage.tsx
+  157:60  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  191:60  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  219:51  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+D:\download\ADGATE\src\pages\ResourceUnlock.tsx
+  567:79  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+Γ£û 16 problems (14 errors, 2 warnings)
+

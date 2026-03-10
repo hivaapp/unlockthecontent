@@ -1,0 +1,216 @@
+@import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap');
+@import './animations.css';
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-bg text-text antialiased;
+  }
+  
+  *:focus-visible {
+    outline: 2px solid #D97757;
+    outline-offset: 2px;
+  }
+}
+
+@layer components {
+
+  /* Buttons */
+  .btn-primary {
+    @apply bg-brand text-white font-bold px-4 h-10 rounded-md flex items-center justify-center transition-colors duration-150;
+  }
+
+  .btn-primary:active:not(:disabled) {
+    @apply bg-brand-hover;
+  }
+
+  .btn-primary:disabled {
+    @apply opacity-50 cursor-not-allowed;
+  }
+
+  .btn-secondary {
+    @apply bg-white border border-border text-text font-bold px-4 h-10 rounded-md flex items-center justify-center transition-colors duration-150;
+  }
+
+  .btn-secondary:active:not(:disabled) {
+    @apply bg-surfaceAlt;
+  }
+
+  .btn-secondary:disabled {
+    @apply opacity-50 cursor-not-allowed;
+  }
+
+  /* Inputs */
+  .input-field {
+    @apply h-10 w-full border border-border rounded-md px-3 bg-white focus:outline-none focus:ring-1 focus:ring-brand focus:border-brand transition-colors text-[13px];
+  }
+
+  /* Cards */
+  .card {
+    @apply bg-white border border-border rounded-lg p-4;
+  }
+}
+
+/* Base Utility Animations */
+@keyframes slide-up {
+  from {
+    transform: translateY(100%);
+    opacity: 0;
+  }
+
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+@keyframes slide-down {
+  from {
+    transform: translateY(-100%);
+    opacity: 0;
+  }
+
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+@keyframes toast-in {
+  from {
+    transform: translateY(-100%);
+    opacity: 0;
+  }
+
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+@keyframes toast-out {
+  from {
+    transform: translateY(0);
+    opacity: 1;
+  }
+
+  to {
+    transform: translateY(-100%);
+    opacity: 0;
+  }
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes fade-out {
+  from {
+    opacity: 1;
+  }
+
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes pop-in {
+  from {
+    transform: scale(0.95);
+    opacity: 0;
+  }
+
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+@keyframes shimmer {
+  0% {
+    transform: translateX(-100%);
+  }
+
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+@keyframes slide-right {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+.animate-slide-up {
+  animation: slide-up 250ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.animate-slide-down {
+  animation: slide-down 250ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.animate-slide-right {
+  animation: slide-right 300ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.animate-toast-in {
+  animation: toast-in 300ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.animate-toast-out {
+  animation: toast-out 300ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.animate-fade-in {
+  animation: fade-in 150ms ease-out forwards;
+}
+
+.animate-fade-out {
+  animation: fade-out 150ms ease-out forwards;
+}
+
+.animate-pop-in {
+  animation: pop-in 250ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.animate-shimmer {
+  animation: shimmer 1.5s infinite;
+}
+
+/* Custom Progress Bar styles */
+#nprogress .bar {
+  background: #D97757;
+  height: 3px;
+  position: fixed;
+  z-index: 1031;
+  top: 0;
+  left: 0;
+  width: 100%;
+}
+
+#nprogress .peg {
+  display: block;
+  position: absolute;
+  right: 0px;
+  width: 100px;
+  height: 100%;
+  box-shadow: 0 0 10px #D97757, 0 0 5px #D97757;
+  opacity: 1.0;
+  transform: rotate(3deg) translate(0px, -4px);
+}

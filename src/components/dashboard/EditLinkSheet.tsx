@@ -1,0 +1,119 @@
+import { useState } from 'react';
+import { BottomSheet } from '../ui/BottomSheet';
+import { FileIcon } from 'lucide-react';
+import { useProgress } from '../../context/ProgressContext';
+import { useAuth } from '../../context/AuthContext';
+
+interface EditLinkSheetProps {
+    isOpen: boolean;
+    onClose: () => void;
+    onSuccess: () => void;
+    link: { id: string; title: string; description?: string; adCount: number; adType?: "video"; donateEnabled?: boolean; donate?: boolean; type?: string; } | null | undefined;
+}
+
+export const EditLinkSheet = ({ isOpen, onClose, onSuccess, link }: EditLinkSheetProps) => {
+    const [title, setTitle] = useState(link?.title || '');
+    const [desc, setDesc] = useState('');
+    const [isSubmitting, setIsSubmitting] = useState(false);
+    const [prevLink, setPrevLink] = useState(link);
+
+    const { startProgress, stopProgress } = useProgress();
+    const { updateLink } = useAuth();
+
+    if (link !== prevLink) {
+        setPrevLink(link);
+        if (link) {
+            setTitle(link.title);
+            setDesc(link.description || '');
+        }
+    }
+
+    const handleSubmit = async () => {
+        if (!link) return;
+        setIsSubmitting(true);
+        startProgress();
+
+        await updateLink(link.id, {
+            title,
+            description: desc,
+        });
+
+        setIsSubmitting(false);
+        stopProgress();
+        onSuccess();
+    };
+
+    return (
+        <BottomSheet isOpen={isOpen} onClose={onClose} title="Edit Link" fullHeight>
+            <div className="flex flex-col gap-[20px] pb-[80px]">
+
+                {/* File Info Section */}
+                <div className="w-full">
+                    <div className="flex flex-col gap-1.5 mb-2">
+                        <label className="text-[12px] font-extrabold text-textMid uppercase tracking-wide">Linked Resource</label>
+                        <div className="w-full p-3 bg-surfaceAlt border border-border rounded-[12px] flex items-center justify-between shadow-sm">
+                            <div className="flex items-center gap-3 overflow-hidden pr-2">
+                                <div className="w-10 h-10 rounded-[14px] bg-white flex flex-col items-center justify-center flex-shrink-0 text-brand">
+                                    <FileIcon size={20} strokeWidth={2.5} />
+                                </div>
+                                <div className="flex flex-col">
+                                    <span className="font-bold text-[14px] truncate text-text">{link?.title}</span>
+                                    <span className="font-bold text-[11px] text-textLight uppercase tracking-wider">{link?.type || 'FILE'}</span>
+                                </div>
+                            </div>
+                            <button className="text-[12px] font-bold text-text bg-white border border-border px-3 h-8 rounded-full flex-shrink-0 hover:border-textMid transition-colors">
+                                Replace
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Title and Description */}
+                <div className="flex flex-col gap-4">
+                    <div className="flex flex-col gap-1.5 relative">
+                        <label className="text-[12px] font-extrabold text-textMid uppercase tracking-wide">Resource Title</label>
+                        <input
+                            type="text"
+                            className={`input-field h-[48px] text-[15px] font-bold ${title.length > 50 ? 'border-error/50 focus:border-error focus:ring-error focus:ring-1' : ''}`}
+                            value={title}
+                            onChange={(e) => setTitle(e.target.value)}
+                            maxLength={60}
+                        />
+                        <span className={`absolute bottom-3 right-3 text-[11px] font-bold ${title.length >= 50 ? 'text-error' : 'text-textLight'}`}>
+                            {title.length}/60
+                        </span>
+                    </div>
+
+                    <div className="flex flex-col gap-1.5 relative">
+                        <label className="text-[12px] font-extrabold text-textMid uppercase tracking-wide">Description <span className="text-textLight font-semibold capitalize tracking-normal">(optional)</span></label>
+                        <textarea
+                            className={`w-full border border-border rounded-[12px] p-3 text-[14px] font-semibold bg-white focus:outline-none focus:ring-1 focus:ring-brand focus:border-brand transition-colors h-[80px] resize-none ${desc.length > 140 ? 'border-error/50 focus:border-error focus:ring-error focus:ring-1' : ''}`}
+                            value={desc}
+                            onChange={(e) => setDesc(e.target.value)}
+                            maxLength={150}
+                            placeholder="Add a short description so users know what they are unlocking..."
+                        />
+                        <span className={`absolute bottom-3 right-3 text-[11px] font-bold ${desc.length >= 140 ? 'text-error' : 'text-textLight'}`}>
+                            {desc.length}/150
+                        </span>
+                    </div>
+                </div>
+            </div>
+
+            {/* Sticky Action Bar */}
+            <div className="fixed bottom-0 left-0 w-full bg-white border-t border-border/60 p-4 pb-[env(safe-area-inset-bottom,16px)] sm:absolute z-20">
+                <button
+                    onClick={handleSubmit}
+                    disabled={!title || isSubmitting}
+                    className="btn-primary w-full h-[52px] rounded-[14px] text-[16px]"
+                >
+                    {isSubmitting ? (
+                        <div className="w-6 h-6 border-3 border-white/30 border-t-white rounded-full animate-spin" />
+                    ) : (
+                        'Save Changes'
+                    )}
+                </button>
+            </div>
+        </BottomSheet>
+    );
+};
