@@ -1,18 +1,26 @@
-import { Home, LinkIcon, User } from 'lucide-react';
+import { Home, LinkIcon, User, MessageCircle } from 'lucide-react';
 import type { ReactNode } from 'react';
+import { useChatSessions } from '../../context/ChatSessionsContext';
 
 interface DashboardLayoutProps {
     children: ReactNode;
-    currentTab: 'home' | 'links' | 'account';
-    onTabChange: (tab: 'home' | 'links' | 'account') => void;
+    currentTab: 'home' | 'links' | 'chats' | 'account';
+    onTabChange: (tab: 'home' | 'links' | 'chats' | 'account') => void;
 }
 
 export const DashboardLayout = ({ children, currentTab, onTabChange }: DashboardLayoutProps) => {
+    let chatUnread = 0;
+    try {
+        const ctx = useChatSessions();
+        chatUnread = ctx.getTotalUnread();
+    } catch { /* ignore */ }
+
     const tabs = [
-        { id: 'home', icon: Home, label: 'Home' },
-        { id: 'links', icon: LinkIcon, label: 'Links' },
-        { id: 'account', icon: User, label: 'Account' },
-    ] as const;
+        { id: 'home' as const, icon: Home, label: 'Home' },
+        { id: 'links' as const, icon: LinkIcon, label: 'Links' },
+        { id: 'chats' as const, icon: MessageCircle, label: 'Chats' },
+        { id: 'account' as const, icon: User, label: 'Account' },
+    ];
 
     return (
         <div className="flex h-[calc(100vh-64px)] sm:h-screen w-full bg-bg overflow-hidden">
@@ -37,7 +45,17 @@ export const DashboardLayout = ({ children, currentTab, onTabChange }: Dashboard
                                 : 'text-textMid hover:bg-surface hover:text-text border-l-[3px] border-transparent'
                                 }`}
                         >
-                            <tab.icon className="w-5 h-5" />
+                            <div className="relative">
+                                <tab.icon className="w-5 h-5" />
+                                {tab.id === 'chats' && chatUnread > 0 && (
+                                    <div
+                                        className="absolute -top-1 -right-1.5 flex items-center justify-center rounded-full"
+                                        style={{ backgroundColor: '#E8312A', width: '14px', height: '14px' }}
+                                    >
+                                        <span className="text-[8px] font-[900] text-white">{chatUnread > 9 ? '9+' : chatUnread}</span>
+                                    </div>
+                                )}
+                            </div>
                             {tab.label}
                         </button>
                     ))}
@@ -67,7 +85,19 @@ export const DashboardLayout = ({ children, currentTab, onTabChange }: Dashboard
                                 }`}
                         >
                             {currentTab === tab.id && <div className="absolute top-0 left-0 right-0 h-[3px] bg-[#E8312A]" />}
-                            <tab.icon className="w-[22px] h-[22px] mt-1" />
+                            <div className="relative mt-1">
+                                <tab.icon className="w-[22px] h-[22px]" />
+                                {tab.id === 'chats' && chatUnread > 0 && (
+                                    <div
+                                        className="absolute -top-1 -right-2 flex items-center justify-center rounded-full"
+                                        style={{ backgroundColor: '#E8312A', width: chatUnread > 9 ? '18px' : '16px', height: '16px' }}
+                                    >
+                                        <span className="text-white font-[900] leading-none" style={{ fontSize: chatUnread > 9 ? '8px' : '9px' }}>
+                                            {chatUnread > 9 ? '9+' : chatUnread}
+                                        </span>
+                                    </div>
+                                )}
+                            </div>
                             <span className="text-[10px] font-bold mt-[2px]">{tab.label}</span>
                         </button>
                     ))}

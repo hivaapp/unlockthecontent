@@ -4,7 +4,7 @@ import { CountUp } from '../../ui/CountUp';
 import { Copy, Plus, ArrowRight } from 'lucide-react';
 import { useToast } from '../../../context/ToastContext';
 
-export const HomeTab = ({ onTabChange }: { onTabChange: (tab: 'home' | 'links' | 'account') => void }) => {
+export const HomeTab = ({ onTabChange }: { onTabChange: (tab: 'home' | 'links' | 'chats' | 'account') => void }) => {
     const { currentUser: user } = useAuth();
     const { showToast } = useToast();
 

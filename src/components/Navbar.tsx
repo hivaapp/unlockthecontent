@@ -1,19 +1,60 @@
 import { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
+import { useChatSessions } from '../context/ChatSessionsContext';
 import { Link, useLocation } from 'react-router-dom';
 import { SignInModal } from './SignInModal';
 import { Menu, X, Lightbulb, Briefcase, Compass, Tag, ChevronRight } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { getAvatarColor } from '../lib/utils';
 
+// Chat icon SVG (two overlapping speech bubbles)
+const ChatBubbleIcon = () => (
+    <svg width="22" height="22" viewBox="0 0 22 22" fill="none">
+        <path d="M7 13.5C4.5 13.5 2.5 11.5 2.5 9C2.5 6.5 4.5 4.5 7 4.5H10C12.5 4.5 14.5 6.5 14.5 9C14.5 11.5 12.5 13.5 10 13.5H9L7 15.5V13.5Z" stroke="#555" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+        <path d="M14.5 9C14.5 9 15 8 16 8H17C18.5 8 19.5 9.5 19.5 11C19.5 12.5 18.5 14 17 14H16.5L15 15.5V14C13.5 14 12.5 13 12.5 11.5" stroke="#555" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+);
+
+const ChatNavBadge = ({ count }: { count: number }) => {
+    if (count <= 0) return null;
+    const displayText = count > 9 ? '9+' : String(count);
+    return (
+        <div
+            className="absolute flex items-center justify-center rounded-full"
+            style={{
+                top: '4px',
+                right: '4px',
+                width: count > 9 ? '18px' : '16px',
+                height: '16px',
+                backgroundColor: '#E8312A',
+            }}
+        >
+            <span
+                className="text-white font-[900] leading-none"
+                style={{ fontSize: count > 9 ? '8px' : '9px' }}
+            >
+                {displayText}
+            </span>
+        </div>
+    );
+};
+
 export const Navbar = () => {
     const { isLoggedIn, currentUser } = useAuth();
     const location = useLocation();
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [isMenuOpen, setIsMenuOpen] = useState(false);
+    const navigate = useNavigate();
+
+    let totalUnread = 0;
+    try {
+        const chatContext = useChatSessions();
+        totalUnread = chatContext.getTotalUnread();
+    } catch {
+        // ChatSessionsProvider not mounted yet — ignore
+    }
 
     const isDashboard = location.pathname === '/dashboard';
-    const navigate = useNavigate();
 
     const handleMobileNav = (href: string) => {
         setIsMenuOpen(false);
@@ -85,32 +126,62 @@ export const Navbar = () => {
                         isDashboard ? (
                             <div className="flex items-center gap-3">
                                 <Link to="/explore" className="font-bold text-brand hover:text-brand-hover transition-colors px-2 py-2 text-[13px]">Explore</Link>
+                                {/* Chat icon */}
+                                <button
+                                    onClick={() => navigate('/chats')}
+                                    className="w-[44px] h-[44px] flex items-center justify-center relative"
+                                    aria-label="My chats"
+                                >
+                                    <ChatBubbleIcon />
+                                    <ChatNavBadge count={totalUnread} />
+                                </button>
                                 <div className="w-9 h-9 rounded-full flex items-center justify-center text-white font-black text-[16px] shadow-sm" style={{ backgroundColor: getAvatarColor(currentUser?.username || '') }}>
                                     {currentUser?.avatarInitial || 'A'}
                                 </div>
                             </div>
                         ) : (
-                            <>
+                            <div className="flex items-center gap-2">
                                 <Link to="/dashboard" className="font-bold text-textMid hover:text-text transition-colors px-2 py-2">
                                     My Links
                                 </Link>
+                                {/* Chat icon */}
+                                <button
+                                    onClick={() => navigate('/chats')}
+                                    className="w-[44px] h-[44px] flex items-center justify-center relative"
+                                    aria-label="My chats"
+                                >
+                                    <ChatBubbleIcon />
+                                    <ChatNavBadge count={totalUnread} />
+                                </button>
                                 <Link to="/dashboard" className="btn-primary h-10 px-4 text-[14px] shadow-sm">
                                     Dashboard
                                 </Link>
-                            </>
+                            </div>
                         )
                     )}
                 </div>
 
-                {/* Mobile Hamburger */}
-                <button
-                    className="sm:hidden w-10 h-10 flex items-center justify-center text-text z-50"
-                    onClick={() => setIsMenuOpen(!isMenuOpen)}
-                    aria-label="Toggle navigation menu"
-                    aria-expanded={isMenuOpen}
-                >
-                    {isMenuOpen ? <X size={24} /> : <Menu size={24} />}
-                </button>
+                {/* Mobile right side: chat icon + hamburger */}
+                <div className="sm:hidden flex items-center gap-1 z-50">
+                    {isLoggedIn && (
+                        <button
+                            onClick={() => navigate('/chats')}
+                            className="w-[44px] h-[44px] flex items-center justify-center relative"
+                            aria-label="My chats"
+                        >
+                            <ChatBubbleIcon />
+                            <ChatNavBadge count={totalUnread} />
+                        </button>
+                    )}
+                    <button
+                        className="w-10 h-10 flex items-center justify-center text-text"
+                        onClick={() => setIsMenuOpen(!isMenuOpen)}
+                        aria-label="Toggle navigation menu"
+                        aria-expanded={isMenuOpen}
+                    >
+                        {isMenuOpen ? <X size={24} /> : <Menu size={24} />}
+                    </button>
+                </div>
             </nav>
 
             {/* Mobile Drawer */}
@@ -133,13 +204,41 @@ export const Navbar = () => {
                                 </button>
                             ))}
                             {isLoggedIn && (
-                                <Link
-                                    to="/dashboard"
-                                    onClick={() => setIsMenuOpen(false)}
-                                    className="w-full h-[56px] border-b border-border flex items-center font-extrabold text-[16px] text-brand transition-colors"
-                                >
-                                    Dashboard
-                                </Link>
+                                <>
+                                    <button
+                                        onClick={() => handleMobileNav('/chats')}
+                                        className="w-full h-[56px] border-b border-border flex items-center justify-between font-extrabold text-[15px] text-[#111] transition-colors relative pl-[40px] pr-2"
+                                    >
+                                        <div className="absolute left-0 w-[40px] h-[40px] flex items-center justify-center">
+                                            <ChatBubbleIcon />
+                                        </div>
+                                        <span className="flex items-center gap-2">
+                                            My Chats
+                                            {totalUnread > 0 && (
+                                                <span
+                                                    className="flex items-center justify-center rounded-full text-white font-[900]"
+                                                    style={{
+                                                        backgroundColor: '#E8312A',
+                                                        height: '18px',
+                                                        minWidth: '18px',
+                                                        padding: '0 5px',
+                                                        fontSize: '10px',
+                                                    }}
+                                                >
+                                                    {totalUnread > 9 ? '9+' : totalUnread}
+                                                </span>
+                                            )}
+                                        </span>
+                                        <ChevronRight size={20} className="text-textMid" />
+                                    </button>
+                                    <Link
+                                        to="/dashboard"
+                                        onClick={() => setIsMenuOpen(false)}
+                                        className="w-full h-[56px] border-b border-border flex items-center font-extrabold text-[16px] text-brand transition-colors"
+                                    >
+                                        Dashboard
+                                    </Link>
+                                </>
                             )}
                         </div>
 

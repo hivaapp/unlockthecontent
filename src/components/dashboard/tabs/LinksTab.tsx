@@ -7,6 +7,8 @@ import { MoreActionSheet } from '../MoreActionSheet';
 import { AnalyticsSheet } from '../AnalyticsSheet';
 import { useToast } from '../../../context/ToastContext';
 
+import type { AccountabilityConfigData } from '../AccountabilityConfigForm';
+
 export interface DashboardLink {
     id: string;
     title: string;
@@ -28,7 +30,7 @@ export interface DashboardLink {
     };
     emailConfig?: Record<string, unknown>;
     socialConfig?: Record<string, unknown>;
-    accountabilityConfig?: Record<string, unknown>;
+    accountabilityConfig?: AccountabilityConfigData | null;
 }
 
 export const LinksTab = ({ searchQuery, setSearchQuery }: { searchQuery: string, setSearchQuery: (q: string) => void }) => {

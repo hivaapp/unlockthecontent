@@ -3,12 +3,14 @@ import { BrowserRouter as Router, Routes, Route, Navigate, Link } from 'react-ro
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { ToastProvider } from './context/ToastContext';
 import { ProgressProvider } from './context/ProgressContext';
+import { ChatSessionsProvider } from './context/ChatSessionsContext';
 import { Navbar } from './components/Navbar';
 import { Landing } from './pages/Landing';
 import { Dashboard } from './pages/Dashboard';
 import { ResourceUnlock } from './pages/ResourceUnlock';
 import { CreatorProfile } from './pages/CreatorProfile';
 import { ExplorePage } from './pages/ExplorePage';
+import { MyChatsHub } from './pages/MyChatsHub';
 
 import { Pricing } from './pages/Pricing';
 import { HowItWorks } from './pages/HowItWorks';
@@ -18,6 +20,10 @@ import { Privacy } from './pages/Privacy';
 import { HelpPage } from './pages/HelpPage';
 import { ContactPage } from './pages/ContactPage';
 import { ScrollToTop } from './components/ScrollToTop';
+import { AccountabilityLanding } from './pages/AccountabilityLanding';
+import { AccountabilityMatch } from './pages/AccountabilityMatch';
+import { AccountabilityMatching } from './pages/AccountabilityMatching';
+import { AccountabilityChat } from './pages/AccountabilityChat';
 
 const AppLayout = ({ children, hideNav = false }: { children: ReactNode, hideNav?: boolean }) => (
   <>
@@ -62,47 +68,65 @@ const NotFound = () => (
   </div>
 );
 
+import { mockLinks, mockExploreResources } from './lib/mockData';
+
+const ResourceRouter = () => {
+  const slug = window.location.pathname.split('/r/')[1]?.split('/')[0];
+  const linkData = mockLinks.find(l => l.slug === slug);
+  const exploreData = mockExploreResources.find(r => r.slug === slug);
+  const isAccountability = linkData?.unlockType === 'accountability' || exploreData?.unlockType === 'accountability';
+  
+  if (isAccountability) return <AccountabilityLanding />;
+  return <ResourceUnlock />;
+};
+
 function App() {
   return (
     <Router>
       <ScrollToTop />
       <ToastProvider>
         <AuthProvider>
-          <ProgressProvider>
-            <Routes>
-              <Route path="/pricing" element={<AppLayout><Pricing /></AppLayout>} />
-              <Route path="/how-it-works" element={<AppLayout><HowItWorks /></AppLayout>} />
-              <Route path="/use-cases" element={<AppLayout><UseCases /></AppLayout>} />
-              <Route
-                path="/"
-                element={
-                  <PublicOnlyRoute>
-                    <AppLayout>
-                      <Landing />
-                    </AppLayout>
-                  </PublicOnlyRoute>
-                }
-              />
-              <Route
-                path="/dashboard"
-                element={
-                  <PrivateRoute>
-                    <AppLayout hideNav>
-                      <Dashboard />
-                    </AppLayout>
-                  </PrivateRoute>
-                }
-              />
-              <Route path="/explore" element={<AppLayout><ExplorePage /></AppLayout>} />
-              <Route path="/r/:slug" element={<ResourceUnlock />} />
-              <Route path="/terms" element={<AppLayout><Terms /></AppLayout>} />
-              <Route path="/privacy" element={<AppLayout><Privacy /></AppLayout>} />
-              <Route path="/help" element={<AppLayout><HelpPage /></AppLayout>} />
-              <Route path="/contact" element={<AppLayout><ContactPage /></AppLayout>} />
-              <Route path="/@:username" element={<CreatorProfile />} />
-              <Route path="*" element={<NotFound />} />
-            </Routes>
-          </ProgressProvider>
+          <ChatSessionsProvider>
+            <ProgressProvider>
+              <Routes>
+                <Route path="/pricing" element={<AppLayout><Pricing /></AppLayout>} />
+                <Route path="/how-it-works" element={<AppLayout><HowItWorks /></AppLayout>} />
+                <Route path="/use-cases" element={<AppLayout><UseCases /></AppLayout>} />
+                <Route
+                  path="/"
+                  element={
+                    <PublicOnlyRoute>
+                      <AppLayout>
+                        <Landing />
+                      </AppLayout>
+                    </PublicOnlyRoute>
+                  }
+                />
+                <Route
+                  path="/dashboard"
+                  element={
+                    <PrivateRoute>
+                      <AppLayout hideNav>
+                        <Dashboard />
+                      </AppLayout>
+                    </PrivateRoute>
+                  }
+                />
+                <Route path="/explore" element={<AppLayout><ExplorePage /></AppLayout>} />
+                <Route path="/r/:slug" element={<ResourceRouter />} />
+                <Route path="/r/:slug/match" element={<AccountabilityMatch />} />
+                <Route path="/r/:slug/matching" element={<AccountabilityMatching />} />
+                <Route path="/accountability/chat/:sessionId" element={<AccountabilityChat />} />
+                <Route path="/chats" element={<MyChatsHub />} />
+                <Route path="/terms" element={<AppLayout><Terms /></AppLayout>} />
+                <Route path="/privacy" element={<AppLayout><Privacy /></AppLayout>} />
+                <Route path="/help" element={<AppLayout><HelpPage /></AppLayout>} />
+                <Route path="/contact" element={<AppLayout><ContactPage /></AppLayout>} />
+                <Route path="/@:username" element={<CreatorProfile />} />
+                <Route path="*" element={<NotFound />} />
+              </Routes>
+            </ProgressProvider>
+          </ChatSessionsProvider>
         </AuthProvider>
       </ToastProvider>
     </Router>

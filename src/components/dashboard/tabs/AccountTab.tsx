@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useAuth } from '../../../context/AuthContext';
-import { ChevronRight, ChevronLeft, Copy, LogOut, AlertTriangle } from 'lucide-react';
+import { useChatSessions } from '../../../context/ChatSessionsContext';
+import { ChevronRight, ChevronLeft, Copy, LogOut, AlertTriangle, MessageCircle } from 'lucide-react';
 import { useToast } from '../../../context/ToastContext';
 import { ConfirmationBottomSheet } from '../../ui/ConfirmationBottomSheet';
 import { useProgress } from '../../../context/ProgressContext';
@@ -13,6 +14,12 @@ export const AccountTab = () => {
     const { addToast } = useToast();
     const { startProgress, stopProgress } = useProgress();
     const navigate = useNavigate();
+
+    let chatUnread = 0;
+    try {
+        const chatCtx = useChatSessions();
+        chatUnread = chatCtx.getTotalUnread();
+    } catch { /* ignore if not mounted */ }
 
     const [isLogoutConfirmOpen, setIsLogoutConfirmOpen] = useState(false);
     const [activeScreen, setActiveScreen] = useState<string | null>(null);
@@ -97,8 +104,28 @@ export const AccountTab = () => {
             {/* Settings Groups */}
             <div className="flex flex-col gap-6">
 
-                {/* Group 1 */}
+                {/* Group 1: My Chats + Notifications */}
                 <div className="flex flex-col w-full bg-white rounded-[16px] border border-border overflow-hidden shadow-sm">
+                    <div
+                        onClick={() => navigate('/chats')}
+                        className="h-[52px] w-full bg-white px-4 flex items-center justify-between cursor-pointer hover:bg-surfaceAlt active:bg-[#F8F8F8] transition-colors duration-[80ms] border-b border-border"
+                    >
+                        <div className="flex items-center gap-3">
+                            <MessageCircle size={20} className="text-textMid" />
+                            <span className="text-[15px] font-extrabold text-text">My Chats</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                            {chatUnread > 0 && (
+                                <span
+                                    className="flex items-center justify-center rounded-full text-white font-[900]"
+                                    style={{ backgroundColor: '#E8312A', height: '20px', minWidth: '20px', padding: '0 6px', fontSize: '10px' }}
+                                >
+                                    {chatUnread > 9 ? '9+' : chatUnread}
+                                </span>
+                            )}
+                            <ChevronRight className="w-5 h-5 text-textLight" />
+                        </div>
+                    </div>
                     <SettingRow label="Notification Preferences" onClick={() => navigateTo('notifications')} />
                 </div>
 

@@ -487,20 +487,26 @@ export const mockLinks = [
         geography: [],
         deviceSplit: { mobile: 50, desktop: 50, tablet: 0 },
         accountabilityConfig: {
-            topic: "Building a consistent morning routine",
-            description: "Pair up with a stranger who is also trying to build a morning routine. You will check in with each other every day for 14 days. That is it. No app to download. No community to join. Just you, one other person, and a daily check-in.",
-            commitmentPrompt: "What specific morning habit will you commit to practicing every day for 14 days?",
+            topic: "14-Day Morning Routine Challenge",
+            description: "Pair up with someone building the same habit. Check in daily. Support each other for 14 days.",
+            commitmentPrompt: "What specific morning habit will you commit to for the next 14 days?",
             durationDays: 14,
             checkInFrequency: "daily",
-            guidelines: "Be honest with your partner. Check in every day. If you miss a day, say so. No judgment.",
+            guidelines: "Be honest. Show up for your partner. One check-in per day minimum.",
             creatorResourceUrl: "https://example.com/morning-guide",
             creatorResourceLabel: "Read the creator's morning routine guide",
-            waitingRoomEnabled: true,
-            maxParticipants: null,
+            genderMatchingEnabled: true,
+            scheduledMessages: [
+                { id: "sched_001", dayNumber: 1, sendTime: "09:00", content: "Welcome to the challenge! Introduce yourself to your partner and share your commitment. Tell them exactly what you are going to do every day.", isSent: true },
+                { id: "sched_002", dayNumber: 3, sendTime: "09:00", content: "Day 3 check-in! How are both of you doing? Remember — honesty with your partner is more valuable than performing. If you missed a day, say so.", isSent: false },
+                { id: "sched_003", dayNumber: 7, sendTime: "09:00", content: "Halfway there! One week in. Check in with your partner today and share one thing that surprised you about this challenge so far.", isSent: false },
+                { id: "sched_004", dayNumber: 14, sendTime: "09:00", content: "Final day! You made it. Tell your partner one thing that changed because of this challenge. This conversation is yours — I cannot see it, but I know it mattered.", isSent: false },
+            ],
             totalParticipants: 234,
             activePairs: 47,
             completedPairs: 156,
             isAcceptingParticipants: true,
+            waitingPool: { male: 3, female: 2, any: 1 },
         }
     },
     {
@@ -527,20 +533,25 @@ export const mockLinks = [
         geography: [],
         deviceSplit: { mobile: 50, desktop: 50, tablet: 0 },
         accountabilityConfig: {
-            topic: "Hitting your freelance revenue goal",
-            description: "You set a freelance income goal. We pair you with another freelancer with a similar goal. You check in twice a week for 30 days. Most people who do this hit their goal or come close.",
+            topic: "30-Day Freelance Revenue Goal",
+            description: "Set a freelance revenue goal for next month and get an accountability partner to keep you on track.",
             commitmentPrompt: "What is your freelance revenue goal for the next 30 days, and what is one specific action you will take this week to move toward it?",
             durationDays: 30,
             checkInFrequency: "every_other_day",
             guidelines: "Share your numbers honestly. Celebrate each other's wins. Call each other out on excuses.",
             creatorResourceUrl: null,
             creatorResourceLabel: null,
-            waitingRoomEnabled: true,
-            maxParticipants: 100,
+            genderMatchingEnabled: true,
+            scheduledMessages: [
+                { id: "sched_f_001", dayNumber: 1, sendTime: "09:00", content: "Welcome! Share your revenue goal with your partner.", isSent: false },
+                { id: "sched_f_002", dayNumber: 15, sendTime: "09:00", content: "Halfway! How are the numbers looking?", isSent: false },
+                { id: "sched_f_003", dayNumber: 30, sendTime: "09:00", content: "Final day. Did you hit your goal?", isSent: false },
+            ],
             totalParticipants: 89,
             activePairs: 23,
             completedPairs: 31,
             isAcceptingParticipants: true,
+            waitingPool: { male: 2, female: 1, any: 0 },
         }
     }
 ];
@@ -549,73 +560,115 @@ export const mockAccountabilityParticipants = [
     {
         id: "participant_current",
         linkId: "link_accountability_001",
-        email: "currentuser@email.com",
-        displayName: "You",
+        userId: "user_current",
+        displayName: "Alex",
+        gender: "male" as const,
         commitmentStatement: "Wake up at 6am and journal for 10 minutes before opening my phone.",
         pairId: "participant_pair",
         isPaired: true,
         pairedAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
-        sessionToken: "mock-session-token-001",
+        chatSessionId: "session_mock_001",
         expiresAt: new Date(Date.now() + 12 * 24 * 60 * 60 * 1000).toISOString(),
-        status: "active",
+        status: "active" as const,
         joinedAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
+        genderPreference: "any" as const,
     },
     {
         id: "participant_pair",
         linkId: "link_accountability_001",
-        email: "partner@email.com",
+        userId: "user_pair",
         displayName: "Jordan",
+        gender: "female" as const,
         commitmentStatement: "No phone for first 30 minutes after waking. Cold shower every morning.",
         pairId: "participant_current",
         isPaired: true,
         pairedAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
-        sessionToken: "mock-session-token-002",
+        chatSessionId: "session_mock_001",
         expiresAt: new Date(Date.now() + 12 * 24 * 60 * 60 * 1000).toISOString(),
-        status: "active",
+        status: "active" as const,
         joinedAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
-    }
+        genderPreference: "any" as const,
+    },
 ];
 
-export const mockChatMessages = [
+export const mockChatSession = {
+    id: "session_mock_001",
+    linkId: "link_accountability_001",
+    participantIds: ["participant_current", "participant_pair"],
+    createdAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
+    expiresAt: new Date(Date.now() + 12 * 24 * 60 * 60 * 1000).toISOString(),
+    isExpired: false,
+    messages: [
+        {
+            id: "msg_001",
+            senderId: "participant_pair",
+            senderName: "Jordan",
+            senderInitial: "J",
+            type: "private" as const,
+            content: "Hey! Just got paired with you. What's your morning routine goal?",
+            timestamp: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000 + 10 * 60 * 1000).toISOString(),
+            isRead: true,
+        },
+        {
+            id: "msg_002",
+            senderId: "participant_current",
+            senderName: "Alex",
+            senderInitial: "A",
+            type: "private" as const,
+            content: "Hey Jordan! I'm trying to journal every day before I check my phone. Day 2 done ✓",
+            timestamp: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString(),
+            isRead: true,
+        },
+        {
+            id: "msg_003",
+            senderId: "participant_pair",
+            senderName: "Jordan",
+            senderInitial: "J",
+            type: "private" as const,
+            content: "That's amazing! Cold shower this morning. Brutal but I did it 💪",
+            timestamp: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000 + 30 * 60 * 1000).toISOString(),
+            isRead: true,
+        },
+        {
+            id: "msg_broadcast_001",
+            senderId: "creator_broadcast",
+            senderName: "Creator",
+            senderInitial: "C",
+            type: "broadcast" as const,
+            content: "Welcome to the challenge! Introduce yourself to your partner and share your commitment. Tell them exactly what you are going to do every day.",
+            timestamp: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000 + 5 * 60 * 1000).toISOString(),
+            isRead: true,
+        },
+        {
+            id: "msg_004",
+            senderId: "participant_pair",
+            senderName: "Jordan",
+            senderInitial: "J",
+            type: "private" as const,
+            content: "Day 3 check-in — did you journal this morning?",
+            timestamp: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
+            isRead: false,
+        },
+    ],
+    broadcastsReceived: ["sched_001"],
+    participantCommitments: {
+        "participant_current": "Wake up at 6am and journal for 10 minutes before opening my phone.",
+        "participant_pair": "No phone for first 30 minutes after waking. Cold shower every morning.",
+    } as Record<string, string>,
+    daysRemaining: 12,
+    daysTotal: 14,
+};
+
+export const mockBroadcasts = [
     {
-        id: "msg_001",
-        pairSessionId: "participant_current_participant_pair",
-        senderId: "participant_pair",
-        senderName: "Jordan",
-        senderInitial: "J",
-        content: "Hey! Just joined. Super excited about this. What's your morning routine goal?",
-        timestamp: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000 + 5 * 60 * 1000).toISOString(),
-        isRead: true,
-    },
-    {
-        id: "msg_002",
-        pairSessionId: "participant_current_participant_pair",
-        senderId: "participant_current",
-        senderName: "You",
-        senderInitial: "Y",
-        content: "Morning! I'm trying to journal every day before I check my phone. Day 2 done ✓",
-        timestamp: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString(),
-        isRead: true,
-    },
-    {
-        id: "msg_003",
-        pairSessionId: "participant_current_participant_pair",
-        senderId: "participant_pair",
-        senderName: "Jordan",
-        senderInitial: "J",
-        content: "That's great! I did my cold shower this morning. Brutal but worth it 😅",
-        timestamp: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000 + 30 * 60 * 1000).toISOString(),
-        isRead: true,
-    },
-    {
-        id: "msg_004",
-        pairSessionId: "participant_current_participant_pair",
-        senderId: "participant_pair",
-        senderName: "Jordan",
-        senderInitial: "J",
-        content: "Day 3 check-in — did you journal this morning?",
-        timestamp: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
-        isRead: false,
+        id: "broadcast_mock_001",
+        linkId: "link_accountability_001",
+        type: "scheduled" as const,
+        scheduledMessageId: "sched_001",
+        dayNumber: 1,
+        content: "Welcome to the challenge! Introduce yourself to your partner and share your commitment. Tell them exactly what you are going to do every day.",
+        sentAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000 + 5 * 60 * 1000).toISOString(),
+        deliveredToCount: 47,
     },
 ];
 
@@ -624,10 +677,190 @@ export const mockAutoResponses = [
     "Keep it up! Consistency is everything.",
     "I almost skipped today but remembered we were checking in 😅",
     "How are you finding it so far?",
-    "Day [n] done! Feeling good about this.",
+    "Day done! Feeling good about this.",
     "Any tips from your experience so far?",
     "We're halfway through! Can't believe it.",
     "Almost there! Last few days — let's finish strong.",
+];
+
+export interface ViewerChatSession {
+    sessionId: string;
+    linkSlug: string;
+    linkId: string;
+    creator: {
+        id: string;
+        name: string;
+        username: string;
+        initial: string;
+        avatarColor: string;
+    };
+    challengeTopic: string;
+    durationDays: number;
+    checkInFrequency: string;
+    viewerParticipantId: string;
+    viewerCommitment: string;
+    viewerGender: string;
+    partner: {
+        participantId: string;
+        displayName: string;
+        initial: string;
+        avatarColor: string;
+        commitment: string;
+        gender: string;
+    };
+    pairedAt: string;
+    expiresAt: string;
+    isExpired: boolean;
+    isCompleted: boolean;
+    totalMessages: number;
+    unreadCount: number;
+    lastMessage: {
+        content: string;
+        senderId: string;
+        senderName: string;
+        timestamp: string;
+        type: string;
+    };
+    unreadBroadcasts: number;
+    daysTotal: number;
+    daysElapsed: number;
+    daysRemaining: number;
+    status: 'active' | 'completed' | 'expired' | 'partner_left';
+}
+
+export const mockViewerChatSessions: ViewerChatSession[] = [
+    {
+        sessionId: "session_viewer_001",
+        linkSlug: "morning-routine-accountability",
+        linkId: "link_accountability_001",
+        creator: {
+            id: "creator_001",
+            name: "James Productivity",
+            username: "jamesproductivity",
+            initial: "J",
+            avatarColor: "#E8312A",
+        },
+        challengeTopic: "14-Day Morning Routine Challenge",
+        durationDays: 14,
+        checkInFrequency: "daily",
+        viewerParticipantId: "participant_current",
+        viewerCommitment: "Wake up at 6am and journal for 10 minutes before opening my phone.",
+        viewerGender: "male",
+        partner: {
+            participantId: "participant_pair",
+            displayName: "Jordan",
+            initial: "J",
+            avatarColor: "#2563EB",
+            commitment: "No phone for first 30 minutes after waking. Cold shower every morning.",
+            gender: "female",
+        },
+        pairedAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
+        expiresAt: new Date(Date.now() + 12 * 24 * 60 * 60 * 1000).toISOString(),
+        isExpired: false,
+        isCompleted: false,
+        totalMessages: 4,
+        unreadCount: 1,
+        lastMessage: {
+            content: "Day 3 check-in — did you journal this morning?",
+            senderId: "participant_pair",
+            senderName: "Jordan",
+            timestamp: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
+            type: "private",
+        },
+        unreadBroadcasts: 0,
+        daysTotal: 14,
+        daysElapsed: 2,
+        daysRemaining: 12,
+        status: "active",
+    },
+    {
+        sessionId: "session_viewer_002",
+        linkSlug: "freelance-goal-accountability",
+        linkId: "link_accountability_002",
+        creator: {
+            id: "creator_002",
+            name: "Freelance Forward",
+            username: "freelanceforward",
+            initial: "F",
+            avatarColor: "#6366F1",
+        },
+        challengeTopic: "30-Day Freelance Revenue Goal",
+        durationDays: 30,
+        checkInFrequency: "every_other_day",
+        viewerParticipantId: "participant_viewer_002",
+        viewerCommitment: "Close two new client projects worth $2,000 total by end of month.",
+        viewerGender: "male",
+        partner: {
+            participantId: "participant_partner_002",
+            displayName: "Priya",
+            initial: "P",
+            avatarColor: "#166534",
+            commitment: "Send 10 cold outreach emails per week and land one new retainer client.",
+            gender: "female",
+        },
+        pairedAt: new Date(Date.now() - 8 * 24 * 60 * 60 * 1000).toISOString(),
+        expiresAt: new Date(Date.now() + 22 * 24 * 60 * 60 * 1000).toISOString(),
+        isExpired: false,
+        isCompleted: false,
+        totalMessages: 12,
+        unreadCount: 3,
+        lastMessage: {
+            content: "Just sent my 8th outreach this week. How are your client conversations going?",
+            senderId: "participant_partner_002",
+            senderName: "Priya",
+            timestamp: new Date(Date.now() - 18 * 60 * 60 * 1000).toISOString(),
+            type: "private",
+        },
+        unreadBroadcasts: 1,
+        daysTotal: 30,
+        daysElapsed: 8,
+        daysRemaining: 22,
+        status: "active",
+    },
+    {
+        sessionId: "session_viewer_003",
+        linkSlug: "reading-habit-challenge",
+        linkId: "link_accountability_003",
+        creator: {
+            id: "creator_003",
+            name: "BookStack Creator",
+            username: "bookstackreads",
+            initial: "B",
+            avatarColor: "#92400E",
+        },
+        challengeTopic: "21-Day Daily Reading Challenge",
+        durationDays: 21,
+        checkInFrequency: "daily",
+        viewerParticipantId: "participant_viewer_003",
+        viewerCommitment: "Read 20 pages every evening before bed. No exceptions.",
+        viewerGender: "male",
+        partner: {
+            participantId: "participant_partner_003",
+            displayName: "Sam",
+            initial: "S",
+            avatarColor: "#B45309",
+            commitment: "Read one chapter of a non-fiction book every morning with coffee.",
+            gender: "any",
+        },
+        pairedAt: new Date(Date.now() - 25 * 24 * 60 * 60 * 1000).toISOString(),
+        expiresAt: new Date(Date.now() - 4 * 24 * 60 * 60 * 1000).toISOString(),
+        isExpired: true,
+        isCompleted: true,
+        totalMessages: 38,
+        unreadCount: 0,
+        lastMessage: {
+            content: "We made it!! 21 days 🎉 This was genuinely helpful.",
+            senderId: "participant_partner_003",
+            senderName: "Sam",
+            timestamp: new Date(Date.now() - 4 * 24 * 60 * 60 * 1000).toISOString(),
+            type: "private",
+        },
+        unreadBroadcasts: 0,
+        daysTotal: 21,
+        daysElapsed: 21,
+        daysRemaining: 0,
+        status: "completed",
+    },
 ];
 
 export const mockActivity = [
@@ -816,8 +1049,13 @@ export const mockExploreResources: ExploreResource[] = [
             guidelines: "Be supportive, share your work honestly.",
             creatorResourceUrl: null,
             creatorResourceLabel: null,
-            waitingRoomEnabled: true,
-            maxParticipants: 100
+            genderMatchingEnabled: true,
+            scheduledMessages: [],
+            totalParticipants: 0,
+            activePairs: 0,
+            completedPairs: 0,
+            isAcceptingParticipants: true,
+            waitingPool: { male: 0, female: 0, any: 0 }
         }
     },
     {
