@@ -9,6 +9,7 @@ import type { AccountabilityConfigData } from '../dashboard/AccountabilityConfig
 interface AccountabilityUnlockProps {
     slug?: string;
     config?: AccountabilityConfigData;
+    onComplete?: () => void;
 }
 
 export const AccountabilityUnlock = ({ slug }: AccountabilityUnlockProps) => {
