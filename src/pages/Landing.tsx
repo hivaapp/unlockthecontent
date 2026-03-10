@@ -514,7 +514,13 @@ export const Landing = () => {
             </div>
 
             {/* Below The Fold Sections */}
-            <BelowTheFold />
+            <BelowTheFold onAction={() => {
+                document.getElementById('generator')?.scrollIntoView({ behavior: 'smooth' });
+                setUnlockType('accountability');
+                setTimeout(() => {
+                    setIsConfigExpanded(true);
+                }, 800);
+            }} />
 
 
             {/* Standard Footer */}

@@ -75,7 +75,6 @@ export const AccountabilityMatching = () => {
 
   if (!link) return null;
 
-  const creatorName = 'Alex Creator';
   const durationDays = link.accountabilityConfig?.durationDays || 14;
 
   return (

@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import type { AccountabilityConfigData } from '../dashboard/AccountabilityConfigForm';
 
 /**
  * Legacy redirect component — the old accountability unlock flow is replaced.
@@ -7,7 +8,7 @@ import { useNavigate } from 'react-router-dom';
  */
 interface AccountabilityUnlockProps {
     slug?: string;
-    config?: Record<string, unknown>;
+    config?: AccountabilityConfigData;
 }
 
 export const AccountabilityUnlock = ({ slug }: AccountabilityUnlockProps) => {

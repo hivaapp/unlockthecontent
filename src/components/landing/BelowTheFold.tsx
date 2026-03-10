@@ -59,12 +59,28 @@ const QUOTES = [
     }
 ];
 
-export const BelowTheFold = () => {
+export const BelowTheFold = ({ onAction }: { onAction?: () => void }) => {
     const [exchangeIdx, setExchangeIdx] = useState(0);
     const [mathType, setMathType] = useState('email');
     const [sponsorDeal, setSponsorDeal] = useState('300');
     const [quoteIdx, setQuoteIdx] = useState(0);
     const [isQuoteFading, setIsQuoteFading] = useState(false);
+    
+    // Accountability state logic
+    const [accDuration, setAccDuration] = useState('14');
+    const [accJoinCount, setAccJoinCount] = useState('60');
+    const [accTimer, setAccTimer] = useState(0);
+
+    useEffect(() => {
+        if (exchangeIdx === 3) { // Accountability state
+            const interval = setInterval(() => {
+                setAccTimer(prev => prev + 100);
+            }, 100);
+            return () => clearInterval(interval);
+        } else {
+            setAccTimer(0);
+        }
+    }, [exchangeIdx]);
 
     // Intersection Observer for scroll animations
     const observerRef = useRef<IntersectionObserver | null>(null);
@@ -96,23 +112,24 @@ export const BelowTheFold = () => {
 
     // Rotations
     useEffect(() => {
-        const exchangeInterval = setInterval(() => {
+        const duration = exchangeIdx === 3 ? 5000 : 3000;
+        const exchangeTimer = setTimeout(() => {
             setExchangeIdx(prev => (prev + 1) % UNLOCK_STATES.length);
-        }, 3000);
+        }, duration);
 
+        return () => clearTimeout(exchangeTimer);
+    }, [exchangeIdx]);
+
+    useEffect(() => {
         const quoteInterval = setInterval(() => {
             setIsQuoteFading(true);
             setTimeout(() => {
                 setQuoteIdx(prev => (prev + 1) % QUOTES.length);
                 setIsQuoteFading(false);
             }, 300);
-
         }, 8000);
 
-        return () => {
-            clearInterval(exchangeInterval);
-            clearInterval(quoteInterval);
-        };
+        return () => clearInterval(quoteInterval);
     }, []);
 
     const scrollToTop = () => {
@@ -236,37 +253,57 @@ export const BelowTheFold = () => {
                     </div>
                 );
             case 'accountability':
+                const durationDays = parseInt(accDuration);
+                const joinCount = parseInt(accJoinCount) || 0;
                 return (
                     <div className="animate-fadeIn">
                         <div className="assumption-row">
                             <div className="assumption-item">
-                                <span className="assumption-label">Challenge duration</span>
-                                <span className="assumption-value">14 days</span>
+                                <span className="assumption-label">Challenge Duration</span>
+                                <div className="deal-input-container !bg-[#B45309]/10 !border-[#B45309]/20">
+                                    <input 
+                                        type="text" 
+                                        value={accDuration} 
+                                        onChange={(e) => setAccDuration(e.target.value)}
+                                        className="deal-input !text-[#B45309]" 
+                                    />
+                                    <span className="deal-prefix !text-[#B45309]/50">days</span>
+                                </div>
                             </div>
                             <div className="assumption-item text-right">
-                                <span className="assumption-label">Participants joined</span>
-                                <span className="assumption-value">~60</span>
+                                <span className="assumption-label">People who join</span>
+                                <div className="deal-input-container !bg-[#B45309]/10 !border-[#B45309]/20 ml-auto">
+                                    <input 
+                                        type="text" 
+                                        value={accJoinCount} 
+                                        onChange={(e) => setAccJoinCount(e.target.value)}
+                                        className="deal-input !text-[#B45309]" 
+                                    />
+                                </div>
                             </div>
                         </div>
                         <div className="math-divider" />
+                        
                         <div className="calc-row">
-                            <span className="calc-label">Pairs formed</span>
-                            <span className="calc-value">~30</span>
+                            <span className="calc-label">Total 1-on-1 Connections</span>
+                            <span className="calc-value">{Math.floor(joinCount / 2).toLocaleString()} pairs</span>
                         </div>
                         <div className="calc-row">
-                            <span className="calc-label">Check-ins per pair (1/day)</span>
-                            <span className="calc-value">~14 each</span>
+                            <span className="calc-label">Daily Engagement (avg 85%)</span>
+                            <span className="calc-value">{Math.floor(joinCount * durationDays * 0.85).toLocaleString()} check-ins</span>
                         </div>
                         <div className="calc-row">
-                            <span className="calc-label">Total community check-ins</span>
-                            <span className="calc-value">~420</span>
+                            <span className="calc-label">Est. Community Messages</span>
+                            <span className="calc-value">{Math.floor(joinCount * durationDays * 0.85 * 4).toLocaleString()} messages</span>
                         </div>
-                        <div className="calc-row">
-                            <span className="calc-label">Your time facilitating</span>
-                            <span className="calc-value">~0 hours</span>
-                        </div>
+                        
                         <div className="math-footer">
-                            You create the structure once. Your community does the work. You get the reputation.
+                            The math of real accountability. Your audience builds the community. You just set the challenge.
+                        </div>
+                        <div className="privacy-strip" style={{background: 'transparent', marginTop: '12px', border: 'none', padding: 0}}>
+                            <span className="text-[11px]" style={{color: 'rgba(255,255,255,0.35)', display: 'flex', alignItems: 'center', gap: '4px'}}>
+                                🔒 You cannot see what pairs say to each other. This is intentional.
+                            </span>
                         </div>
                     </div>
                 );
@@ -286,10 +323,49 @@ export const BelowTheFold = () => {
                     <div className="exchange-columns">
                         <div className="exchange-column">
                             <span className="column-label">For your audience</span>
-                            <div className="avatar-circle bg-[#F0F0F0]">
-                                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#AAA49C" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
-                            </div>
-                            <div className="bubble-card">I want that free guide.</div>
+                            
+                            {exchangeIdx === 3 ? (
+                                <div className="flex flex-col items-center">
+                                    <div className="flex items-center gap-1.5 h-[44px] mb-3">
+                                        <div className="mini-avatar bg-[#2563EB]">A</div>
+                                        <div className="flex gap-1">
+                                            {[0, 1, 2].map(i => (
+                                                <div 
+                                                    key={i} 
+                                                    className="w-1.5 h-1.5 rounded-full bg-[#B45309] pulse-dot" 
+                                                    style={{ 
+                                                        animationDelay: `${i * 200}ms`,
+                                                        display: accTimer > 1500 ? 'none' : 'block'
+                                                    }} 
+                                                />
+                                            ))}
+                                            {accTimer > 1500 && <span className="text-[16px] animate-in zoom-in duration-400">🤝</span>}
+                                        </div>
+                                        <div 
+                                            className="mini-avatar acc-transition-circle" 
+                                            style={{ 
+                                                background: accTimer > 1500 ? '#B45309' : '#DDDDDD' 
+                                            }}
+                                        >
+                                            {accTimer > 1500 ? 'J' : '?'}
+                                        </div>
+                                    </div>
+                                    <span 
+                                        className="text-[11px] font-semibold mb-3 transition-colors duration-300"
+                                        style={{ color: accTimer > 1500 ? '#B45309' : '#AAAAAA' }}
+                                    >
+                                        {accTimer > 1500 ? 'Matched with someone just like them' : 'Looking for a match...'}
+                                    </span>
+                                </div>
+                            ) : (
+                                <>
+                                    <div className="avatar-circle bg-[#F0F0F0]">
+                                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#AAA49C" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+                                    </div>
+                                    <div className="bubble-card">I want that free guide.</div>
+                                </>
+                            )}
+
                             <div className="exchange-arrow" />
                             <div className="rotating-action-container">
                                 {UNLOCK_STATES.map((state, idx) => (
@@ -298,11 +374,21 @@ export const BelowTheFold = () => {
                                         className={`rotating-card ${state.colorClass}`}
                                         style={{ 
                                             opacity: exchangeIdx === idx ? 1 : 0,
-                                            pointerEvents: exchangeIdx === idx ? 'auto' : 'none'
+                                            pointerEvents: exchangeIdx === idx ? 'auto' : 'none',
+                                            padding: idx === 3 ? '12px' : '12px'
                                         }}
                                     >
-                                        <span className="action-title">{state.audienceAction}</span>
-                                        <span className="action-subtitle">{state.audienceDetails}</span>
+                                        {idx === 3 ? (
+                                            <div className="flex flex-col items-center">
+                                                <span className="action-title" style={{fontWeight: 800}}>🤝 Paired with an accountability partner</span>
+                                                <span className="action-subtitle" style={{fontWeight: 600}}>Private chat · {accDuration} days · Daily check-ins</span>
+                                            </div>
+                                        ) : (
+                                            <>
+                                                <span className="action-title">{state.audienceAction}</span>
+                                                <span className="action-subtitle">{state.audienceDetails}</span>
+                                            </>
+                                        )}
                                     </div>
                                 ))}
                             </div>
@@ -316,37 +402,59 @@ export const BelowTheFold = () => {
                                 ))}
                             </div>
                             <div className="exchange-arrow mt-3" />
-                            <div className="flex flex-col items-center">
-                                <span className="font-extrabold text-[14px] text-[#111]">🎁 Gets your content free</span>
-                                <span className="text-[11px] font-semibold text-[#888] mt-1">No payment. No friction.</span>
+                            <div className="flex flex-col items-center text-center">
+                                <span className="font-extrabold text-[14px] text-[#111]">
+                                    {exchangeIdx === 3 ? "🤝 Pairs form automatically" : "🎁 Gets your content free"}
+                                </span>
+                                <span className="text-[11px] font-semibold text-[#888] mt-1">
+                                    {exchangeIdx === 3 ? "No coordination needed" : "No payment. No friction."}
+                                </span>
                             </div>
                         </div>
 
                         <div className="exchange-column">
                             <span className="column-label">For you</span>
-                            <div className="avatar-circle bg-[#E8312A]">
-                                <span className="text-white font-black text-[16px]">C</span>
-                            </div>
-                            <div style={{height: '42px', display: 'flex', alignItems: 'center', justifyContent: 'center'}}>
-                                <span className="text-[#AAA49C] text-[10px] uppercase font-extrabold tracking-wider">You receive:</span>
-                            </div>
-                            <div className="exchange-arrow" style={{opacity: 0}} />
-                            <div className="rotating-action-container">
-                                {UNLOCK_STATES.map((state, idx) => (
-                                    <div 
-                                        key={idx}
-                                        className={`rotating-card ${state.colorClass}`}
-                                        style={{ 
-                                            opacity: exchangeIdx === idx ? 1 : 0,
-                                            pointerEvents: exchangeIdx === idx ? 'auto' : 'none',
-                                            background: 'transparent'
-                                        }}
-                                    >
-                                        <span className="action-title" style={{fontSize: '16px'}}>{state.creatorReward}</span>
-                                        <span className="action-subtitle">{state.creatorDetails}</span>
+                            {exchangeIdx === 3 ? (
+                                <div className="flex flex-col gap-2 w-full px-4">
+                                    <div className="bg-[#FFFBEB] rounded-[10px] p-3 border border-[#FDE68A]">
+                                        <div className="text-[14px] font-black text-[#B45309]">🤝 {Math.floor(parseInt(accJoinCount) / 2)} pairs forming</div>
+                                        <div className="text-[11px] font-semibold text-[#B45309]/70">Without you in the room.</div>
                                     </div>
-                                ))}
-                            </div>
+                                    <div className="h-[8px] flex items-center justify-center">
+                                        <div className="w-px h-full bg-[#FDE68A]" />
+                                    </div>
+                                    <div className="bg-[#FFFBEB] rounded-[10px] p-3 border border-[#FDE68A]">
+                                        <div className="text-[14px] font-black text-[#B45309]">📣 You guide them</div>
+                                        <div className="text-[11px] font-semibold text-[#B45309]/70">Scheduled messages · Full privacy.</div>
+                                    </div>
+                                </div>
+                            ) : (
+                                <>
+                                    <div className="avatar-circle bg-[#E8312A]">
+                                        <span className="text-white font-black text-[16px]">C</span>
+                                    </div>
+                                    <div style={{height: '42px', display: 'flex', alignItems: 'center', justifyContent: 'center'}}>
+                                        <span className="text-[#AAA49C] text-[10px] uppercase font-extrabold tracking-wider">You receive:</span>
+                                    </div>
+                                    <div className="exchange-arrow" style={{opacity: 0}} />
+                                    <div className="rotating-action-container">
+                                        {UNLOCK_STATES.map((state, idx) => (
+                                            <div 
+                                                key={idx}
+                                                className={`rotating-card ${state.colorClass}`}
+                                                style={{ 
+                                                    opacity: exchangeIdx === idx ? 1 : 0,
+                                                    pointerEvents: exchangeIdx === idx ? 'auto' : 'none',
+                                                    background: 'transparent'
+                                                }}
+                                            >
+                                                <span className="action-title" style={{fontSize: '16px'}}>{state.creatorReward}</span>
+                                                <span className="action-subtitle">{state.creatorDetails}</span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </>
+                            )}
                         </div>
                     </div>
                     <div className="exchange-footer">
@@ -414,8 +522,8 @@ export const BelowTheFold = () => {
                                 <span className="type-badge badge-accountability mt-1">🤝 Accountability</span>
                             </div>
                         </div>
-                        <p className="scenario-description">"I help freelancers raise their rates. Everyone knows what to do — they just do not do it. I ran a 14-day rate-raising accountability challenge. 52 people joined. 26 pairs formed. I got 14 messages in my DMs saying it worked. I spent maybe 20 minutes setting it up."</p>
-                        <div className="result-pill pill-amber">26 pairs · 0 hours of facilitation</div>
+                        <p className="scenario-description">"I created a 14-day morning routine challenge. People clicked my link, wrote their commitment, chose their matching preference, and got paired instantly with someone similar. I preset four messages that went out automatically. I spent 20 minutes on setup total."</p>
+                        <div className="result-pill pill-amber">26 pairs · Gender-matched · 4 auto-messages</div>
                     </div>
 
                     {/* Card 4 */}
@@ -458,7 +566,231 @@ export const BelowTheFold = () => {
                     </div>
                 </div>
 
-                <a onClick={scrollToTop} className="card-seven-link mt-8">You could be card seven. Create your first link →</a>
+                <a onClick={scrollToTop} className="card-seven-link mt-8 cursor-pointer">You could be card seven. Create your first link →</a>
+            </section>
+
+            {/* Section 3B - Accountability Showcase (NEW) */}
+            <section className="section-accountability-showcase">
+                <div className="pill-amber-tint">NEW: ACCOUNTABILITY PAIRING</div>
+                <h2 className="text-[28px] font-black text-[#111] text-center mb-2">Build a community that actually works.</h2>
+                <p className="text-[15px] font-semibold text-[#555] text-center max-w-[600px] mb-8">
+                    Stop throwing people into noisy group chats where 90% drift away. 
+                    Match them 1-on-1 for higher completion and deeper connection.
+                </p>
+
+                <div className="showcase-flow">
+                    <div className="flow-step-card">
+                        <div className="step-number-pill">STEP 1</div>
+                        <div className="step-icon">🛠️</div>
+                        <h3 className="step-title">Creator Setup</h3>
+                        <p className="step-description">Set a duration (e.g. 14 days) and write 3-5 daily prompts that go out automatically.</p>
+                        <div className="detail-tags">
+                            <span className="detail-tag">Takes 10 mins</span>
+                            <span className="detail-tag">Auto-broadcast</span>
+                        </div>
+                    </div>
+                    <div className="flow-arrow">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="rotate-90 md:rotate-0"><path d="M5 12h14m-7-7 7 7-7 7"/></svg>
+                    </div>
+                    <div className="flow-step-card">
+                        <div className="step-number-pill">STEP 2</div>
+                        <div className="step-icon">🔗</div>
+                        <h3 className="step-title">Click & Commit</h3>
+                        <p className="step-description">Viewers click your link and write their goal. High friction = High intent participants.</p>
+                        <div className="detail-tags">
+                            <span className="detail-tag">Commitment wall</span>
+                        </div>
+                    </div>
+                    <div className="flow-arrow">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="rotate-90 md:rotate-0"><path d="M5 12h14m-7-7 7 7-7 7"/></svg>
+                    </div>
+                    <div className="flow-step-card">
+                        <div className="step-number-pill">STEP 3</div>
+                        <div className="step-icon">🤝</div>
+                        <h3 className="step-title">Get Paired</h3>
+                        <p className="step-description">AdGate matches them 1-on-1 based on preferences (e.g. same gender or timezone).</p>
+                        <div className="matching-preview">
+                            <div className="avatar-pair pulse">
+                                <div className="mini-avatar bg-[#2563EB]">A</div>
+                                <span className="text-[12px]">🤝</span>
+                                <div className="mini-avatar bg-[#B45309]">J</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div className="flow-arrow">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="rotate-90 md:rotate-0"><path d="M5 12h14m-7-7 7 7-7 7"/></svg>
+                    </div>
+                    <div className="flow-step-card">
+                        <div className="step-number-pill">STEP 4</div>
+                        <div className="step-icon">💬</div>
+                        <h3 className="step-title">Private Progress</h3>
+                        <p className="step-description">They chat 1-on-1 on AdGate to stay on track. You guide the flow via auto-messages.</p>
+                        <div className="detail-tags">
+                            <span className="detail-tag">End-to-end privacy</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div className="creator-panel-card mt-12">
+                    <div className="panel-header">
+                        <div className="window-dots">
+                            <div style={{background: '#FF5F56'}} />
+                            <div style={{background: '#FFBD2E'}} />
+                            <div style={{background: '#27C93F'}} />
+                        </div>
+                        <span className="text-[11px] font-bold text-white/50 uppercase tracking-widest ml-4">Creator Control Panel</span>
+                    </div>
+                    <div className="panel-content">
+                        <div className="panel-left">
+                            <div className="panel-label-row">
+                                <span className="panel-label">Scheduled Broadcasts</span>
+                                <button className="add-btn">+ New</button>
+                            </div>
+                            <div className="mock-rows">
+                                <div className="mock-row">
+                                    <div className="day-box">01</div>
+                                    <div className="msg-preview">Welcome! Today we start by defining your...</div>
+                                    <span className="status-label text-green-600">SENT</span>
+                                </div>
+                                <div className="mock-row">
+                                    <div className="day-box">03</div>
+                                    <div className="msg-preview">Check in: Have you contacted your partner...</div>
+                                    <span className="status-label text-blue-600">QUEUE</span>
+                                </div>
+                                <div className="mock-row">
+                                    <div className="day-box">07</div>
+                                    <div className="msg-preview">Halfway there! Today's prompt is about...</div>
+                                    <span className="status-label text-gray-400">DRAFT</span>
+                                </div>
+                            </div>
+                            <div className="info-card mt-4">
+                                💡 These messages go to every pair simultaneously. Use them to guide the curriculum without repeating yourself.
+                            </div>
+                        </div>
+                        <div className="panel-right mt-8 md:mt-0">
+                            <div className="panel-label-row">
+                                <span className="panel-label">Active Pairs</span>
+                                <span className="text-[11px] font-bold text-[#B45309]">26 ACTIVE</span>
+                            </div>
+                            <div className="mock-rows">
+                                <div className="pair-row">
+                                    <div className="avatar-overlap">
+                                        <div className="bg-[#2563EB]" style={{zIndex: 2}}>A</div>
+                                        <div className="bg-[#B45309]" style={{marginLeft: '-8px', zIndex: 1}}>M</div>
+                                    </div>
+                                    <div className="flex-1">
+                                        <div className="flex justify-between items-center">
+                                            <span className="text-[11px] font-bold">Alex & Maria</span>
+                                            <span className="text-[9px] font-bold text-[#AAA]">DAY 4</span>
+                                        </div>
+                                        <div className="progress-bar-mini"><div className="progress-fill" style={{width: '30%'}} /></div>
+                                    </div>
+                                    <div className="check-green icon-circle">✓</div>
+                                </div>
+                                <div className="pair-row">
+                                    <div className="avatar-overlap">
+                                        <div className="bg-[#7C3AED]" style={{zIndex: 2}}>S</div>
+                                        <div className="bg-[#DB2777]" style={{marginLeft: '-8px', zIndex: 1}}>K</div>
+                                    </div>
+                                    <div className="flex-1">
+                                        <div className="flex justify-between items-center">
+                                            <span className="text-[11px] font-bold">Sam & Kim</span>
+                                            <span className="text-[9px] font-bold text-[#AAA]">DAY 4</span>
+                                        </div>
+                                        <div className="progress-bar-mini"><div className="progress-fill" style={{width: '10%'}} /></div>
+                                    </div>
+                                    <div className="x-red icon-circle">×</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div className="privacy-strip">
+                        <span className="text-[11px] font-bold text-[#111]">🔒 CREATOR PRIVACY:</span>
+                        <span className="text-[11px] font-semibold text-[#555]">You see engagement data, but you can NEVER read private partner chats.</span>
+                    </div>
+                </div>
+
+                <div className="phone-mockup">
+                    <div className="phone-notch" />
+                    <div className="phone-screen">
+                        <div className="mini-chat-header">
+                            <span className="text-[10px] font-black text-[#111]">Daily Morning Routine</span>
+                            <span className="text-[8px] font-bold text-[#AAA]">DAY 4 / 14</span>
+                            <div className="mini-progress-bar mt-2"><div className="progress-fill" style={{width: '28%'}} /></div>
+                        </div>
+                        <div className="mini-msg-list">
+                            <div className="mini-msg broadcast">
+                                <span className="block font-black text-[7px] text-[#B45309] mb-1">📣 CREATOR PROMPT</span>
+                                Did you drink 500ml of water before coffee today? Tap below to tell your partner.
+                            </div>
+                            <div className="mini-msg incoming">
+                                I just did it! Feeling much more awake now. How about you?
+                            </div>
+                            <div className="mini-msg outgoing">
+                                About to start. Setting my timer now ⏱️
+                            </div>
+                        </div>
+                        <div className="mini-input-bar">
+                            <div className="mini-input-zone">Type a message...</div>
+                            <div className="mini-send-btn" />
+                        </div>
+                    </div>
+                </div>
+
+                <div className="acc-comparison-card">
+                    <h4 className="text-[14px] font-black text-[#111] mb-3 text-center">Group Chat vs. Accountability Pairs</h4>
+                    <div className="comparison-grid">
+                        <div className="comp-col">
+                            <div className="comp-item">
+                                <div className="icon-circle x-red" style={{background: '#FFEBEB', color: '#E11D48'}}>×</div>
+                                <span className="text-[11px] font-bold text-[#555]">Bystander Effect</span>
+                            </div>
+                            <div className="comp-item">
+                                <div className="icon-circle x-red" style={{background: '#FFEBEB', color: '#E11D48'}}>×</div>
+                                <span className="text-[11px] font-bold text-[#555]">Information Overload</span>
+                            </div>
+                            <div className="comp-item">
+                                <div className="icon-circle x-red" style={{background: '#FFEBEB', color: '#E11D48'}}>×</div>
+                                <span className="text-[11px] font-bold text-[#555]">90% Lurker Rate</span>
+                            </div>
+                        </div>
+                        <div className="comp-col">
+                            <div className="comp-item">
+                                <div className="icon-circle check-green" style={{background: '#EBF5EE', color: '#166534'}}>✓</div>
+                                <span className="text-[11px] font-bold text-[#111]">Active Commitment</span>
+                            </div>
+                            <div className="comp-item">
+                                <div className="icon-circle check-green" style={{background: '#EBF5EE', color: '#166534'}}>✓</div>
+                                <span className="text-[11px] font-bold text-[#111]">Deep 1-on-1 Focus</span>
+                            </div>
+                            <div className="comp-item">
+                                <div className="icon-circle check-green" style={{background: '#EBF5EE', color: '#166534'}}>✓</div>
+                                <span className="text-[11px] font-bold text-[#111]">85% Action Rate</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div className="acc-testimonial-card">
+                    <p className="text-[14px] font-semibold text-[#111] italic mb-4">
+                        "I used to run Discord groups but everyone would go silent after 3 days. With AdGate's pairing, my last challenge had an 80% completion rate. The 1-on-1 dynamic makes it impossible to hide."
+                    </p>
+                    <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-full bg-[#111] text-white flex items-center justify-center font-black text-[12px]">D</div>
+                        <div className="flex flex-col">
+                            <span className="text-[12px] font-black">David P.</span>
+                            <span className="text-[10px] font-bold text-[#AAA]">Habit Coach (12k followers)</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div className="acc-cta-section">
+                    <h3 className="text-[18px] font-black text-[#111] mb-2">Ready to pair your audience?</h3>
+                    <div className="acc-btns">
+                        <button className="btn-primary-acc" onClick={() => onAction && onAction()}>Create a Challenge &rarr;</button>
+                        <button className="btn-secondary-acc">See an example &rarr;</button>
+                    </div>
+                </div>
             </section>
 
             {/* Section 4 - Truths */}
@@ -530,57 +862,83 @@ export const BelowTheFold = () => {
                 </div>
             </section>
 
-            {/* Section 7 - Types Grid */}
-            <section className="section-types">
-                <span className="section-label">Four ways to unlock</span>
-                <h2 className="section-headline">Choose based on your goal.</h2>
-                <div className="types-grid" data-stagger-group="true">
-                    <div className="type-card stagger-item" style={{ borderLeftColor: '#166534' }}>
-                        <span className="type-emoji">📧</span>
-                        <h3 className="type-card-title text-[#166534]">Email Subscribe</h3>
-                        <span className="use-when">Use when:</span>
-                        <p className="type-card-body">You want to grow a newsletter list and build an audience you own.</p>
-                        <div className="type-card-footer text-[#166534]">0% fee · Free forever</div>
-                    </div>
-                    <div className="type-card stagger-item" style={{ borderLeftColor: '#1D4ED8' }}>
-                        <span className="type-emoji">👥</span>
-                        <h3 className="type-card-title text-[#1D4ED8]">Social Follow</h3>
-                        <span className="use-when">Use when:</span>
-                        <p className="type-card-body">You want to grow your social accounts with an audience that already wants your content.</p>
-                        <div className="type-card-footer text-[#1D4ED8]">0% fee · Multiple accounts</div>
-                    </div>
-                    <div className="type-card stagger-item" style={{ borderLeftColor: '#6D28D9' }}>
-                        <span className="type-emoji">⭐</span>
-                        <h3 className="type-card-title text-[#6D28D9]">Custom Sponsor</h3>
-                        <span className="use-when">Use when:</span>
-                        <p className="type-card-body">You have a brand deal and want to deliver it professionally and keep 100%.</p>
-                        <div className="type-card-footer text-[#6D28D9]">0% commission under $500/mo</div>
-                    </div>
-                    <div className="type-card stagger-item" style={{ borderLeftColor: '#B45309' }}>
-                        <span className="type-emoji">🤝</span>
-                        <h3 className="type-card-title text-[#B45309]">Accountability Pair</h3>
-                        <span className="use-when">Use when:</span>
-                        <p className="type-card-body">You want to help your audience take real action — no file needed, just a pairing system.</p>
-                        <div className="type-card-footer text-[#B45309]">0% fee · No file needed</div>
+            {/* Section 7 - Unlock Types Grid */}
+            <section className="section-grid" id="unlock-types">
+                <div className="container">
+                    <h2 className="text-[28px] font-black text-[#111] mb-4">Choose your growth engine.</h2>
+                    <p className="text-[15px] font-semibold text-[#666] mb-12">One link. Infinite ways to activate your audience.</p>
+                    
+                    <div className="types-grid">
+                        <div className="grid-card stagger-item">
+                            <div className="card-icon bg-[#E8312A]/10 text-[#E8312A]">📧</div>
+                            <h3 className="card-title">Email Unlock</h3>
+                            <p className="card-desc">The high-intent way to build your list. No secondary tabs. Just clean, fast conversion.</p>
+                            <div className="card-footer-note">Best for: Newsletters & Guides</div>
+                        </div>
+                        <div className="grid-card stagger-item" style={{ borderLeft: '4px solid #2563EB' }}>
+                            <div className="card-icon bg-[#2563EB]/10 text-[#2563EB]">🤝</div>
+                            <h3 className="card-title">Accountability Unlock</h3>
+                            <p className="card-desc">Users commit to a goal and get paired 1-on-1 with another participant to stay on track.</p>
+                            <div className="card-footer-note">Best for: Challenges & Habit Building</div>
+                        </div>
+                        <div className="grid-card stagger-item">
+                            <div className="card-icon bg-[#417A55]/10 text-[#417A55]">💰</div>
+                            <h3 className="card-title">Sponsor Unlock</h3>
+                            <p className="card-desc">Let a brand pay you for every free download. The ultimate win-win-win for you and your audience.</p>
+                            <div className="card-footer-note">Best for: High-Traffic Assets</div>
+                        </div>
+                        <div className="grid-card stagger-item">
+                            <div className="card-icon bg-[#A855F7]/10 text-[#A855F7]">🚀</div>
+                            <h3 className="card-title">Viral Unlock</h3>
+                            <p className="card-desc">Unlock content only after they share with 3 friends. Turn every fan into a 3x multiplier.</p>
+                            <div className="card-footer-note">Best for: Templates & Rare Resources</div>
+                        </div>
                     </div>
                 </div>
             </section>
 
             {/* Section 8 - Final CTA */}
-            <section className="section-cta">
-                <h2 className="cta-headline">Your next piece of content should build something.</h2>
-                <p className="cta-subtitle">Create a free link in two minutes.</p>
-                <button onClick={scrollToTop} className="cta-button">
-                    Start for free →
-                </button>
-                <div className="trust-items">
-                    <span>No credit card</span>
-                    <div className="trust-dot" />
-                    <span>Free to start</span>
-                    <div className="trust-dot" />
-                    <span>Your audience unlocks for free</span>
+            <section className="section-final-cta">
+                <div className="container">
+                    <div className="cta-box stagger-item">
+                        <h2 className="text-[32px] md:text-[42px] font-black mb-4">Stop dropping weak links.</h2>
+                        <p className="text-[17px] font-semibold opacity-80 mb-6">Start building your AdGate engine today.</p>
+                        
+                        <div className="flex items-center justify-center gap-6 mb-10 opacity-70">
+                            <div className="flex flex-col items-center">
+                                <span className="text-[24px] mb-1">🤝</span>
+                                <span className="text-[10px] font-black uppercase tracking-widest">Accountability</span>
+                            </div>
+                            <div className="flex flex-col items-center">
+                                <span className="text-[24px] mb-1">🎁</span>
+                                <span className="text-[10px] font-black uppercase tracking-widest">Free Assets</span>
+                            </div>
+                            <div className="flex flex-col items-center">
+                                <span className="text-[24px] mb-1">📈</span>
+                                <span className="text-[10px] font-black uppercase tracking-widest">Viral Growth</span>
+                            </div>
+                        </div>
+
+                        <div className="flex flex-col md:flex-row gap-4 justify-center">
+                            <button className="cta-button-main" onClick={() => onAction && onAction()}>Create your first AdGate &rarr;</button>
+                            <button className="cta-button-secondary">Talk to a human</button>
+                        </div>
+                        <p className="mt-8 text-[12px] font-bold opacity-40">No credit card. Free while in early access.</p>
+                    </div>
                 </div>
             </section>
+
+            <footer className="landing-footer">
+                <div className="container flex flex-col md:flex-row justify-between items-center opacity-40">
+                    <span className="font-black tracking-tighter text-[20px]">AdGate</span>
+                    <div className="flex gap-8 mt-4 md:mt-0 font-bold text-[13px]">
+                        <span>Terms</span>
+                        <span>Privacy</span>
+                        <span>Twitter</span>
+                        <span>Support</span>
+                    </div>
+                </div>
+            </footer>
         </div>
     );
 };
