@@ -4,7 +4,7 @@ import { Search, Grid, List as ListIcon, ChevronRight, Sparkles, X, Mail, Share2
 import { mockExploreResources, type ExploreResource } from '../lib/mockData';
 import { getAvatarColor } from '../lib/utils';
 
-const CATEGORIES = ['All', '✨ Sponsored', 'Prompts', 'Guides', 'Templates', 'Images', 'Videos', 'Tools', 'Other'];
+const CATEGORIES = ['All', 'Dev', 'Design', 'Creators'];
 const SORTS = ['Most Unlocked', 'Newest', 'Trending', 'Sponsored First'];
 
 export const ExplorePage = () => {
@@ -53,14 +53,18 @@ export const ExplorePage = () => {
     const filteredResources = useMemo(() => {
         let res = [...mockExploreResources];
         if (selectedCategory !== 'All') {
-            if (selectedCategory === '✨ Sponsored') {
-                res = res.filter(r => (!r.unlockType || r.unlockType === 'custom_sponsor'));
+            if (selectedCategory === 'Dev') {
+                res = res.filter(r => r.category === 'Dev' || r.title.toLowerCase().includes('dev') || r.title.toLowerCase().includes('code'));
+            } else if (selectedCategory === 'Design') {
+                res = res.filter(r => r.category === 'Design' || r.title.toLowerCase().includes('design') || r.title.toLowerCase().includes('figma'));
+            } else if (selectedCategory === 'Creators') {
+                res = res.filter(r => r.category === 'Creators' || r.title.toLowerCase().includes('creator') || r.title.toLowerCase().includes('video'));
             } else {
                 res = res.filter(r => r.category === selectedCategory);
             }
         }
         if (searchQuery.trim()) {
-            res = res.filter(r => r.title.toLowerCase().includes(searchQuery.toLowerCase()) || r.sponsorName?.toLowerCase().includes(searchQuery.toLowerCase()));
+            res = res.filter(r => r.title.toLowerCase().includes(searchQuery.toLowerCase()) || r.creatorHandle?.toLowerCase().includes(searchQuery.toLowerCase()) || r.sponsorName?.toLowerCase().includes(searchQuery.toLowerCase()));
         }
         // Mock sort implementation
         if (sortBy === 'Newest') res.reverse();
@@ -131,7 +135,7 @@ export const ExplorePage = () => {
                             key={cat}
                             onClick={() => setSelectedCategory(cat)}
                             className={`h-[36px] px-[14px] rounded-full font-extrabold text-[13px] whitespace-nowrap shrink-0 transition-colors snap-start
-                                ${selectedCategory === cat ? cat === '✨ Sponsored' ? 'bg-[#6366F1] text-white border-[#6366F1] border' : 'bg-brand text-white border-brand border' : 'bg-white text-text border border-border hover:bg-surfaceAlt'}
+                                ${selectedCategory === cat ? 'bg-brand text-white border-brand border' : 'bg-white text-text border border-border hover:bg-surfaceAlt'}
                             `}
                         >
                             {cat}
@@ -186,7 +190,11 @@ export const ExplorePage = () => {
                         <div className="w-full grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4 mb-8">
                             {resources.map(r => (
                                 <Link to={`/r/${r.slug}`} key={r.id} className="bg-white rounded-[14px] border border-border overflow-hidden hover:shadow-md transition-shadow flex flex-col group relative">
-                                    {(!r.unlockType || r.unlockType === 'custom_sponsor') && <div className="absolute top-2 right-2 bg-white/90 backdrop-blur-sm border border-white/20 px-2 py-1 rounded-[6px] text-[#4C1D95] font-black text-[10px] shadow-sm z-10 flex items-center gap-1">✨ Sponsored</div>}
+                                    {(!r.unlockType || r.unlockType === 'custom_sponsor') ? (
+                                        <div className="absolute top-2 right-2 bg-white/90 backdrop-blur-sm border border-white/20 px-2 py-1 rounded-[6px] text-[#4C1D95] font-black text-[10px] shadow-sm z-10 flex items-center gap-1">✨ Sponsored</div>
+                                    ) : (
+                                        <div className="absolute top-2 right-2 bg-white/90 backdrop-blur-sm border border-border px-2 py-1 rounded-[6px] text-[#166534] font-black text-[10px] shadow-sm z-10 flex items-center gap-1">🆓 Free</div>
+                                    )}
                                     <div className={`h-[100px] w-full ${(!r.unlockType || r.unlockType === 'custom_sponsor') ? 'bg-gradient-to-br from-[#EDE9FE] to-[#C4B5FD] text-[#4C1D95]' : r.unlockType === 'email_subscribe' ? 'bg-[#F0FDF4] text-[#166534]' : r.unlockType === 'social_follow' ? 'bg-[#EFF6FF] text-[#2563EB]' : 'bg-[#FFFBEB] text-[#92400E]'} flex items-center justify-center text-[40px] group-hover:scale-105 transition-transform duration-500`}>
                                         {getFileEmoji(r.fileType)}
                                     </div>
@@ -230,7 +238,11 @@ export const ExplorePage = () => {
                                     <div className="flex flex-col flex-1 min-w-0 pr-2">
                                         <div className="flex items-center gap-2">
                                             <h3 className="font-extrabold text-[14px] leading-tight truncate">{r.title}</h3>
-                                            {(!r.unlockType || r.unlockType === 'custom_sponsor') && <span className="text-[10px] bg-[#EDE9FE] text-[#4C1D95] font-black px-1.5 py-0.5 rounded-[14px]">✨ Sponsored</span>}
+                                            {(!r.unlockType || r.unlockType === 'custom_sponsor') ? (
+                                                <span className="text-[10px] bg-[#EDE9FE] text-[#4C1D95] font-black px-1.5 py-0.5 rounded-[14px]">✨ Sponsored</span>
+                                            ) : (
+                                                <span className="text-[10px] bg-[#F0FDF4] text-[#166534] border border-[#BBF7D0] font-black px-1.5 py-0.5 rounded-[14px]">🆓 Free</span>
+                                            )}
                                         </div>
                                         <span className="text-[12px] font-bold text-textMid truncate mt-0.5">by @{r.creatorHandle}</span>
                                     </div>

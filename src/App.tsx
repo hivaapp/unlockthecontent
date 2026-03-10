@@ -5,12 +5,16 @@ import { ToastProvider } from './context/ToastContext';
 import { ProgressProvider } from './context/ProgressContext';
 import { ChatSessionsProvider } from './context/ChatSessionsContext';
 import { Navbar } from './components/Navbar';
+import { MobileBottomNav } from './components/MobileBottomNav';
 import { Landing } from './pages/Landing';
 import { Dashboard } from './pages/Dashboard';
 import { ResourceUnlock } from './pages/ResourceUnlock';
 import { CreatorProfile } from './pages/CreatorProfile';
 import { ExplorePage } from './pages/ExplorePage';
 import { MyChatsHub } from './pages/MyChatsHub';
+import { SignIn } from './pages/SignIn';
+import { SignUp } from './pages/SignUp';
+import { ForgotPassword } from './pages/ForgotPassword';
 
 import { Pricing } from './pages/Pricing';
 import { HowItWorks } from './pages/HowItWorks';
@@ -29,6 +33,7 @@ const AppLayout = ({ children, hideNav = false }: { children: ReactNode, hideNav
   <>
     {!hideNav && <Navbar />}
     {children}
+    <MobileBottomNav />
   </>
 );
 
@@ -102,6 +107,9 @@ function App() {
                     </PublicOnlyRoute>
                   }
                 />
+                <Route path="/signin" element={<PublicOnlyRoute><SignIn /></PublicOnlyRoute>} />
+                <Route path="/signup" element={<PublicOnlyRoute><SignUp /></PublicOnlyRoute>} />
+                <Route path="/forgot-password" element={<PublicOnlyRoute><ForgotPassword /></PublicOnlyRoute>} />
                 <Route
                   path="/dashboard"
                   element={
@@ -116,8 +124,9 @@ function App() {
                 <Route path="/r/:slug" element={<ResourceRouter />} />
                 <Route path="/r/:slug/match" element={<AccountabilityMatch />} />
                 <Route path="/r/:slug/matching" element={<AccountabilityMatching />} />
-                <Route path="/accountability/chat/:sessionId" element={<AccountabilityChat />} />
-                <Route path="/chats" element={<MyChatsHub />} />
+                <Route path="/chats/:sessionId" element={<PrivateRoute><AccountabilityChat /></PrivateRoute>} />
+                <Route path="/chats" element={<PrivateRoute><AppLayout hideNav><MyChatsHub /></AppLayout></PrivateRoute>} />
+                <Route path="/my-chats" element={<Navigate to="/chats" replace />} />
                 <Route path="/terms" element={<AppLayout><Terms /></AppLayout>} />
                 <Route path="/privacy" element={<AppLayout><Privacy /></AppLayout>} />
                 <Route path="/help" element={<AppLayout><HelpPage /></AppLayout>} />

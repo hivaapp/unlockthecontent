@@ -199,9 +199,9 @@ export const Pricing = () => {
 
             {/* Plan Comparison Section */}
             <div className="w-full bg-white py-12 flex flex-col items-center">
-                <div className="w-full max-w-[800px] px-5 flex flex-col items-center">
-                    <h2 className="text-[20px] font-black text-[#111] text-center mb-1">Plans</h2>
-                    <p className="text-[14px] text-textMid text-center mb-10">Start free forever. Upgrade when you're ready.</p>
+                <div className="w-full max-w-[500px] px-5 flex flex-col items-center">
+                    <h2 className="text-[20px] font-black text-[#111] text-center mb-1">100% Free / Custom Sponsor Only</h2>
+                    <p className="text-[14px] text-textMid text-center mb-10">Start for free today. Focus purely on creators owning their deals. Everything else is free.</p>
 
                     <div className="w-full flex flex-col sm:flex-row gap-4 sm:gap-4 items-stretch justify-center">
                         {/* Free Plan */}
@@ -234,50 +234,9 @@ export const Pricing = () => {
                                 Get Started Free
                             </Link>
                         </div>
-
-                        {/* Pro Plan */}
-                        <div className="flex-1 bg-gradient-to-br from-[#1A1A1A] to-[#2D2D2D] border-2 border-[#E8312A] rounded-[18px] p-6 flex flex-col relative hidden">
-                            <div className="absolute top-4 right-4 h-[24px] px-3 bg-[#F59E0B] text-white font-extrabold text-[10px] uppercase rounded-full flex items-center tracking-wider">
-                                Coming Soon
-                            </div>
-
-                            <h3 className="text-[16px] font-black text-white">Pro</h3>
-                            <p className="text-[13px] font-semibold text-white/70 mb-6">For serious creators</p>
-
-                            <div className="flex items-baseline mb-2">
-                                <span className="text-[24px] font-black text-white -mt-2 self-start">$</span>
-                                <span className="text-[48px] font-black text-white leading-none">29</span>
-                            </div>
-                            <p className="text-[14px] font-semibold text-white/60 mb-6">per month</p>
-
-                            <div className="w-full h-px bg-white/20 mb-6" />
-
-                            <div className="flex flex-col gap-0 mb-4 flex-1">
-                                {["Unlimited link creation", "Video ad types", "Supabase file storage up to 100MB", "Creator public profile page", "Basic analytics per link"].map((feature, i) => (
-                                    <div key={i} className="flex items-center gap-3 h-[40px]">
-                                        <Check size={16} className="text-white/80 shrink-0" />
-                                        <span className="text-[13px] font-bold text-white/90">{feature}</span>
-                                    </div>
-                                ))}
-                                {["Custom domain for links", "Priority sponsor matching", "Advanced analytics with geography breakdown", "Remove AdGate branding from unlock pages"].map((feature, i) => (
-                                    <div key={`pro-${i}`} className="flex items-center gap-3 h-[40px]">
-                                        <span className="text-[#F59E0B] shrink-0 text-[14px]">★</span>
-                                        <span className="text-[13px] font-bold text-[#F59E0B]">{feature}</span>
-                                    </div>
-                                ))}
-                            </div>
-
-                            <div className="text-[13px] text-white/60 text-center mb-6">
-                                Same 0% commission
-                            </div>
-
-                            <button className="w-full h-[48px] bg-white text-[#111] font-black text-[15px] rounded-[14px] flex items-center justify-center hover:bg-gray-100 transition-colors">
-                                Join Waitlist
-                            </button>
-                        </div>
                     </div>
 
-                    <p className="text-[13px] text-textMid text-center mt-8">Both plans include the tree planting donation option. 🌱</p>
+                    <p className="text-[13px] text-textMid text-center mt-8">Includes the tree planting donation option. 🌱</p>
                 </div>
             </div>
 

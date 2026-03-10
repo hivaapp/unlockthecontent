@@ -59,10 +59,8 @@ export const CreateLinkSheet = ({ isOpen, onClose, onSuccess }: CreateLinkSheetP
         await createLink({
             title,
             description: desc,
-            adCount: 1, // Defaulting to 1 for custom sponsors
             donateEnabled: false, // Removed platform ad feature
             unlockType,
-            adSource: unlockType === 'custom_sponsor' ? 'custom' : undefined,
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             customAd: unlockType === 'custom_sponsor' ? customAd as any : undefined,
             emailConfig: unlockType === 'email_subscribe' ? emailConfig : undefined,

@@ -3,11 +3,20 @@ export interface User {
     name: string;
     username: string;
     email: string;
-    avatarInitial: string;
-    bio: string;
-    website: string;
-    joinedDate: string;
-    hasSeenOnboarding: boolean;
+    avatarInitial?: string;
+    initial?: string;
+    avatarColor?: string;
+    bio?: string;
+    website?: string;
+    joinedDate?: string;
+    hasSeenOnboarding?: boolean;
+    isCreator?: boolean;
+    referralCode?: string;
+    referralCount?: number;
+    myTrees?: number;
+    stripeConnected?: boolean;
+    balance?: number;
+    pendingPayout?: number;
 }
 
 export const currentUser: User = {
@@ -16,10 +25,19 @@ export const currentUser: User = {
     username: "alexcreator",
     email: "alex@example.com",
     avatarInitial: "A",
+    initial: "A",
+    avatarColor: "#E8312A",
     bio: "Creating tools and resources for designers and developers.",
     website: "https://alexcreator.com",
     joinedDate: "2024-01-15T00:00:00Z",
-    hasSeenOnboarding: false
+    hasSeenOnboarding: false,
+    isCreator: true,
+    referralCode: "ADGATE-ALEX",
+    referralCount: 3,
+    myTrees: 12,
+    stripeConnected: false,
+    balance: 247.50,
+    pendingPayout: 85.00,
 };
 
 export const mockLinks = [
@@ -553,6 +571,54 @@ export const mockLinks = [
             isAcceptingParticipants: true,
             waitingPool: { male: 2, female: 1, any: 0 },
         }
+    },
+    {
+        id: "link_premium_media_001",
+        slug: "uncut-interview-series",
+        title: "Uncut Interview Series: Behind The Scenes",
+        description: "Full, unedited 2-hour interview with top designers. Learn the messy reality of freelance.",
+        unlockType: "premium_media",
+        contentMode: "file",
+        textContent: "",
+        links: [],
+        fileType: "mp4",
+        fileName: "uncut_interview_ep1.mp4",
+        fileSize: "850 MB",
+        fileAttachments: [{ fileName: "uncut_interview_ep1.mp4", fileSize: "850 MB", fileType: "mp4", fileEmoji: "🎥" }],
+        donateEnabled: true,
+        isActive: true,
+        viewCount: 1240,
+        unlockCount: 420,
+        views: 1240,
+        unlocks: 420,
+        createdAt: "2024-05-18T12:00:00Z",
+        conversionRate: "33.8%",
+        geography: [],
+        deviceSplit: { mobile: 50, desktop: 50, tablet: 0 },
+    },
+    {
+        id: "link_premium_media_002",
+        slug: "exclusive-vlog",
+        title: "Exclusive Weekly Vlog - Episode 12",
+        description: "A private weekly vlog only for my top supporters.",
+        unlockType: "premium_media",
+        contentMode: "file",
+        textContent: "",
+        links: [],
+        fileType: "mp4",
+        fileName: "vlog_ep12.mp4",
+        fileSize: "400 MB",
+        fileAttachments: [{ fileName: "vlog_ep12.mp4", fileSize: "400 MB", fileType: "mp4", fileEmoji: "🎥" }],
+        donateEnabled: true,
+        isActive: true,
+        viewCount: 520,
+        unlockCount: 180,
+        views: 520,
+        unlocks: 180,
+        createdAt: "2024-05-19T12:00:00Z",
+        conversionRate: "34.6%",
+        geography: [],
+        deviceSplit: { mobile: 50, desktop: 50, tablet: 0 },
     }
 ];
 
@@ -590,6 +656,32 @@ export const mockAccountabilityParticipants = [
         genderPreference: "any" as const,
     },
 ];
+
+export interface MediaAttachment {
+    type: 'image' | 'video' | 'file';
+    url: string | null;
+    fileName: string;
+    fileSize?: string;
+    isPlaceholder?: boolean;
+}
+
+export interface ChatMessage {
+    id: string;
+    senderId: string;
+    senderName: string;
+    senderInitial: string;
+    type: 'private' | 'broadcast';
+    content: string;
+    timestamp: string;
+    isRead: boolean;
+    status?: 'sent' | 'delivered' | 'read';
+    mediaAttachments?: MediaAttachment[];
+    replyTo?: {
+        senderName: string;
+        content: string;
+    };
+    reactions?: string[];
+}
 
 export const mockChatSession = {
     id: "session_mock_001",
@@ -647,6 +739,23 @@ export const mockChatSession = {
             type: "private" as const,
             content: "Day 3 check-in — did you journal this morning?",
             timestamp: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
+            isRead: false,
+            status: 'delivered',
+        },
+        {
+            id: "msg_broadcast_002",
+            senderId: "creator_broadcast",
+            senderName: "Alex Creator",
+            senderInitial: "A",
+            type: "broadcast" as const,
+            content: "Day 7 check-in! Here is a quick visual framework to help you structure your morning. Hope it helps.",
+            mediaAttachments: [{
+                type: "image",
+                url: null,
+                fileName: "morning-framework.jpg",
+                isPlaceholder: true,
+            }],
+            timestamp: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString(),
             isRead: false,
         },
     ],
@@ -720,6 +829,7 @@ export interface ViewerChatSession {
         senderName: string;
         timestamp: string;
         type: string;
+        status?: 'sent' | 'delivered' | 'read';
     };
     unreadBroadcasts: number;
     daysTotal: number;

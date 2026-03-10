@@ -1,11 +1,13 @@
-import { Home, LinkIcon, User, MessageCircle } from 'lucide-react';
+import { Home, LayoutDashboard, User, MessageCircle, Compass } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { useChatSessions } from '../../context/ChatSessionsContext';
+import { useAuth } from '../../context/AuthContext';
+import type { DashboardTab } from '../../pages/Dashboard';
 
 interface DashboardLayoutProps {
     children: ReactNode;
-    currentTab: 'home' | 'links' | 'chats' | 'account';
-    onTabChange: (tab: 'home' | 'links' | 'chats' | 'account') => void;
+    currentTab: DashboardTab;
+    onTabChange: (tab: DashboardTab) => void;
 }
 
 export const DashboardLayout = ({ children, currentTab, onTabChange }: DashboardLayoutProps) => {
@@ -15,9 +17,11 @@ export const DashboardLayout = ({ children, currentTab, onTabChange }: Dashboard
         chatUnread = ctx.getTotalUnread();
     } catch { /* ignore */ }
 
+    const { logout } = useAuth();
     const tabs = [
         { id: 'home' as const, icon: Home, label: 'Home' },
-        { id: 'links' as const, icon: LinkIcon, label: 'Links' },
+        { id: 'analytics' as const, icon: LayoutDashboard, label: 'Dashboard' },
+        { id: 'explore' as const, icon: Compass, label: 'Explore' },
         { id: 'chats' as const, icon: MessageCircle, label: 'Chats' },
         { id: 'account' as const, icon: User, label: 'Account' },
     ];
@@ -60,7 +64,7 @@ export const DashboardLayout = ({ children, currentTab, onTabChange }: Dashboard
                         </button>
                     ))}
 
-                    <button className="absolute bottom-6 left-4 right-4 flex items-center gap-3 px-4 h-12 rounded-[14px] font-bold text-sm text-error hover:bg-errorBg transition-colors mt-auto">
+                    <button onClick={logout} className="absolute bottom-6 left-4 right-4 flex items-center gap-3 px-4 h-12 rounded-[14px] font-bold text-sm text-error hover:bg-errorBg transition-colors mt-auto">
                         <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
                         Log Out
                     </button>
@@ -74,35 +78,6 @@ export const DashboardLayout = ({ children, currentTab, onTabChange }: Dashboard
                 </div>
             </main>
 
-            {/* Mobile Bottom Nav */}
-            <div className="md:hidden fixed bottom-0 left-0 w-full bg-white border-t border-border z-30" style={{ height: 'calc(60px + env(safe-area-inset-bottom))' }}>
-                <div className="flex items-center justify-around h-[60px] px-2">
-                    {tabs.map(tab => (
-                        <button
-                            key={tab.id}
-                            onClick={() => onTabChange(tab.id)}
-                            className={`flex flex-col items-center justify-center gap-1 w-full relative h-[60px] ${currentTab === tab.id ? 'text-[#E8312A]' : 'text-[#AAAAAA]'
-                                }`}
-                        >
-                            {currentTab === tab.id && <div className="absolute top-0 left-0 right-0 h-[3px] bg-[#E8312A]" />}
-                            <div className="relative mt-1">
-                                <tab.icon className="w-[22px] h-[22px]" />
-                                {tab.id === 'chats' && chatUnread > 0 && (
-                                    <div
-                                        className="absolute -top-1 -right-2 flex items-center justify-center rounded-full"
-                                        style={{ backgroundColor: '#E8312A', width: chatUnread > 9 ? '18px' : '16px', height: '16px' }}
-                                    >
-                                        <span className="text-white font-[900] leading-none" style={{ fontSize: chatUnread > 9 ? '8px' : '9px' }}>
-                                            {chatUnread > 9 ? '9+' : chatUnread}
-                                        </span>
-                                    </div>
-                                )}
-                            </div>
-                            <span className="text-[10px] font-bold mt-[2px]">{tab.label}</span>
-                        </button>
-                    ))}
-                </div>
-            </div>
         </div>
     );
 };

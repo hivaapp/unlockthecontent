@@ -136,28 +136,30 @@ export const Landing = () => {
                     style={{
                         fontFamily: '"Nunito", sans-serif',
                         fontWeight: 900,
-                        fontSize: 'clamp(26px, 7vw, 42px)',
+                        fontSize: 'clamp(22px, 6vw, 36px)',
                         color: '#111111',
-                        letterSpacing: '-0.03em',
-                        lineHeight: 1.2
+                        lineHeight: 1.2,
+                        maxWidth: '560px',
+                        margin: '0 auto'
                     }}
                 >
-                    Upload anything. Share a link. Make your sponsor <span style={{ color: '#E8312A' }}>revenue</span>.
+                    Lock your best content. Your followers unlock it free. You build something real.
                 </h1>
 
                 <div className="h-[12px]" />
 
                 <p
-                    className="text-center mx-auto text-[15px] sm:text-[17px]"
+                    className="text-center mx-auto"
                     style={{
                         fontFamily: '"Nunito", sans-serif',
                         fontWeight: 600,
+                        fontSize: '15px',
                         color: '#666666',
-                        maxWidth: '440px',
-                        lineHeight: 1.5
+                        maxWidth: '400px',
+                        lineHeight: 1.7
                     }}
                 >
-                    Serve your own custom sponsor videos to unlock free resources. You keep 100% of the deal. Zero fees.
+                    Lock videos, photos, files, or run a challenge. Your followers unlock everything free by subscribing, following, or watching your sponsor's ad.
                 </p>
             </div>
 
@@ -514,13 +516,7 @@ export const Landing = () => {
             </div>
 
             {/* Below The Fold Sections */}
-            <BelowTheFold onAction={() => {
-                document.getElementById('generator')?.scrollIntoView({ behavior: 'smooth' });
-                setUnlockType('accountability');
-                setTimeout(() => {
-                    setIsConfigExpanded(true);
-                }, 800);
-            }} />
+            <BelowTheFold />
 
 
             {/* Standard Footer */}

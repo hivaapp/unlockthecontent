@@ -13,14 +13,11 @@ export interface DashboardLink {
     id: string;
     title: string;
     type: string;
-    adCount: number;
     donate: boolean;
     url: string;
     views: number;
     unlocks: number;
     status: string;
-    adType: 'video';
-    adSource?: string;
     unlockType?: 'custom_sponsor' | 'email_subscribe' | 'social_follow' | 'accountability';
     clicks?: number;
     customAd?: {
@@ -47,67 +44,57 @@ export const LinksTab = ({ searchQuery, setSearchQuery }: { searchQuery: string,
             id: '1',
             title: 'freeresource.pdf',
             type: 'PDF',
-            adCount: 1,
             donate: true,
             url: 'adga.te/r/freeresource',
             views: 1243,
             unlocks: 842,
             
-            status: 'active',
-            adType: 'video'
+            status: 'active'
         },
         {
             id: '2',
             title: 'figma-ui-kit.fig',
             type: 'FIGMA',
-            adCount: 2,
             donate: false,
             url: 'adga.te/r/figma-kit',
             views: 450,
             unlocks: 120,
             
-            status: 'active',
-            adType: 'video'
+            status: 'active'
         },
         {
             id: '3',
             title: 'old-campaign.zip',
             type: 'ZIP',
-            adCount: 1,
             donate: false,
             url: 'adga.te/r/old-camp',
             views: 3220,
             unlocks: 1560,
             
-            status: 'disabled',
-            adType: 'video'
+            status: 'disabled'
         },
         {
             id: '4',
             title: 'Weekly UI Templates',
             type: 'FILE',
-            adCount: 0,
             donate: false,
             url: 'adga.te/r/ui-templates',
             views: 1205,
             unlocks: 480,
             
             status: 'active',
-            adType: 'video',
             unlockType: 'email_subscribe'
         },
         {
             id: '5',
             title: '14-Day Coding Challenge',
             type: 'NONE',
-            adCount: 0,
             donate: false,
             url: 'adga.te/r/code-challenge',
             views: 340,
             unlocks: 156,
             
             status: 'active',
-            adType: 'video',
             unlockType: 'accountability'
         }
     ]);
@@ -226,14 +213,12 @@ export const LinksTab = ({ searchQuery, setSearchQuery }: { searchQuery: string,
                         id: Date.now().toString(),
                         title: 'New Link ' + Math.floor(Math.random() * 100),
                         type: 'FILE',
-                        adCount: 2,
                         donate: true,
                         url: 'adga.te/r/new-link',
                         views: 0,
                         unlocks: 0,
                         
-                        status: 'active',
-                        adType: 'video'
+                        status: 'active'
                     }, ...links]);
                 }}
             />

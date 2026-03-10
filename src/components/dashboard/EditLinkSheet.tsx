@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { BottomSheet } from '../ui/BottomSheet';
-import { FileIcon } from 'lucide-react';
+import { FileIcon, BarChart2, TrendingUp, Users } from 'lucide-react';
 import { useProgress } from '../../context/ProgressContext';
 import { useAuth } from '../../context/AuthContext';
 
@@ -8,12 +8,12 @@ interface EditLinkSheetProps {
     isOpen: boolean;
     onClose: () => void;
     onSuccess: () => void;
-    link: { id: string; title: string; description?: string; adCount: number; adType?: "video"; donateEnabled?: boolean; donate?: boolean; type?: string; } | null | undefined;
+    link: any; // Using any for simplicity here to accept DashboardLink or LinkData
 }
 
 export const EditLinkSheet = ({ isOpen, onClose, onSuccess, link }: EditLinkSheetProps) => {
     const [title, setTitle] = useState(link?.title || '');
-    const [desc, setDesc] = useState('');
+    const [desc, setDesc] = useState(link?.description || '');
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [prevLink, setPrevLink] = useState(link);
 
@@ -43,6 +43,14 @@ export const EditLinkSheet = ({ isOpen, onClose, onSuccess, link }: EditLinkShee
         onSuccess();
     };
 
+    // Calculate mock analytics
+    const views = link?.viewCount || link?.views || 0;
+    const unlocks = link?.unlockCount || link?.unlocks || 0;
+    const conversionRate = views > 0 ? ((unlocks / views) * 100).toFixed(1) : "0.0";
+    
+    // For custom sponsors, they keep 100% of their negotiated deal. Give a mock status if there's no custom ad.
+    const isCustomSponsor = link?.unlockType === 'custom_sponsor' || !link?.unlockType;
+
     return (
         <BottomSheet isOpen={isOpen} onClose={onClose} title="Edit Link" fullHeight>
             <div className="flex flex-col gap-[20px] pb-[80px]">
@@ -65,6 +73,42 @@ export const EditLinkSheet = ({ isOpen, onClose, onSuccess, link }: EditLinkShee
                                 Replace
                             </button>
                         </div>
+                    </div>
+                </div>
+
+                {/* Quick Analytics Summary */}
+                <div className="w-full flex flex-col gap-3 p-4 bg-brandTint border border-brand/20 rounded-[14px]">
+                    <div className="flex items-center justify-between">
+                        <h3 className="text-[14px] font-black text-brand flex items-center gap-1.5">
+                            <BarChart2 size={16} /> Quick Stats
+                        </h3>
+                        <span className="text-[11px] font-bold text-brand bg-white px-2 py-0.5 rounded-full shadow-sm border border-brand/10">
+                            {conversionRate}% Conversion
+                        </span>
+                    </div>
+                    
+                    <div className="flex gap-4">
+                        <div className="flex-1 flex flex-col">
+                            <span className="text-[12px] font-bold text-textMid flex items-center gap-1.5"><Users size={12}/> Views</span>
+                            <span className="text-[20px] font-black text-text">{views.toLocaleString()}</span>
+                        </div>
+                        <div className="w-px bg-brand/20 my-1" />
+                        <div className="flex-1 flex flex-col">
+                            <span className="text-[12px] font-bold text-textMid flex items-center gap-1.5"><TrendingUp size={12}/> Unlocks</span>
+                            <span className="text-[20px] font-black text-text">{unlocks.toLocaleString()}</span>
+                        </div>
+                    </div>
+
+                    <div className="mt-1 pt-3 border-t border-brand/10">
+                        {isCustomSponsor ? (
+                            <p className="text-[12px] font-semibold text-brand/80 leading-tight">
+                                ✨ <strong className="font-black text-brand">Custom Sponsor Link:</strong> 100% of the deal is yours. You collect directly from your sponsor.
+                            </p>
+                        ) : (
+                            <p className="text-[12px] font-semibold text-brand/80 leading-tight">
+                                💡 Upgrade to a <strong className="font-black">Custom Sponsor</strong> link to display sponsor videos and earn directly.
+                            </p>
+                        )}
                     </div>
                 </div>
 

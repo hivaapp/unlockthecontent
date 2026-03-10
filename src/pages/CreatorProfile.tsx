@@ -1,15 +1,15 @@
 import { useParams, Link } from 'react-router-dom';
-import { FileIcon, ShieldAlert, Sparkles, User2, Play } from 'lucide-react';
+import { FileIcon, Sparkles, User2, Play } from 'lucide-react';
 
 export const CreatorProfile = () => {
     const { username } = useParams();
 
     // Mock links data
     const links = [
-        { id: '1', title: 'Figma Complete UI Kit 2026', type: 'FILE', views: 1205, adCount: 2 },
-        { id: '2', title: 'Notion Life Planner Template', type: 'LINK', views: 804, adCount: 1 },
-        { id: '3', title: '50+ Free Procreate Brushes', type: 'FILE', views: 3200, adCount: 2, donate: true },
-        { id: '4', title: 'Design Interview Prep Guide', type: 'FILE', views: 420, adCount: 3 },
+        { id: '1', title: 'Figma Complete UI Kit 2026', type: 'FILE', views: 1205 },
+        { id: '2', title: 'Notion Life Planner Template', type: 'LINK', views: 804 },
+        { id: '3', title: '50+ Free Procreate Brushes', type: 'FILE', views: 3200, donate: true },
+        { id: '4', title: 'Design Interview Prep Guide', type: 'FILE', views: 420 },
     ];
 
     return (
@@ -89,10 +89,6 @@ export const CreatorProfile = () => {
                                         <span className="text-[12px] font-extrabold bg-surfaceAlt text-textLight px-1.5 py-0.5 rounded-[14px] tracking-wide">
                                             {link.type}
                                         </span>
-                                        <div className="flex items-center gap-1 text-[12px] font-bold text-textLight">
-                                            <ShieldAlert size={12} strokeWidth={3} />
-                                            {link.adCount} Video{link.adCount > 1 ? 's' : ''}
-                                        </div>
                                         {link.donate && (
                                             <div className="flex items-center gap-1 text-[11px] font-[800] text-[#166534] bg-[#EBF5EE] px-1.5 py-0.5 rounded-[14px] ml-auto sm:ml-2 shrink-0">
                                                 🌳 5% to trees

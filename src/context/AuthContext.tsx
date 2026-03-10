@@ -19,9 +19,6 @@ export interface LinkData {
     fileType?: string;
     fileName?: string;
     fileSize?: string;
-    adCount?: number;
-    adSource?: string;
-    adType?: string;
     donateEnabled?: boolean;
     unlockType?: 'custom_sponsor' | 'email_subscribe' | 'social_follow' | 'accountability';
     emailConfig?: EmailConfigData | null;
@@ -142,13 +139,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
                 if (!finalLinkData.customAd.redirectUrl || (!finalLinkData.customAd.brandName && !finalLinkData.customAd.fileName)) {
                     throw new Error("Validation failed for custom ad");
                 }
-            } else if (!finalLinkData.unlockType) {
-                // Legacy custom sponsor support
-                if (finalLinkData.adSource === "custom" && finalLinkData.customAd) {
-                    if (!finalLinkData.customAd.redirectUrl || (!finalLinkData.customAd.brandName && !finalLinkData.customAd.fileName)) {
-                        throw new Error("Validation failed for custom ad");
-                    }
-                }
             }
 
             const newLink = {
@@ -163,8 +153,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
                 deviceSplit: { mobile: 0, desktop: 0, tablet: 0 },
                 ...finalLinkData,
             };
-            if (!newLink.adType) newLink.adType = "video";
-            if (!newLink.adSource) newLink.adSource = "platform";
             setLinks([newLink, ...links]);
 
             const newActivity = {
@@ -182,7 +170,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     const updateLink = async (id: string, data: Partial<LinkData>) => {
         await simulateNetwork(() => {
             const finalData = { ...data };
-            if (finalData.adSource === "custom" && finalData.customAd) {
+            if (finalData.unlockType === 'custom_sponsor' && finalData.customAd) {
                 if (!finalData.customAd.redirectUrl || (!finalData.customAd.brandName && !finalData.customAd.fileName)) {
                     throw new Error("Validation failed for custom ad");
                 }

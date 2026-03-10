@@ -7,6 +7,7 @@ interface ChatSessionsContextType {
   sessions: ViewerChatSession[];
   setSessions: React.Dispatch<React.SetStateAction<ViewerChatSession[]>>;
   markSessionRead: (sessionId: string) => void;
+  markAllRead: () => void;
   getTotalUnread: () => number;
   addNewSession: (sessionData: ViewerChatSession) => void;
   removeSession: (sessionId: string) => void;
@@ -27,6 +28,12 @@ export const ChatSessionsProvider = ({ children }: { children: ReactNode }) => {
     );
   }, []);
 
+  const markAllRead = useCallback(() => {
+    setSessions(prev =>
+      prev.map(s => ({ ...s, unreadCount: 0, unreadBroadcasts: 0 }))
+    );
+  }, []);
+
   const getTotalUnread = useCallback(() => {
     return sessions.reduce((sum, s) => sum + s.unreadCount + s.unreadBroadcasts, 0);
   }, [sessions]);
@@ -41,7 +48,7 @@ export const ChatSessionsProvider = ({ children }: { children: ReactNode }) => {
 
   return (
     <ChatSessionsContext.Provider
-      value={{ sessions, setSessions, markSessionRead, getTotalUnread, addNewSession, removeSession }}
+      value={{ sessions, setSessions, markSessionRead, markAllRead, getTotalUnread, addNewSession, removeSession }}
     >
       {children}
     </ChatSessionsContext.Provider>
