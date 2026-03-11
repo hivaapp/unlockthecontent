@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
-import { useParams, Link } from 'react-router-dom';
-import { FileIcon, FileText, FileArchive, Image as ImageIcon, CheckCircle2, Download, Twitter, MessageCircle, Copy, Check, Play, MousePointerClick, ArrowRight } from 'lucide-react';
+import { useParams, Link, useNavigate } from 'react-router-dom';
+import { FileIcon, FileText, FileArchive, Image as ImageIcon, CheckCircle2, Download, Twitter, MessageCircle, Copy, Check, Play, MousePointerClick, ArrowRight, ChevronLeft } from 'lucide-react';
 import { useAdSession } from '../hooks/useAdSession';
 import { useToast } from '../context/ToastContext';
 import { VideoAdViewer } from '../components/VideoAdViewer';
@@ -14,6 +14,7 @@ import { FollowerPairingUnlock } from '../components/unlock/FollowerPairingUnloc
 
 export const ResourceUnlock = () => {
     const { slug } = useParams();
+    const navigate = useNavigate();
     const { addToast } = useToast();
     const { startSession, registerVideoWatch, registerSponsorClick, isComplete, customSponsorStep } = useAdSession();
 
@@ -133,15 +134,18 @@ export const ResourceUnlock = () => {
     return (
         <div className="w-full min-h-screen bg-bg flex flex-col items-center animate-fadeIn pb-24">
             {/* Header */}
-            <header className="w-full h-12 flex items-center justify-between px-4 sm:px-6 shrink-0 z-10 sticky top-0 bg-bg/90 backdrop-blur-md">
-                <div className="flex items-center gap-2">
+            <header className="w-full h-[64px] flex items-center px-4 sm:px-6 shrink-0 z-10 sticky top-0 bg-bg/90 backdrop-blur-md">
+                <button onClick={() => navigate(-1)} className="w-[40px] h-[40px] flex items-center justify-center bg-white border border-[#E8E8E8] rounded-full hover:bg-surfaceAlt transition-colors mr-3 shrink-0">
+                    <ChevronLeft size={20} className="text-[#111]" />
+                </button>
+                <div className="flex items-center gap-2 flex-1">
                     <div className="w-6 h-6 rounded-[14px] bg-brand flex items-center justify-center text-white font-black text-[10px] leading-none">
                         AG
                     </div>
                     <span className="font-black text-[15px] tracking-tight">AdGate</span>
                 </div>
-                <Link to="/" className="text-[13px] font-bold text-brand hover:underline">
-                    Create your own free link
+                <Link to="/" className="text-[13px] font-bold text-brand hover:underline shrink-0">
+                    Create free link
                 </Link>
             </header>
 
@@ -168,7 +172,7 @@ export const ResourceUnlock = () => {
                         </div>
                         <h1 className="text-[20px] font-black leading-tight mb-3 px-2 line-clamp-1 sm:line-clamp-none">{resource.title}</h1>
 
-                        <div className="flex items-center justify-center gap-2 mb-4">
+                        <Link to={`/@${resource.creatorHandle}`} className="flex items-center justify-center gap-2 mb-4 hover:opacity-80 transition-opacity">
                             <div className="w-7 h-7 rounded-full text-white flex items-center justify-center font-bold text-[12px]" style={{ backgroundColor: getAvatarColor(resource.creatorHandle) }}>
                                 {resource.creatorAvatar}
                             </div>
@@ -176,7 +180,7 @@ export const ResourceUnlock = () => {
                                 by @{resource.creatorHandle}
                                 {resource.verified && <CheckCircle2 size={12} className="text-blue-500 fill-blue-500/10" />}
                             </span>
-                        </div>
+                        </Link>
 
                         <p className="text-[14px] font-semibold text-text leading-[1.6] max-w-[500px] mb-4 line-clamp-3">
                             {resource.description}

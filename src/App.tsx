@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate, Link } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate, Link, useParams } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { ToastProvider } from './context/ToastContext';
 import { ProgressProvider } from './context/ProgressContext';
@@ -12,6 +12,7 @@ import { ResourceUnlock } from './pages/ResourceUnlock';
 import { CreatorProfile } from './pages/CreatorProfile';
 import { ExplorePage } from './pages/ExplorePage';
 import { MyChatsHub } from './pages/MyChatsHub';
+import { EditProfile } from './pages/EditProfile';
 import { SignIn } from './pages/SignIn';
 import { SignUp } from './pages/SignUp';
 import { ForgotPassword } from './pages/ForgotPassword';
@@ -85,6 +86,14 @@ const ResourceRouter = () => {
   return <ResourceUnlock />;
 };
 
+const RootProfileRoute = () => {
+  const { handle } = useParams();
+  if (handle && handle.startsWith('@')) {
+    return <CreatorProfile />;
+  }
+  return <NotFound />;
+};
+
 function App() {
   return (
     <Router>
@@ -131,7 +140,9 @@ function App() {
                 <Route path="/privacy" element={<AppLayout><Privacy /></AppLayout>} />
                 <Route path="/help" element={<AppLayout><HelpPage /></AppLayout>} />
                 <Route path="/contact" element={<AppLayout><ContactPage /></AppLayout>} />
-                <Route path="/@:username" element={<CreatorProfile />} />
+                <Route path="/profile/edit" element={<PrivateRoute><EditProfile /></PrivateRoute>} />
+                <Route path="/account/edit" element={<PrivateRoute><EditProfile /></PrivateRoute>} />
+                <Route path="/:handle" element={<RootProfileRoute />} />
                 <Route path="*" element={<NotFound />} />
               </Routes>
             </ProgressProvider>

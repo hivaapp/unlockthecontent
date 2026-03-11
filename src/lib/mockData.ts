@@ -7,7 +7,9 @@ export interface User {
     initial?: string;
     avatarColor?: string;
     bio?: string;
-    website?: string;
+    website?: string | null;
+    location?: string;
+    isVerified?: boolean;
     joinedDate?: string;
     hasSeenOnboarding?: boolean;
     isCreator?: boolean;
@@ -20,6 +22,15 @@ export interface User {
     trustScore?: number;
     isProUser?: boolean;
     followerPairingLinkCount?: number;
+    socialHandles?: Record<string, string | null>;
+    stats?: {
+        totalLinks: number;
+        totalUnlocks: number;
+        totalFollowerPairingCampaigns: number;
+        totalPairsFormed: number;
+        treesPlanted: number;
+    };
+    links?: string[];
 }
 
 export const currentUser: User = {
@@ -1029,6 +1040,177 @@ export const mockActivity = [
 
 
 export const mockCreatorProfile = { ...currentUser, links: mockLinks.filter(l => l.isActive) };
+
+export const mockCreators = [
+  {
+    id: "creator_001",
+    name: "James Productivity",
+    username: "jamesproductivity",
+    email: "james@example.com",
+    bio: "I help people build better systems for work and life. 5 years building productivity frameworks. Everything I share is tested on myself first.",
+    initial: "J",
+    avatarColor: "#E8312A",
+    location: "Bangalore, India",
+    website: "https://jamesproductivity.com",
+    joinedDate: "2024-01-15",
+    isVerified: false,
+    
+    socialHandles: {
+      instagram: "jamesproductivity",
+      youtube: "UCjamesproductivity",
+      twitter: "jamesproductivity",
+      linkedin: "james-productivity",
+      tiktok: null,
+      discord: null,
+    },
+    
+    stats: {
+      totalLinks: 6,
+      totalUnlocks: 1847,
+      totalFollowerPairingCampaigns: 2,
+      totalPairsFormed: 94,
+      treesPlanted: 22,
+    },
+    
+    // Links this creator has published
+    links: [
+      "link_sponsor_001",
+      "link_sponsor_002", 
+      "link_email_001",
+      "link_social_001",
+      "link_accountability_001",
+    ],
+  },
+  {
+    id: "creator_002",
+    name: "Freelance Forward",
+    username: "freelanceforward",
+    email: "freelance@example.com",
+    bio: "Helping freelancers land better clients and charge what they are worth. Sharing what actually worked for me after 6 years freelancing.",
+    initial: "F",
+    avatarColor: "#6366F1",
+    location: "Mumbai, India",
+    website: null,
+    joinedDate: "2024-03-08",
+    isVerified: false,
+    
+    socialHandles: {
+      instagram: "freelanceforward",
+      youtube: null,
+      twitter: "freelancefwd",
+      linkedin: "freelance-forward",
+      tiktok: null,
+      discord: "freelanceforward",
+    },
+    
+    stats: {
+      totalLinks: 4,
+      totalUnlocks: 923,
+      totalFollowerPairingCampaigns: 1,
+      totalPairsFormed: 38,
+      treesPlanted: 11,
+    },
+    
+    links: [
+      "link_email_002",
+      "link_social_002",
+      "link_accountability_002",
+    ],
+  },
+  {
+    id: "creator_003",
+    name: "BookStack Creator",
+    username: "bookstackreads",
+    email: "bookstack@example.com",
+    bio: "Reading 52 books a year since 2019. Sharing reading frameworks, book summaries, and how to actually retain what you read.",
+    initial: "B",
+    avatarColor: "#92400E",
+    location: "Chennai, India",
+    website: "https://bookstack.substack.com",
+    joinedDate: "2024-05-20",
+    isVerified: false,
+    
+    socialHandles: {
+      instagram: "bookstackreads",
+      youtube: "UCbookstackreads",
+      twitter: null,
+      linkedin: null,
+      tiktok: "bookstackreads",
+      discord: null,
+    },
+    
+    stats: {
+      totalLinks: 3,
+      totalUnlocks: 412,
+      totalFollowerPairingCampaigns: 1,
+      totalPairsFormed: 21,
+      treesPlanted: 5,
+    },
+    
+    links: [
+      "link_accountability_003",
+    ],
+  },
+];
+
+export const getCreatorByUsername = (username: string): User | null => {
+  const found = mockCreators.find(c => c.username === username);
+  if (found) return found;
+
+  const exploreRes = mockExploreResources.find(r => r.creatorHandle === username);
+  
+  let name = exploreRes?.creatorName || username;
+  if (username === 'alexcreator') name = 'Alex Creator';
+  else if (username === 'marcdev') name = 'Marc Dev';
+  else if (username === 'sarahm') name = 'Sarah M.';
+  else if (username === 'designguy') name = 'Design Guy';
+  else if (username === 'creativeco') name = 'Creative Co';
+  else if (username === 'sarahmarket') name = 'Sarah M.';
+  else if (username === 'devdave') name = 'Dev Dave';
+  else if (username === 'vidcreator') name = 'Video Creator';
+  else if (username === 'careercoach') name = 'Career Coach';
+  else if (username === 'annaart') name = 'Artist Anna';
+  else if (username === 'founderjoe') name = 'Founder Joe';
+  else if (username === 'jsninja') name = 'JS Ninja';
+
+  const generatedId = `creator_${username}`;
+
+  return {
+    id: generatedId,
+    name,
+    username,
+    email: `${username}@example.com`,
+    initial: name.charAt(0).toUpperCase(),
+    avatarColor: ['#E8312A', '#2563EB', '#166534', '#6366F1', '#B45309', '#0F172A'][username.length % 6],
+    bio: `🚀 Dynamic creator profile for ${name}. Join my community for exclusive files and resources.`,
+    location: "Global",
+    website: `https://${username}.com`,
+    joinedDate: "2024-02-01T00:00:00Z",
+    isVerified: exploreRes?.verified || ['alexcreator', 'sarahm', 'marcdev'].includes(username),
+    hasSeenOnboarding: false,
+    isCreator: true,
+    socialHandles: {
+      twitter: username,
+      instagram: username,
+    },
+    stats: {
+      totalLinks: Math.floor(Math.random() * 5) + 1,
+      totalUnlocks: Math.floor(Math.random() * 5000) + 100,
+      totalFollowerPairingCampaigns: Math.floor(Math.random() * 3),
+      totalPairsFormed: Math.floor(Math.random() * 50),
+      treesPlanted: Math.floor(Math.random() * 20),
+    },
+    links: [],
+  } as User;
+}
+
+export const getLinksByCreator = (creatorId: string) => {
+  const creator = mockCreators.find(c => c.id === creatorId);
+  const linkIds = creator ? creator.links : [];
+  // Some links may not have exact matching IDs in mockLinks, so we just fall back securely
+  // We'll also return any link that happens to have this creatorId (if we add them later)
+  return mockLinks.filter(l => ((l as any).creatorId === creatorId || linkIds.includes(l.id)) && l.isActive);
+}
 
 import type { EmailConfigData } from '../components/dashboard/EmailConfigForm';
 import type { SocialConfigData } from '../components/dashboard/SocialConfigForm';

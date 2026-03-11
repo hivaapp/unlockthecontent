@@ -80,7 +80,7 @@ export const AccountTab = () => {
                     <span className="text-[13px] font-bold text-textMid mt-0.5">{currentUser?.email}</span>
                 </div>
                 <button
-                    onClick={() => navigateTo('edit_profile')}
+                    onClick={() => navigate('/profile/edit')}
                     className="w-full h-[44px] bg-white border border-border text-text font-bold text-[14px] rounded-[10px] mt-2 hover:bg-surfaceAlt active:scale-[0.98] transition-all"
                 >
                     Edit Profile

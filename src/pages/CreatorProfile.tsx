@@ -1,133 +1,397 @@
-import { useParams, Link } from 'react-router-dom';
-import { FileIcon, Sparkles, User2, Play } from 'lucide-react';
+import { useParams, Link, useNavigate } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
+import { getCreatorByUsername, getLinksByCreator } from '../lib/mockData';
+import { useState } from 'react';
+import { Globe, ChevronLeft } from 'lucide-react';
+
+const getFileEmoji = (type: string) => {
+    const t = type?.toUpperCase();
+    switch (t) {
+        case 'ZIP': return '📦';
+        case 'PDF': return '📄';
+        case 'DOC': return '📝';
+        case 'IMAGES': return '🖼️';
+        case 'LINK': return '🔗';
+        case 'MP4': return '🎥';
+        default: return '📁';
+    }
+};
+
+const CreatorNotFound = ({ username }: { username?: string }) => {
+    const navigate = useNavigate();
+    return (
+        <div className="w-full min-h-screen bg-[#FAF9F7] flex flex-col items-center justify-center p-6 text-center animate-fadeIn">
+            <div className="text-[48px] mb-4">🔍</div>
+            <h1 className="text-[20px] font-[900] text-[#111] mb-2 leading-tight">Creator not found</h1>
+            <p className="text-[14px] text-[#888] mb-8 font-semibold">@{username} does not exist on AdGate.</p>
+            <button onClick={() => navigate('/explore')} className="px-6 h-[44px] border-[1.5px] border-[#E8312A] text-[#E8312A] font-black text-[14px] rounded-[10px] hover:bg-[#FAF0EB] transition-colors">
+                Go to Explore &rarr;
+            </button>
+        </div>
+    );
+};
 
 export const CreatorProfile = () => {
-    const { username } = useParams();
+    const { handle } = useParams();
+    const username = handle?.startsWith('@') ? handle.slice(1) : handle;
+    const navigate = useNavigate();
+    const { currentUser, isLoggedIn } = useAuth();
 
-    // Mock links data
-    const links = [
-        { id: '1', title: 'Figma Complete UI Kit 2026', type: 'FILE', views: 1205 },
-        { id: '2', title: 'Notion Life Planner Template', type: 'LINK', views: 804 },
-        { id: '3', title: '50+ Free Procreate Brushes', type: 'FILE', views: 3200, donate: true },
-        { id: '4', title: 'Design Interview Prep Guide', type: 'FILE', views: 420 },
-    ];
+    // Check if viewing own profile
+    const isOwner = isLoggedIn && currentUser?.username === username;
+    
+    // For own profile, use currentUser to get real-time edits, else mock data
+    const profileCreator = isOwner ? currentUser : getCreatorByUsername(username!);
+    
+    if (!profileCreator) {
+        return <CreatorNotFound username={username} />;
+    }
+
+    const { 
+        name, 
+        bio, 
+        avatarColor, 
+        initial,
+        website,
+        location,
+        joinedDate,
+        isVerified,
+        // @ts-ignore
+        socialHandles = {},
+        // @ts-ignore
+        stats = { totalLinks: 0, totalUnlocks: 0, totalFollowerPairingCampaigns: 0, totalPairsFormed: 0, treesPlanted: 0 }
+    } = profileCreator;
+
+    // Use getLinksByCreator. On own profile we don't fetch directly, we just do it via mockLinks anyway
+    // Wait, on own profile, `currentUser` might not have `.links` array mapped if it was just edited
+    // But getLinksByCreator expects creatorId. `currentUser`'s ID is what we pass.
+    const allLinks = getLinksByCreator(profileCreator.id);
+    
+    // Separate links by tab
+    const resources = allLinks.filter(l => l.unlockType !== 'follower_pairing');
+    const campaigns = allLinks.filter(l => l.unlockType === 'follower_pairing');
+
+    const [activeTab, setActiveTab] = useState<'resources' | 'pairing'>('resources');
+
+    // Parse date safely
+    const parseJoinedDate = (d?: string) => {
+        if (!d) return 'Member';
+        const date = new Date(d);
+        if (isNaN(date.getTime())) return 'Member';
+        return `Member since ${date.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}`;
+    };
+
+    const hasSocials = Object.values(socialHandles).some(val => !!val);
+
+    const getPlatformIconColor = (p: string) => {
+        switch (p) {
+            case 'instagram': return '#E1306C';
+            case 'youtube': return '#FF0000';
+            case 'twitter': return '#000000';
+            case 'linkedin': return '#0A66C2';
+            case 'tiktok': return '#000000';
+            case 'discord': return '#5865F2';
+            default: return '#555';
+        }
+    };
+
+    const getSocialUrl = (platform: string, handle: string | null) => {
+        if (!handle) return null;
+        const clean = handle.replace('@', '').trim();
+        const urls: Record<string, string> = {
+            instagram: `https://instagram.com/${clean}`,
+            youtube: `https://youtube.com/@${clean}`,
+            twitter: `https://twitter.com/${clean}`,
+            linkedin: `https://linkedin.com/in/${clean}`,
+            tiktok: `https://tiktok.com/@${clean}`,
+            discord: `https://discord.gg/${clean}`,
+        };
+        return urls[platform] || null;
+    };
+
+    const platformIcons: Record<string, React.ReactNode> = {
+        instagram: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><rect x="2" y="2" width="20" height="20" rx="5" ry="5"></rect><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"></path><line x1="17.5" y1="6.5" x2="17.51" y2="6.5"></line></svg>,
+        youtube: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><path d="M22.54 6.42a2.78 2.78 0 0 0-1.94-2C18.88 4 12 4 12 4s-6.88 0-8.6.46a2.78 2.78 0 0 0-1.94 2A29 29 0 0 0 1 11.75a29 29 0 0 0 .46 5.33 2.78 2.78 0 0 0 1.94 2c1.72.46 8.6.46 8.6.46s6.88 0 8.6-.46a2.78 2.78 0 0 0 1.94-2 29 29 0 0 0 .46-5.33 29 29 0 0 0-.46-5.33z"></path><polygon points="9.75 15.02 15.5 11.75 9.75 8.48 9.75 15.02"></polygon></svg>,
+        twitter: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><path d="M22 4s-.7 2.1-2 3.4c1.6 10-9.4 17.3-18 11.6 2.2.1 4.4-.6 6-2C3 15.5.5 9.6 3 5c2.2 2.6 5.6 4.1 9 4-.9-4.2 4-6.6 7-3.8 1.1 0 3-1.2 3-1.2z"></path></svg>,
+        linkedin: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><path d="M16 8a6 6 0 0 1 6 6v7h-4v-7a2 2 0 0 0-2-2 2 2 0 0 0-2 2v7h-4v-7a6 6 0 0 1 6-6z"></path><rect x="2" y="9" width="4" height="12"></rect><circle cx="4" cy="4" r="2"></circle></svg>,
+        tiktok: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><path d="M9 12a4 4 0 1 0 4 4V4a5 5 0 0 0 5 5"></path></svg>,
+        discord: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><path d="M15 11h.01M9 11h.01M6.2 16.5A13 13 0 0 1 3 13V8.5C3 6 5.4 4 8 4h8c2.6 0 5 2 5 4.5V13c0 1.2-.5 2.5-1.2 3.5M12 21c-3.1 0-6-1.5-8-4a11.8 11.8 0 0 1-1-4M19 19l-2-2"></path></svg>,
+    };
 
     return (
-        <div className="w-full min-h-screen bg-bg flex justify-center pb-12 animate-fade-in relative overflow-hidden">
-            {/* Top decorative gradient */}
-            <div className="absolute top-0 left-0 w-full h-[240px] bg-gradient-to-b from-brand/10 to-transparent pointer-events-none" />
+        <div className="w-full min-h-screen bg-[#FAF9F7] animate-fadeIn pb-20">
+            {/* Desktop Wrapper */}
+            <div className="creator-profile-layout lg:flex lg:max-w-[1140px] lg:mx-auto lg:px-[48px] lg:gap-0 lg:pt-8 w-full max-w-[800px] mx-auto relative">
+                
+                {/* Fixed Top Nav (Standard Navbar space) - only visible on mobile really */}
+                <div className="h-[64px] lg:hidden flex items-center px-[24px]">
+                    <button onClick={() => navigate(-1)} className="w-[40px] h-[40px] flex items-center justify-center bg-white border border-[#E8E8E8] rounded-full hover:bg-surfaceAlt transition-colors -ml-[8px]">
+                        <ChevronLeft size={20} className="text-[#111]" />
+                    </button>
+                </div>
 
-            <div className="w-full max-w-[600px] px-5 pt-16 sm:pt-24 relative z-10">
+                {/* Left Sidebar (Desktop) / Hero Section (Mobile) */}
+                <div className="creator-profile-sidebar lg:flex-none lg:w-[260px] lg:sticky lg:top-[80px] lg:self-start lg:pr-[40px] lg:border-r lg:border-[#F0F0F0] w-full bg-white lg:bg-transparent pt-0 pb-0 relative">
+                    
+                    <button onClick={() => navigate(-1)} className="hidden lg:flex w-[36px] h-[36px] items-center justify-center bg-white border border-[#E8E8E8] rounded-full hover:bg-surfaceAlt transition-colors absolute -top-[48px] -left-[18px]">
+                        <ChevronLeft size={18} className="text-[#111]" />
+                    </button>
+                    
+                    {/* Own Profile Banner */}
+                    {isOwner && (
+                        <div className="w-full h-[40px] bg-[#FFF0EF] border-b border-[#FECACA] flex items-center justify-between px-4 lg:rounded-[8px] lg:mb-4 lg:border">
+                            <span className="text-[13px] font-bold text-[#E8312A]">✏️ This is your profile.</span>
+                            <button onClick={() => navigate('/profile/edit')} className="text-[13px] font-bold text-[#E8312A] underline hover:no-underline">Edit Profile &rarr;</button>
+                        </div>
+                    )}
 
-                {/* Profile Header */}
-                <div className="flex flex-col items-center text-center mb-10">
-                    <div className="w-[100px] h-[100px] rounded-[32px] bg-gradient-to-br from-brand to-brandHover flex items-center justify-center text-white font-black text-4xl shadow-[0_8px_32px_rgba(217,119,87,0.4)] mb-5 rotate-3">
-                        <span className="-rotate-3">{username?.[0]?.toUpperCase() || 'C'}</span>
-                    </div>
-
-                    <div className="flex flex-col items-center gap-2 mb-4">
-                        <h1 className="text-[28px] font-black tracking-tight text-text leading-tight flex items-center gap-2">
-                            @{username || 'creator'}
-                            <div className="bg-brand/10 text-brand p-1 rounded-full shrink-0">
-                                <Sparkles size={16} strokeWidth={3} />
+                    <div className="px-[24px] lg:px-0 pt-[32px] lg:pt-0">
+                        <div className="flex flex-row lg:flex-col items-end lg:items-start gap-4">
+                            {/* Avatar */}
+                            <div className="relative shrink-0">
+                                <div className="w-[80px] h-[80px] lg:w-[96px] lg:h-[96px] rounded-full flex items-center justify-center text-white font-[900] text-[28px] lg:text-[36px]" style={{ backgroundColor: avatarColor || '#E8312A' }}>
+                                    {initial || name?.[0]?.toUpperCase() || 'C'}
+                                </div>
+                                {isVerified && (
+                                    <div className="absolute bottom-0 right-0 w-[22px] h-[22px] bg-blue-500 text-white rounded-full border-[2px] border-white flex items-center justify-center shadow-sm">
+                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" className="w-3 h-3"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                                    </div>
+                                )}
                             </div>
-                        </h1>
-                        <div className="flex items-center gap-1.5 px-3 py-1 bg-[#EBF5EE] border border-[#BBF7D0] rounded-full">
-                            <span className="text-[14px]">🌳</span>
-                            <span className="text-[11px] font-[800] text-[#166534] uppercase tracking-wide">Planting Trees</span>
-                        </div>
-                    </div>
 
-                    <p className="text-[16px] font-[800] text-textMid max-w-[360px] leading-relaxed">
-                        Digital designer sharing free resources, templates, and assets. Support my work by unlocking links.
-                    </p>
+                            {/* Info */}
+                            <div className="flex flex-col flex-1 pb-1">
+                                <div className="flex items-start justify-between">
+                                    <h1 className="text-[22px] font-[900] text-[#111] leading-tight flex-1">{name}</h1>
+                                    {isOwner && (
+                                        <button onClick={() => navigate('/profile/edit')} className="hidden lg:flex px-[12px] h-[36px] items-center justify-center border border-[#DDDDDD] rounded-[10px] text-[13px] font-bold text-[#555] hover:bg-[#F9F9F9] transition-colors ml-2 shrink-0">
+                                            Edit Profile
+                                        </button>
+                                    )}
+                                </div>
+                                <span className="text-[14px] font-[600] text-[#AAAAAA] mt-0.5">@{username}</span>
+                                <div className="flex flex-col gap-0.5 mt-1.5">
+                                    {location && <span className="text-[12px] font-[600] text-[#AAAAAA]">📍 {location}</span>}
+                                    <span className="text-[11px] font-[600] text-[#BBBBBB]">{parseJoinedDate(joinedDate)}</span>
+                                </div>
+                            </div>
 
-                    <div className="mt-4 flex gap-4 overflow-x-auto w-full max-w-full pb-2 hide-scrollbar justify-center sm:justify-center">
-                        <div className="flex items-center gap-1.5 text-textMid font-bold text-[13px] shrink-0">
-                            <FileIcon size={16} strokeWidth={2.5} />
-                            {links.length} Resources
+                            {/* Mobile Edit Button (only visible if owner & >= 1024px it's above) */}
+                            {isOwner && (
+                                <button onClick={() => navigate('/profile/edit')} className="lg:hidden h-[36px] px-[12px] border border-[#DDDDDD] rounded-[10px] text-[13px] font-bold text-[#555] flex items-center shrink-0 mb-1 ml-auto self-start mt-[-2px]">
+                                    Edit
+                                </button>
+                            )}
                         </div>
-                        <div className="w-[1px] h-4 bg-border my-auto shrink-0" />
-                        <div className="flex items-center gap-1.5 text-textMid font-bold text-[13px] shrink-0">
-                            <User2 size={16} strokeWidth={2.5} />
-                            5.6K Unlocks
+
+                        {/* Bio */}
+                        {bio ? (
+                            <p className="text-[14px] font-[600] text-[#555] leading-[1.75] max-w-[560px] mt-4 lg:mb-4 lg:w-full">
+                                {bio}
+                            </p>
+                        ) : isOwner ? (
+                            <div onClick={() => navigate('/profile/edit')} className="w-full border-[1.5px] border-dashed border-[#E8E8E8] rounded-[10px] p-[12px_16px] mt-4 cursor-pointer hover:bg-surfaceAlt">
+                                <span className="text-[13px] text-[#AAAAAA] font-bold">Add a bio so followers know what you create. &rarr;</span>
+                            </div>
+                        ) : null}
+
+                        {/* Website */}
+                        {website && (
+                            <a href={website} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 mt-2 lg:-mt-1 hover:opacity-80 transition-opacity w-fit">
+                                <Globe size={14} className="text-[#AAAAAA]" />
+                                <span className="text-[13px] font-bold text-[#E8312A] truncate max-w-[200px]">{website.replace(/^https?:\/\//,'')}</span>
+                            </a>
+                        )}
+
+                        {/* Social Handles */}
+                        <div className="flex flex-row lg:flex-col flex-wrap gap-[10px] mt-[16px]">
+                            {['instagram', 'youtube', 'twitter', 'linkedin', 'tiktok', 'discord'].map(p => {
+                                const h = (socialHandles as Record<string, string>)[p];
+                                if (!h) return null;
+                                return (
+                                    <a key={p} href={getSocialUrl(p, h) || '#'} target="_blank" rel="noopener noreferrer" className="h-[34px] bg-white border-[1.5px] border-[#E8E8E8] rounded-[20px] px-[14px] flex items-center gap-[8px] hover:border-brand/30 transition-colors w-max lg:w-full lg:rounded-[10px]">
+                                        <span style={{ color: getPlatformIconColor(p) }}>{platformIcons[p]}</span>
+                                        <span className="text-[12px] font-bold text-[#333] truncate">@{h.replace('@','')}</span>
+                                    </a>
+                                );
+                            })}
+                            {!hasSocials && isOwner && (
+                                <button onClick={() => navigate('/profile/edit')} className="h-[34px] border-[1.5px] border-dashed border-[#E8E8E8] rounded-[20px] px-[14px] flex items-center text-[12px] font-bold text-[#AAAAAA] hover:bg-surfaceAlt">
+                                    Add social links &rarr;
+                                </button>
+                            )}
                         </div>
-                        <div className="w-[1px] h-4 bg-border my-auto shrink-0" />
-                        <div className="flex items-center gap-1.5 text-[#166534] font-bold text-[13px] shrink-0">
-                            <span className="text-[16px]">🌳</span>
-                            240 Trees Planted
+
+                        {/* Stats Strip */}
+                        <div className="flex flex-row lg:flex-col lg:items-start lg:gap-4 justify-between border-t border-[#F4F4F4] border-b lg:border-none lg:pt-6 lg:mt-6 mt-5 py-4 lg:py-0 w-full">
+                            
+                            {[
+                                { label: 'Links', value: stats.totalLinks },
+                                { label: 'Unlocks', value: stats.totalUnlocks },
+                                { label: 'Pairs', value: stats.totalPairsFormed },
+                                { label: 'Campaigns', value: stats.totalFollowerPairingCampaigns },
+                            ].map((s, i) => (
+                                <div key={s.label} className="flex relative items-center justify-center lg:justify-start w-full">
+                                    <div className="flex flex-col lg:flex-row lg:items-center lg:gap-3 items-center w-full lg:w-max">
+                                        <span className="text-[18px] font-[900] text-[#111] leading-none mb-1 lg:mb-0 lg:w-[40px]">{s.value}</span>
+                                        <span className="text-[11px] lg:text-[13px] font-[600] text-[#AAAAAA] uppercase tracking-wide">{s.label}</span>
+                                    </div>
+                                    {i < 3 && <div className="absolute right-0 top-1 bottom-1 w-[1px] bg-[#F0F0F0] lg:hidden" />}
+                                </div>
+                            ))}
+
+                            <div className="flex relative items-center justify-center lg:justify-start w-full pt-0">
+                                <div className="flex flex-col lg:flex-row lg:items-center lg:gap-3 items-center w-full lg:w-max">
+                                    <span className={`text-[18px] font-[900] leading-none mb-1 lg:mb-0 lg:w-[40px] ${stats.treesPlanted > 0 ? 'text-[#166534]' : 'text-[#111]'}`}>{stats.treesPlanted}</span>
+                                    <span className="text-[11px] lg:text-[13px] font-[600] text-[#AAAAAA] uppercase tracking-wide flex items-center gap-1">🌱 Trees</span>
+                                </div>
+                            </div>
                         </div>
+
                     </div>
                 </div>
 
-                {/* Main Link Group */}
-                <div className="flex flex-col gap-3 mt-10">
-                    <h2 className="text-[13px] font-extrabold text-textMid uppercase tracking-widest px-2 mb-2 flex items-center gap-2">
-                        <span className="w-2 h-2 rounded-full bg-brand/50" />
-                        Available Resources
-                    </h2>
-
-                    {links.map(link => (
-                        <Link
-                            to={`/r/mock-slug-${link.id}`}
-                            key={link.id}
-                            className="w-full bg-white border border-border rounded-[20px] p-4 flex items-center justify-between hover:border-brand/30 hover:shadow-[0_4px_24px_rgba(217,119,87,0.08)] transition-all group relative overflow-hidden active:scale-[0.98]"
+                {/* Right Column / Main Tab Section */}
+                <div className="creator-profile-main lg:flex-1 lg:pl-[40px] w-full">
+                    {/* Tab Bar */}
+                    <div className="creator-profile-tabs sticky top-[64px] lg:top-0 bg-white border-b-[2px] border-[#F0F0F0] h-[48px] z-30 flex mb-5 lg:mb-6">
+                        <button 
+                            onClick={() => setActiveTab('resources')} 
+                            className={`flex-1 h-full flex items-center justify-center text-[14px] font-[800] relative transition-colors ${activeTab === 'resources' ? 'text-[#111]' : 'text-[#AAAAAA] hover:text-[#555]'}`}
                         >
-                            <div className="absolute top-0 right-0 w-24 h-24 bg-brandTint rounded-full -translate-y-1/2 translate-x-1/2 blur-2xl opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />
+                            Resources
+                            {activeTab === 'resources' && <div className="absolute bottom-[-2px] left-[20%] right-[20%] h-[2px] bg-[#E8312A] transition-all" />}
+                        </button>
 
-                            <div className="flex items-center gap-4 overflow-hidden relative z-10 w-full pr-4">
-                                <div className="w-12 h-12 bg-surfaceAlt border border-border/50 rounded-[14px] flex items-center justify-center shrink-0 group-hover:bg-brandTint group-hover:border-brand/20 transition-colors">
-                                    <FileIcon size={24} strokeWidth={2.5} className="text-textMid group-hover:text-brand transition-colors" />
+                        <button 
+                            onClick={() => setActiveTab('pairing')} 
+                            className={`flex-1 h-full flex items-center justify-center text-[14px] font-[800] relative transition-colors ${activeTab === 'pairing' ? 'text-[#111]' : 'text-[#AAAAAA] hover:text-[#555]'}`}
+                        >
+                            Pairing Campaigns
+                            {campaigns.length > 0 && (
+                                <div className="ml-2 bg-[#B45309] text-white w-[16px] h-[16px] rounded-full flex items-center justify-center text-[10px] font-black pointer-events-none">
+                                    {campaigns.length}
                                 </div>
+                            )}
+                            {activeTab === 'pairing' && <div className="absolute bottom-[-2px] left-[20%] right-[20%] h-[2px] bg-[#E8312A] transition-all" />}
+                        </button>
+                    </div>
 
-                                <div className="flex flex-col items-start truncate text-left w-full pr-2">
-                                    <span className="text-[16px] font-black tracking-tight text-text truncate w-full mb-1 group-hover:text-brand transition-colors">
-                                        {link.title}
-                                    </span>
-
-                                    <div className="flex items-center gap-2 overflow-hidden w-full mt-1">
-                                        <span className="text-[12px] font-extrabold bg-surfaceAlt text-textLight px-1.5 py-0.5 rounded-[14px] tracking-wide">
-                                            {link.type}
-                                        </span>
-                                        {link.donate && (
-                                            <div className="flex items-center gap-1 text-[11px] font-[800] text-[#166534] bg-[#EBF5EE] px-1.5 py-0.5 rounded-[14px] ml-auto sm:ml-2 shrink-0">
-                                                🌳 5% to trees
-                                            </div>
+                    {/* Content */}
+                    <div className="px-[16px] lg:px-0">
+                        {activeTab === 'resources' && (
+                            <div className="w-full flex flex-col gap-[12px] lg:grid lg:grid-cols-2 lg:gap-[16px]">
+                                {resources.length === 0 ? (
+                                    <div className="py-12 flex flex-col items-center col-span-2 text-center">
+                                        <div className="text-[40px] mb-4">📦</div>
+                                        <h3 className="text-[18px] font-[900] text-[#111] mb-1">No resources yet.</h3>
+                                        {isOwner ? (
+                                            <button onClick={() => navigate('/dashboard')} className="mt-4 px-6 h-[40px] bg-[#E8312A] text-white font-black text-[13px] rounded-[10px]">Create your first link &rarr;</button>
+                                        ) : (
+                                            <p className="text-[13px] text-[#888] font-semibold mt-1">Check back later.</p>
                                         )}
                                     </div>
-                                </div>
-                            </div>
+                                ) : (
+                                    resources.map(r => {
+                                        const ut = r.unlockType || 'custom_sponsor';
+                                        let bgClass = '';
+                                        let badgeColor = '';
+                                        let typeColor = '';
+                                        let utText = '';
 
-                            <div className="shrink-0 h-[40px] px-5 bg-text hover:bg-black text-white rounded-full font-black text-[13px] flex items-center justify-center relative z-10 transition-colors shadow-sm gap-1.5">
-                                <Play size={14} fill="currentColor" />
-                                Unlock
-                            </div>
-                        </Link>
-                    ))}
-                </div>
+                                        if (ut === 'custom_sponsor') {
+                                            bgClass = 'bg-gradient-to-br from-[#EDE9FE] to-[#C4B5FD]'; typeColor = '#4C1D95'; badgeColor = 'bg-white/90 text-[#4C1D95] border-[#4C1D95]/20 font-[700]'; utText = 'Subscribe to Unlock';
+                                        } else if (ut === 'email_subscribe') {
+                                            bgClass = 'bg-[#F0FDF4]'; typeColor = '#166534'; badgeColor = 'bg-white/90 text-[#166534] border-[#166534]/20 font-[700]'; utText = 'Subscribe to Unlock';
+                                        } else if (ut === 'social_follow') {
+                                            bgClass = 'bg-[#EFF6FF]'; typeColor = '#2563EB'; badgeColor = 'bg-white/90 text-[#2563EB] border-[#2563EB]/20 font-[700]'; utText = 'Follow to Unlock';
+                                        } else if (ut === 'premium_media') {
+                                            bgClass = 'bg-[#111]'; typeColor = 'white'; badgeColor = 'bg-white/20 text-white border-white/20 backdrop-blur-sm font-[700]'; utText = 'Watch to Unlock';
+                                        } else {
+                                            bgClass = 'bg-[#FFFBEB]'; typeColor = '#92400E'; badgeColor = 'bg-white/90 text-[#92400E] border-[#92400E]/20 font-[700]'; utText = 'Unlock to View';
+                                        }
 
-                {/* Empty State Mock */}
-                {links.length === 0 && (
-                    <div className="w-full py-16 flex flex-col items-center justify-center text-center mt-4">
-                        <div className="w-16 h-16 bg-surfaceAlt rounded-full flex items-center justify-center text-textLight mb-4">
-                            <FileIcon size={24} strokeWidth={2} />
-                        </div>
-                        <h3 className="text-[18px] font-black text-text mb-2">No active links</h3>
-                        <p className="text-[14px] font-bold text-textMid px-8">This creator hasn't published any resources yet.</p>
+                                        return (
+                                            <Link key={r.id} to={`/r/${r.slug}`} className="w-full bg-white border border-[#F0F0F0] rounded-[14px] overflow-hidden group hover:border-[#DDDDDD] transition-colors block">
+                                                <div className={`h-[90px] w-full ${bgClass} relative flex flex-col justify-end p-[12px_14px]`}>
+                                                    <div className="absolute inset-0 flex items-center justify-center opacity-30 text-[48px] overflow-hidden pointer-events-none group-hover:scale-110 transition-transform duration-700">{getFileEmoji(r.fileType || 'file')}</div>
+                                                    <div className="relative z-10 flex items-center gap-2">
+                                                        <span className="text-[20px] leading-none text-white drop-shadow-sm">{getFileEmoji(r.fileType || 'file')}</span>
+                                                        <span className="text-[10px] font-[800] text-white drop-shadow-sm uppercase tracking-wide">{r.fileType || 'Resource'}</span>
+                                                    </div>
+                                                    <div className={`absolute top-[12px] right-[12px] px-2 py-0.5 border rounded-[6px] text-[10px] shadow-sm z-10 leading-relaxed uppercase tracking-widest ${badgeColor}`}>
+                                                        {ut === 'custom_sponsor' ? '✨ Sponsored' : ut === 'email_subscribe' ? '🆓 Email' : ut === 'social_follow' ? '🆓 Social' : '🆓 Free'}
+                                                    </div>
+                                                </div>
+                                                <div className="p-[14px] flex flex-col">
+                                                    <h3 className="text-[14px] font-[900] text-[#111] leading-[1.3] max-h-[36px] overflow-hidden line-clamp-2">{r.title}</h3>
+                                                    <span className="text-[11px] font-[700] text-[#AAAAAA] mt-[8px]">👁 {r.viewCount || 0} views • 🔓 {r.unlockCount || 0} unlocks</span>
+                                                    
+                                                    <button className="w-full h-[38px] mt-[12px] rounded-[8px] text-[13px] font-[800] text-white transition-colors" style={{ backgroundColor: typeColor }}>
+                                                        {utText}
+                                                    </button>
+                                                </div>
+                                            </Link>
+                                        );
+                                    })
+                                )}
+                            </div>
+                        )}
+
+                        {activeTab === 'pairing' && (
+                            <div className="w-full flex flex-col gap-[12px] lg:grid lg:grid-cols-2 lg:gap-[16px]">
+                                {campaigns.length === 0 ? (
+                                    <div className="py-12 flex flex-col items-center col-span-2 text-center">
+                                        <div className="text-[40px] mb-4">🤝</div>
+                                        <h3 className="text-[18px] font-[900] text-[#111] mb-1">No pairing campaigns yet.</h3>
+                                        {isOwner && (
+                                            <button onClick={() => navigate('/dashboard')} className="mt-4 px-6 h-[40px] bg-[#B45309] text-white font-black text-[13px] rounded-[10px]">Create a Follower Pairing link &rarr;</button>
+                                        )}
+                                    </div>
+                                ) : (
+                                    campaigns.map(c => {
+                                        const config = c.followerPairingConfig;
+                                        if (!config) return null;
+                                        const isOpen = config.isAcceptingParticipants;
+                                        return (
+                                            <div key={c.id} className="w-full bg-white border-[1.5px] border-[#FDE68A] rounded-[14px] p-[20px] flex flex-col">
+                                                <div className="flex items-start justify-between mb-3">
+                                                    <div className="flex items-center gap-3 w-max">
+                                                        <div className="w-[36px] h-[36px] bg-[#FFFBEB] rounded-[8px] flex items-center justify-center text-[24px] shrink-0">🤝</div>
+                                                        <h3 className="text-[15px] font-[900] text-[#111] leading-tight flex-1 line-clamp-2">{config.topic}</h3>
+                                                    </div>
+                                                    {isOpen ? (
+                                                        <div className="h-[22px] px-2 bg-[#EDFAF3] border border-[#BBF7D0] text-[#166534] text-[11px] font-[700] rounded-full flex items-center shrink-0 ml-2">Open</div>
+                                                    ) : (
+                                                        <div className="h-[22px] px-2 bg-[#F6F6F6] border border-[#EEEEEE] text-[#AAAAAA] text-[11px] font-[700] rounded-full flex items-center shrink-0 ml-2">Closed</div>
+                                                    )}
+                                                </div>
+
+                                                <p className="text-[13px] font-[600] text-[#555] leading-[1.65] line-clamp-3 mb-3">{config.description}</p>
+                                                
+                                                <div className="flex items-center gap-3 text-[11px] font-[700] text-[#B45309] mb-[16px]">
+                                                    <span className="flex items-center gap-1">⏱️ {config.durationDays} days</span>
+                                                    <span className="flex items-center gap-1">👥 {config.activePairs || 0} pairs</span>
+                                                    <span className="flex items-center gap-1">✅ {config.completedPairs || 0} completed</span>
+                                                </div>
+
+                                                {isOpen ? (
+                                                    <button onClick={() => navigate(`/r/${c.slug}`)} className="w-full h-[44px] bg-[#B45309] text-white font-[900] text-[14px] rounded-[10px] hover:bg-[#92400E] transition-colors mt-auto">
+                                                        Join This Challenge &rarr;
+                                                    </button>
+                                                ) : (
+                                                    <button disabled className="w-full h-[44px] bg-[#F6F6F6] text-[#AAAAAA] font-[700] text-[14px] rounded-[10px] cursor-not-allowed mt-auto">
+                                                        Challenge Closed
+                                                    </button>
+                                                )}
+                                            </div>
+                                        );
+                                    })
+                                )}
+                            </div>
+                        )}
                     </div>
-                )}
-
-                {/* Footer Brand Credit */}
-                <div className="mt-16 pb-8 flex justify-center">
-                    <a href="/" className="group flex items-center gap-2 text-[12px] font-extrabold text-textMid/60 uppercase tracking-widest hover:text-textMid transition-colors">
-                        Powered by
-                        <span className="text-text tracking-tight font-black group-hover:text-brand transition-colors flex items-center gap-1">
-                            <div className="w-4 h-4 rounded-[4px] bg-brand text-white flex items-center justify-center text-[6px] shadow-sm">AG</div>
-                            AdGate
-                        </span>
-                    </a>
                 </div>
-
             </div>
         </div>
     );

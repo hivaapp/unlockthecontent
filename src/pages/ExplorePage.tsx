@@ -200,7 +200,16 @@ export const ExplorePage = () => {
                                     </div>
                                     <div className="p-3 sm:p-4 flex flex-col flex-1">
                                         <h3 className="font-extrabold text-[13px] sm:text-[14px] leading-tight mb-1 line-clamp-2 min-h-[40px]">{r.title}</h3>
-                                        <span className="text-[11px] font-bold text-textMid mb-3 truncate">by @{r.creatorHandle}</span>
+                                        <button 
+                                            onClick={(e) => {
+                                                e.preventDefault();
+                                                e.stopPropagation();
+                                                window.location.href = `/@${r.creatorHandle}`;
+                                            }}
+                                            className="text-[11px] font-bold text-textMid mb-3 truncate hover:text-brand text-left z-20 relative w-fit"
+                                        >
+                                            by @{r.creatorHandle}
+                                        </button>
 
                                         <div className="flex items-center gap-1.5 mb-3 flex-wrap">
                                             <span className="text-[10px] sm:text-[11px] font-bold px-1.5 py-0.5 bg-surfaceAlt rounded-[14px] uppercase tracking-wide">{r.fileType}</span>
@@ -244,7 +253,16 @@ export const ExplorePage = () => {
                                                 <span className="text-[10px] bg-[#F0FDF4] text-[#166534] border border-[#BBF7D0] font-black px-1.5 py-0.5 rounded-[14px]">🆓 Free</span>
                                             )}
                                         </div>
-                                        <span className="text-[12px] font-bold text-textMid truncate mt-0.5">by @{r.creatorHandle}</span>
+                                        <button 
+                                            onClick={(e) => {
+                                                e.preventDefault();
+                                                e.stopPropagation();
+                                                window.location.href = `/@${r.creatorHandle}`;
+                                            }}
+                                            className="text-[12px] font-bold text-textMid truncate mt-0.5 hover:text-brand text-left z-20 relative w-fit"
+                                        >
+                                            by @{r.creatorHandle}
+                                        </button>
                                     </div>
                                     <div className="flex flex-col items-end shrink-0 mr-3">
                                         {(!r.unlockType || r.unlockType === 'custom_sponsor') ? (
@@ -323,7 +341,11 @@ export const ExplorePage = () => {
                         {[1, 2, 3, 4, 5].map(i => {
                             const handle = ['alexcreator', 'marcdev', 'sarahm', 'designguy', 'creativeco'][i - 1];
                             return (
-                            <div key={i} className="w-[140px] shrink-0 bg-surfaceAlt border border-border rounded-[16px] p-4 flex flex-col items-center text-center snap-start snap-always">
+                            <div 
+                                key={i} 
+                                onClick={() => window.location.href = `/@${handle}`}
+                                className="w-[140px] shrink-0 bg-surfaceAlt border border-border rounded-[16px] p-4 flex flex-col items-center text-center snap-start snap-always cursor-pointer hover:border-brand/30 transition-colors"
+                            >
                                 <div className="w-12 h-12 rounded-full text-white flex items-center justify-center font-black text-[20px] mb-2" style={{ backgroundColor: getAvatarColor(handle) }}>{['A', 'M', 'S', 'D', 'C'][i - 1]}</div>
                                 <span className="text-[13px] font-black leading-tight mb-0.5 line-clamp-1">{i === 1 || i === 3 ? '✨ ' : ''}{['Alex Creator', 'Marc Dev', 'Sarah M.', 'Design Guy', 'Creative Co'][i - 1]}</span>
                                 <span className="text-[11px] font-bold text-textMid mb-2 truncate max-w-full">@{['alexcreator', 'marcdev', 'sarahm', 'designguy', 'creativeco'][i - 1]}</span>
@@ -332,7 +354,7 @@ export const ExplorePage = () => {
                                 ) : (
                                     <span className="text-[12px] font-black text-success bg-success/10 px-2 py-0.5 rounded-[14px] mb-3">{[1204, 950, 840, 710, 650][i - 1]} unlocks</span>
                                 )}
-                                <Link to={`/@${handle}`} className="mt-auto text-[12px] font-bold text-brand hover:underline">View Profile</Link>
+                                <span className="mt-auto text-[12px] font-bold text-brand hover:underline">View Profile</span>
                             </div>
                         )})}
                     </div>

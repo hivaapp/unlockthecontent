@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { Link as LinkIcon, Lock, Check, Loader2, Star, X } from 'lucide-react';
+import { Link as LinkIcon, Lock, Check, Loader2, Star, Settings, X } from 'lucide-react';
 
 import { SignInModal } from '../components/SignInModal';
 import { CustomSponsorForm, type CustomAdData } from '../components/CustomSponsorForm';
@@ -87,7 +87,7 @@ export const Landing = () => {
         setHasConfiguredAdSetup(true);
         setHasPulsed(false);
         setIsConfigExpanded(false);
-        
+
         setTimeout(() => {
             generationAreaRef.current?.scrollIntoView({ 
                 behavior: "smooth", 
@@ -172,7 +172,7 @@ export const Landing = () => {
             </div>
 
             {/* Generator Component */}
-            <div ref={generationAreaRef} className="w-full max-w-[600px] px-4 mb-24 relative z-10" id="generator">
+            <div className="w-full max-w-[600px] px-4 mb-24 relative z-10" id="generator">
                 {/* Desktop Step Layout */}
                 <div className="hidden sm:flex bg-white rounded-[24px] border border-border shadow-md p-4 sm:p-6 flex-col gap-6">
                     {/* Step 1 */}
@@ -320,7 +320,7 @@ export const Landing = () => {
                 </div>
 
                 {/* Mobile Compact Layout */}
-                <div className="sm:hidden flex flex-col w-full">
+                <div ref={generationAreaRef} className="sm:hidden flex flex-col w-full">
                     {/* Mobile Create Section */}
                     {unlockType === 'follower_pairing' ? (
                         <div className="w-full bg-[#FFFBEB] rounded-[10px] p-[12px] border border-[#FDE68A] h-auto flex flex-col justify-center animate-in slide-in-from-top-2 fade-in duration-200">
@@ -334,24 +334,14 @@ export const Landing = () => {
                     <div className="flex flex-col gap-2 mt-4 mb-2">
                         <div className="w-full flex items-center p-1 border-[1.5px] border-[#E8E8E8] rounded-[12px] h-[52px] bg-white mx-auto shadow-sm">
                             <button
-                                onClick={() => { 
-                                    if (unlockType === 'follower_pairing') {
-                                        setUnlockType('custom_sponsor');
-                                        setIsConfigExpanded(true);
-                                    }
-                                }}
+                                onClick={() => { if (unlockType === 'follower_pairing') setUnlockType('custom_sponsor'); }}
                                 className={`flex-1 flex items-center justify-center gap-[8px] h-[44px] rounded-[10px] transition-all duration-200 ${unlockType !== 'follower_pairing' ? 'bg-[#111] text-white shadow-[0_1px_4px_rgba(0,0,0,0.15)]' : 'bg-transparent text-[#666]'}`}
                             >
                                 <span className="text-[16px]">🔒</span>
                                 <span className="text-[14px] font-[800]">Lock</span>
                             </button>
                             <button
-                                onClick={() => {
-                                    if (unlockType !== 'follower_pairing') {
-                                        setUnlockType('follower_pairing');
-                                        setIsConfigExpanded(true);
-                                    }
-                                }}
+                                onClick={() => setUnlockType('follower_pairing')}
                                 className={`flex-1 flex items-center justify-center gap-[8px] h-[44px] rounded-[10px] transition-all duration-200 ${unlockType === 'follower_pairing' ? 'bg-[#111] text-white shadow-[0_1px_4px_rgba(0,0,0,0.15)]' : 'bg-transparent text-[#666]'}`}
                             >
                                 <span className="text-[16px]">🤝</span>
@@ -360,29 +350,50 @@ export const Landing = () => {
                         </div>
                     </div>
 
-                    {/* Standalone Selector (Lock Mode) */}
-                    {unlockType !== 'follower_pairing' && !isConfigExpanded && (
-                        <div className="mt-[16px] flex flex-col gap-2">
-                            <label className="text-[12px] font-[800] text-textMid uppercase tracking-wider">Unlock Type</label>
-                            <UnlockTypeSelector 
-                                value={unlockType} 
-                                onChange={(type) => {
-                                    setUnlockType(type);
-                                    setIsConfigExpanded(true);
-                                }} 
-                            />
-                        </div>
-                    )}
+                    {/* The Settings Summary Bar */}
+                    <div className="w-full h-[52px] bg-white rounded-[14px] mt-[8px] flex overflow-hidden shadow-[0_1px_3px_rgba(0,0,0,0.06)] border border-[#E6E2D9]">
+                        {/* Ad Setup Item */}
+                        <button onClick={() => setIsConfigExpanded(!isConfigExpanded)} className={`flex-1 flex flex-col justify-center items-center relative ${hasPulsed ? 'bg-[#FFF0EF] transition-colors duration-300' : 'bg-white'}`}>
+                            <div className="flex items-center gap-1">
+                                {hasConfiguredAdSetup ? (
+                                    <>
+                                        {unlockType === 'custom_sponsor' && <Star size={10} className="text-[#6366F1]" />}
+                                        {unlockType === 'email_subscribe' && <span className="text-[10px]">📧</span>}
+                                        {unlockType === 'social_follow' && <span className="text-[10px]">👥</span>}
+                                        {unlockType === 'follower_pairing' && <span className="text-[10px]">🤝</span>}
+                                    </>
+                                ) : (
+                                    <Settings size={10} className="text-[#AAA49C]" />
+                                )}
+                                <span className="text-[11px] text-textMid">{unlockType === 'follower_pairing' ? 'Pairing Details' : 'Unlock Type'}</span>
+                                {hasConfiguredAdSetup && <div className={`absolute top-2 right-2 w-1.5 h-1.5 rounded-full ${unlockType === 'custom_sponsor' ? 'bg-[#6366F1]' : unlockType === 'email_subscribe' ? 'bg-[#166534]' : unlockType === 'social_follow' ? 'bg-[#2563EB]' : 'bg-[#92400E]'}`} />}
+                            </div>
+                            {hasConfiguredAdSetup ? (
+                                <span className="text-[11px] sm:text-[12px] font-[800] text-[#111] truncate px-1 max-w-[140px]">
+                                    {unlockType === 'custom_sponsor' ? (customAd?.brandName || 'Sponsor') :
+                                     unlockType === 'email_subscribe' ? (emailConfig?.newsletterName || 'Newsletter') :
+                                     unlockType === 'social_follow' ? (socialConfig?.customHeading || 'Socials') :
+                                     (followerPairingConfig?.durationDays ? `${followerPairingConfig.durationDays} Days` : 'Pairing')}
+                                </span>
+                            ) : (
+                                <span className="text-[12px] italic text-[#BBBBBB]">Tap to set</span>
+                            )}
+                        </button>
+                    </div>
 
                     {/* Expandable Configuration Flow */}
                     {isConfigExpanded && (
                         <div className="w-full mt-2 bg-white rounded-[16px] p-4 border border-[#E6E2D9] shadow-sm animate-in slide-in-from-top-2 fade-in duration-300 relative flex flex-col">
                             <div className="flex justify-between items-center mb-4">
                                 <h3 className="text-[14px] font-[800] text-[#111]">Configure Unlock Setup</h3>
+                                <button onClick={() => setIsConfigExpanded(false)} className="w-[32px] h-[32px] rounded-full bg-[#f6f6f6] flex items-center justify-center text-[#888]">
+                                    <X size={16} />
+                                </button>
+                            </div>
+                            
+                            <div className="w-full mb-5">
                                 {unlockType !== 'follower_pairing' && (
-                                    <button onClick={() => setIsConfigExpanded(false)} className="w-[32px] h-[32px] rounded-full bg-[#f6f6f6] flex items-center justify-center text-[#888]">
-                                        <X size={16} />
-                                    </button>
+                                    <UnlockTypeSelector value={unlockType} onChange={setUnlockType} />
                                 )}
                             </div>
 
@@ -436,11 +447,9 @@ export const Landing = () => {
                                 >
                                     Apply
                                 </button>
-                                {unlockType !== 'follower_pairing' && (
-                                    <button onClick={() => setIsConfigExpanded(false)} className="flex-1 h-[44px] bg-[#F6F6F6] text-[#888] font-[800] text-[15px] rounded-[12px] transition-colors hover:bg-[#E8E8E8]">
-                                        Cancel
-                                    </button>
-                                )}
+                                <button onClick={() => setIsConfigExpanded(false)} className="flex-1 h-[44px] bg-[#F6F6F6] text-[#888] font-[800] text-[15px] rounded-[12px] transition-colors hover:bg-[#E8E8E8]">
+                                    Cancel
+                                </button>
                             </div>
                         </div>
                     )}
