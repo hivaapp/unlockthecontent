@@ -44,7 +44,7 @@ export const CreateLinkSheet = ({ isOpen, onClose, onSuccess }: CreateLinkSheetP
     const { createLink } = useAuth();
 
     const handleSubmit = async () => {
-        const hasTextContent = contentData.textContent.trim().length > 0 || contentData.links.length > 0;
+        const hasTextContent = contentData.textContent.trim().length > 0 || contentData.links.length > 0 || !!contentData.youtubeUrl;
         const hasContent = unlockType === 'follower_pairing' ? true : (contentData.file || hasTextContent);
         if (!hasContent) return;
 
@@ -67,6 +67,7 @@ export const CreateLinkSheet = ({ isOpen, onClose, onSuccess }: CreateLinkSheetP
             socialConfig: unlockType === 'social_follow' ? socialConfig : undefined,
             followerPairingConfig: unlockType === 'follower_pairing' ? followerPairingConfig : undefined,
             contentMode: unlockType === 'follower_pairing' ? undefined : contentData.contentMode,
+            youtubeUrl: unlockType === 'follower_pairing' ? undefined : contentData.youtubeUrl,
             fileType: unlockType === 'follower_pairing' ? '' : (contentData.file ? (contentData.file.name.split('.').pop()?.toUpperCase() || 'FILE') : (contentData.contentMode === 'text' ? 'TEXT' : 'BOTH')),
             fileName: unlockType === 'follower_pairing' ? '' : (contentData.file ? contentData.file.name : (contentData.contentMode === 'text' ? 'Text Content' : 'Combined Content')),
         });
@@ -203,7 +204,7 @@ export const CreateLinkSheet = ({ isOpen, onClose, onSuccess }: CreateLinkSheetP
                     onClick={handleSubmit}
                     disabled={
                         (!title || isSubmitting) || 
-                        (unlockType !== 'follower_pairing' && !(contentData.file || contentData.textContent.trim().length > 0 || contentData.links.length > 0)) ||
+                        (unlockType !== 'follower_pairing' && !(contentData.file || contentData.textContent.trim().length > 0 || contentData.links.length > 0 || contentData.youtubeUrl)) ||
                         (unlockType === 'custom_sponsor' && hasCustomAdErrors) ||
                         (unlockType === 'email_subscribe' && hasEmailErrors) ||
                         (unlockType === 'social_follow' && hasSocialErrors) ||

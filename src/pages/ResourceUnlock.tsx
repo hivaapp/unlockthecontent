@@ -214,6 +214,29 @@ export const ResourceUnlock = () => {
                         </div>
 
                         {/* Locked/Revealed Preview Zone */}
+                        {isComplete && resource.youtubeUrl && (
+                            <div className="w-full mt-2 mb-2 relative animate-fadeIn">
+                                <div className="w-full max-w-[640px] mx-auto rounded-[12px] overflow-hidden bg-[#F8F8F8] aspect-video relative shadow-sm border border-border">
+                                    <div className="absolute inset-0 flex flex-col items-center justify-center z-0">
+                                        <span className="text-[13px] text-[#888] font-bold">This video is currently unavailable. Contact the creator.</span>
+                                    </div>
+                                    <iframe
+                                        src={(() => {
+                                            const videoId = resource.youtubeUrl.match(/(?:v=|youtu\.be\/)[\w-]{11}/)?.[0]
+                                                ?.replace('v=', '')
+                                                ?.replace('youtu.be/', '');
+                                            return `https://www.youtube.com/embed/${videoId}`;
+                                        })()}
+                                        className="w-full h-full absolute inset-0 z-10"
+                                        frameBorder="0"
+                                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                                        allowFullScreen
+                                        title="YouTube video player"
+                                        style={{ borderRadius: '12px' }}
+                                    />
+                                </div>
+                            </div>
+                        )}
                         </div>
                     </div>
 

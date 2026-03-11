@@ -12,6 +12,7 @@ export interface ContentData {
     contentMode: ContentMode;
     textContent: string;
     links: LinkItem[];
+    youtubeUrl?: string | null;
     file: File | null;
 }
 
@@ -59,6 +60,11 @@ export const ContentBuilder: React.FC<ContentBuilderProps> = ({ value, onChange,
     const [linkUrl, setLinkUrl] = useState('');
     const [linkTitle, setLinkTitle] = useState('');
     const [linkError, setLinkError] = useState('');
+
+    // YouTube Adder State
+    const [isAddingYouTube, setIsAddingYouTube] = useState(false);
+    const [youtubeInput, setYoutubeInput] = useState('');
+    const [youtubeError, setYoutubeError] = useState('');
 
     // Paste Detection
     const [pastePrompt, setPastePrompt] = useState<{ url: string, position: { top: number, left: number } } | null>(null);
@@ -174,6 +180,32 @@ export const ContentBuilder: React.FC<ContentBuilderProps> = ({ value, onChange,
         setLinkError('');
     };
 
+    const validateAndAddYouTube = (e?: React.FormEvent | React.KeyboardEvent | React.MouseEvent) => {
+        if (e) e.preventDefault();
+        const url = youtubeInput.trim();
+        const isValidYouTubeUrl = (str: string) => {
+            const patterns = [
+                /^https?:\/\/(www\.)?youtube\.com\/watch\?v=[\w-]{11}/,
+                /^https?:\/\/youtu\.be\/[\w-]{11}/,
+                /^https?:\/\/(www\.)?youtube\.com\/embed\/[\w-]{11}/,
+            ];
+            return patterns.some(p => p.test(str));
+        };
+
+        if (!isValidYouTubeUrl(url)) {
+            setYoutubeError("Please paste a valid YouTube video URL");
+            return;
+        }
+
+        onChange({
+            ...value,
+            youtubeUrl: url
+        });
+        setIsAddingYouTube(false);
+        setYoutubeInput('');
+        setYoutubeError('');
+    };
+
     const removeLink = (index: number) => {
         const newLinks = [...value.links];
         newLinks.splice(index, 1);
@@ -243,6 +275,32 @@ export const ContentBuilder: React.FC<ContentBuilderProps> = ({ value, onChange,
                             )}
                         </div>
 
+                        {/* YouTube Card */}
+                        {value.youtubeUrl && (
+                            <div className="px-4 pb-2">
+                                <div className="w-full bg-white rounded-[10px] border-[1.5px] border-[#E8E8E8] p-[10px] px-[14px] flex items-center gap-[12px] relative mt-2">
+                                    <div className="shrink-0 flex items-center justify-center">
+                                        <svg width="24" height="24" viewBox="0 0 24 24" fill="#E8312A" xmlns="http://www.w3.org/2000/svg">
+                                            <path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z" />
+                                        </svg>
+                                    </div>
+                                    <div className="flex flex-col min-w-0 pr-8">
+                                        <span className="text-[13px] font-[700] text-[#333] truncate">{value.youtubeUrl}</span>
+                                        <span className="text-[11px] text-[#888] mt-0.5">YouTube video \u00B7 plays inline for your followers</span>
+                                    </div>
+                                    <button 
+                                        onClick={() => onChange({...value, youtubeUrl: null})} 
+                                        className="absolute right-[10px] w-[32px] h-[32px] rounded-[6px] hover:bg-[#F5F5F5] flex items-center justify-center text-[#999] hover:text-[#555]"
+                                    >
+                                        <X size={16} strokeWidth={3} />
+                                    </button>
+                                </div>
+                                <div className="mt-1 flex items-center gap-1.5 px-1">
+                                    <span className="text-[11px] text-[#B45309] font-[600]">⚠️ Make sure this video is set to Public or Unlisted on YouTube. Private videos will not play for your followers.</span>
+                                </div>
+                            </div>
+                        )}
+
                         {/* Link Cards */}
                         {value.links.length > 0 && (
                             <div className="px-4 pb-0 flex flex-col gap-2">
@@ -268,16 +326,29 @@ export const ContentBuilder: React.FC<ContentBuilderProps> = ({ value, onChange,
 
                         {/* Add Link Section */}
                         <div className="p-4 pt-3">
-                            {!isAddingLink ? (
-                                <button
-                                    onClick={handleAddLinkOpen}
-                                    disabled={value.links.length >= 10}
-                                    className="h-[36px] px-4 rounded-[6px] border border-[#E8E8E8] hover:bg-[#F8F8F8] transition-colors flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed text-[#555]"
-                                    title={value.links.length >= 10 ? 'Max 10 links' : ''}
-                                >
-                                    <span className="text-[13px] font-[700]">＋ Add Link</span>
-                                </button>
-                            ) : (
+                            {!isAddingLink && !isAddingYouTube ? (
+                                <div className="flex flex-row gap-[8px] flex-wrap w-full">
+                                    <button
+                                        onClick={handleAddLinkOpen}
+                                        disabled={value.links.length >= 10}
+                                        className="h-[36px] px-4 rounded-[8px] border-[1.5px] border-[#E8E8E8] bg-white hover:bg-[#F8F8F8] transition-colors flex items-center justify-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed text-[#333]"
+                                        title={value.links.length >= 10 ? 'Max 10 links' : ''}
+                                    >
+                                        <span className="text-[13px] font-[700]">＋ Add Link</span>
+                                    </button>
+                                    {!value.youtubeUrl && (
+                                        <button
+                                            onClick={() => { setIsAddingYouTube(true); setYoutubeInput(''); setYoutubeError(''); }}
+                                            className="h-[36px] px-[14px] rounded-[8px] border-[1.5px] border-[#E8E8E8] bg-white hover:bg-[#F8F8F8] transition-colors flex items-center justify-center gap-[6px] text-[#333]"
+                                        >
+                                            <svg width="14" height="14" viewBox="0 0 24 24" fill="#E8312A" xmlns="http://www.w3.org/2000/svg">
+                                                <path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z" />
+                                            </svg>
+                                            <span className="text-[13px] font-[700]">YouTube Video</span>
+                                        </button>
+                                    )}
+                                </div>
+                            ) : isAddingLink ? (
                                 <div className="w-full border-t border-[#F0F0F0] pt-3 animate-fadeIn slide-in-top-2">
                                     <div className="relative w-full mb-2">
                                         <div className="absolute left-3 top-0 h-[44px] flex items-center text-[#999]">
@@ -292,6 +363,7 @@ export const ContentBuilder: React.FC<ContentBuilderProps> = ({ value, onChange,
                                             autoFocus
                                             onKeyDown={e => {
                                                 if (e.key === 'Enter') validateAndAddLink(e);
+                                                if (e.key === 'Escape') setIsAddingLink(false);
                                             }}
                                         />
                                         <button
@@ -310,10 +382,53 @@ export const ContentBuilder: React.FC<ContentBuilderProps> = ({ value, onChange,
                                         className="w-full h-[40px] bg-white border border-[#E8E8E8] rounded-[8px] px-3 text-[13px] font-[600] text-[#111] placeholder-[#BBB] outline-none focus:border-[#E8312A]/50"
                                         onKeyDown={e => {
                                             if (e.key === 'Enter') validateAndAddLink(e);
+                                            if (e.key === 'Escape') setIsAddingLink(false);
                                         }}
                                     />
                                     {linkError && (
                                         <p className="text-[12px] text-[#E8312A] font-[700] mt-1.5 ml-1">{linkError}</p>
+                                    )}
+                                </div>
+                            ) : (
+                                <div className="w-full border-t border-[#F0F0F0] pt-3 animate-fadeIn slide-in-top-2">
+                                    <style>{`
+                                        @keyframes shake {
+                                            0%, 100% { transform: translateX(0); }
+                                            25% { transform: translateX(-4px); }
+                                            75% { transform: translateX(4px); }
+                                        }
+                                    `}</style>
+                                    <div className="flex gap-2 w-full relative">
+                                        <input
+                                            type="text"
+                                            value={youtubeInput}
+                                            onChange={e => { setYoutubeInput(e.target.value); setYoutubeError(''); }}
+                                            placeholder="Paste your YouTube video URL here"
+                                            className={`flex-1 min-w-0 h-[40px] bg-white border-[1.5px] rounded-[8px] px-[12px] text-[14px] outline-none transition-colors
+                                                ${youtubeError ? 'border-[#E8312A] animate-[shake_200ms_ease-in-out]' : 'border-[#E8E8E8] focus:border-[#E8312A]'}`}
+                                            autoFocus
+                                            onKeyDown={e => {
+                                                if (e.key === 'Enter') validateAndAddYouTube(e);
+                                                if (e.key === 'Escape') setIsAddingYouTube(false);
+                                            }}
+                                        />
+                                        <button
+                                            type="button"
+                                            onClick={validateAndAddYouTube}
+                                            className="h-[40px] px-[14px] shrink-0 bg-[#E8312A] text-white rounded-[8px] text-[13px] font-[800] hover:bg-[#C4663F]"
+                                        >
+                                            Add
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => setIsAddingYouTube(false)}
+                                            className="w-[40px] h-[40px] shrink-0 bg-[#F5F5F5] text-[#999] rounded-[8px] flex items-center justify-center hover:bg-[#EAEAEA] hover:text-[#555]"
+                                        >
+                                            <X size={18} strokeWidth={3} />
+                                        </button>
+                                    </div>
+                                    {youtubeError && (
+                                        <p className="text-[11px] text-[#E8312A] font-[700] mt-1.5 ml-1">{youtubeError}</p>
                                     )}
                                 </div>
                             )}

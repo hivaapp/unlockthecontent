@@ -15,6 +15,7 @@ export interface LinkData {
     contentMode?: string;
     textContent?: string;
     links?: { url: string; title: string; }[];
+    youtubeUrl?: string | null;
     fileAttachments?: unknown[];
     fileType?: string;
     fileName?: string;

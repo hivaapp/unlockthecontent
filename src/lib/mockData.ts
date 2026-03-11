@@ -55,6 +55,7 @@ export const mockLinks = [
         contentMode: "file",
         textContent: "",
         links: [],
+        youtubeUrl: "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
         fileAttachments: [ { fileName: "notion-template.zip", fileSize: "1.2 MB", fileType: "zip" } ],
         fileType: "ZIP",
         fileName: "notion-template.zip",
@@ -1067,6 +1068,7 @@ export interface ExploreResource {
     fileSize?: string;
     donateEnabled?: boolean;
     contentMode?: "file";
+    youtubeUrl?: string | null;
     unlockType?: "custom_sponsor" | "email_subscribe" | "social_follow" | "follower_pairing";
     emailConfig?: EmailConfigData;
     socialConfig?: SocialConfigData;
@@ -1085,6 +1087,7 @@ export const mockExploreResources: ExploreResource[] = [
         fileType: "ZIP",
         unlockCount: "1.2K",
         category: "Templates",
+        youtubeUrl: "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
         adSource: "custom",
         requiresClick: true,
         sponsorName: "Figma"
