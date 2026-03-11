@@ -4,7 +4,6 @@ import { DashboardLayout } from '../components/dashboard/DashboardLayout';
 import { HomeTab } from '../components/dashboard/tabs/HomeTab';
 import { LinksTab } from '../components/dashboard/tabs/LinksTab';
 import { AccountTab } from '../components/dashboard/tabs/AccountTab';
-import { OnboardingCarousel } from '../components/dashboard/OnboardingCarousel';
 
 export type DashboardTab = 'home' | 'analytics' | 'chats' | 'account' | 'explore';
 
@@ -17,16 +16,6 @@ export const Dashboard = () => {
     const tabParam = (query.get('tab') as DashboardTab) || 'home';
 
     const [linksSearchQuery, setLinksSearchQuery] = useState('');
-    const [showOnboarding, setShowOnboarding] = useState(() => {
-        // Mock check for first time user
-        const hasSeenOnboarding = localStorage.getItem('adgate_onboarding');
-        return !hasSeenOnboarding;
-    });
-
-    const handleOnboardingComplete = () => {
-        localStorage.setItem('adgate_onboarding', 'true');
-        setShowOnboarding(false);
-    };
 
     const handleTabChange = (tab: string) => {
         if (tab === 'chats') {
@@ -41,14 +30,10 @@ export const Dashboard = () => {
     };
 
     return (
-        <>
-            <DashboardLayout currentTab={tabParam} onTabChange={handleTabChange as any}>
-                {tabParam === 'home' && <LinksTab searchQuery={linksSearchQuery} setSearchQuery={setLinksSearchQuery} />}
-                {tabParam === 'analytics' && <HomeTab onTabChange={handleTabChange as any} />}
-                {tabParam === 'account' && <AccountTab />}
-            </DashboardLayout>
-
-            {showOnboarding && <OnboardingCarousel onComplete={handleOnboardingComplete} />}
-        </>
+        <DashboardLayout currentTab={tabParam} onTabChange={handleTabChange as any}>
+            {tabParam === 'home' && <LinksTab searchQuery={linksSearchQuery} setSearchQuery={setLinksSearchQuery} />}
+            {tabParam === 'analytics' && <HomeTab onTabChange={handleTabChange as any} />}
+            {tabParam === 'account' && <AccountTab />}
+        </DashboardLayout>
     );
 };

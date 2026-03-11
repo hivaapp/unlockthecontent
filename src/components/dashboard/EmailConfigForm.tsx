@@ -6,7 +6,6 @@ export interface EmailConfigData {
     incentiveText: string;
     platform: 'direct' | 'mailchimp' | 'convertkit' | 'beehiiv' | 'substack' | 'klaviyo' | 'other';
     platformDisplayName: string;
-    archiveUrl: string | null;
     confirmationMessage: string;
     totalSubscribers?: number;
 }
@@ -34,7 +33,6 @@ export const EmailConfigForm = ({ value, onChange, onErrorStateChange }: EmailCo
         incentiveText: '',
         platform: 'direct',
         platformDisplayName: 'Direct',
-        archiveUrl: '',
         confirmationMessage: ''
     });
 
@@ -120,16 +118,7 @@ export const EmailConfigForm = ({ value, onChange, onErrorStateChange }: EmailCo
                 )}
             </div>
 
-            <div className="flex flex-col gap-1.5">
-                <label className="text-[12px] font-[700] text-textMid">Link to past issues (optional)</label>
-                <input
-                    type="url"
-                    className="w-full h-[44px] rounded-[14px] border border-[#E8E8E8] px-3 text-[14px] font-[600] focus:outline-none focus:border-[#166534] focus:ring-1 focus:ring-[#166534]"
-                    placeholder="https://yournewsletter.com/archive"
-                    value={data.archiveUrl || ''}
-                    onChange={(e) => handleChange('archiveUrl', e.target.value)}
-                />
-            </div>
+
 
             <div className="flex flex-col gap-1.5 relative">
                 <label className="text-[12px] font-[700] text-textMid">Message shown after subscribing</label>

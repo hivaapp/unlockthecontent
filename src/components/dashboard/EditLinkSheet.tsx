@@ -52,8 +52,20 @@ export const EditLinkSheet = ({ isOpen, onClose, onSuccess, link }: EditLinkShee
     const isCustomSponsor = link?.unlockType === 'custom_sponsor' || !link?.unlockType;
 
     return (
-        <BottomSheet isOpen={isOpen} onClose={onClose} title="Edit Link" fullHeight>
-            <div className="flex flex-col gap-[20px] pb-[80px]">
+        <BottomSheet isOpen={isOpen} onClose={onClose} title="Edit Link" fullHeight footer={
+            <button
+                onClick={handleSubmit}
+                disabled={!title || isSubmitting}
+                className="btn-primary w-full h-[52px] rounded-[14px] text-[16px]"
+            >
+                {isSubmitting ? (
+                    <div className="w-6 h-6 border-3 border-white/30 border-t-white rounded-full animate-spin" />
+                ) : (
+                    'Save Changes'
+                )}
+            </button>
+        }>
+            <div className="flex flex-col gap-[20px]">
 
                 {/* File Info Section */}
                 <div className="w-full">
@@ -142,21 +154,6 @@ export const EditLinkSheet = ({ isOpen, onClose, onSuccess, link }: EditLinkShee
                         </span>
                     </div>
                 </div>
-            </div>
-
-            {/* Sticky Action Bar */}
-            <div className="fixed bottom-0 left-0 w-full bg-white border-t border-border/60 p-4 pb-[env(safe-area-inset-bottom,16px)] sm:absolute z-20">
-                <button
-                    onClick={handleSubmit}
-                    disabled={!title || isSubmitting}
-                    className="btn-primary w-full h-[52px] rounded-[14px] text-[16px]"
-                >
-                    {isSubmitting ? (
-                        <div className="w-6 h-6 border-3 border-white/30 border-t-white rounded-full animate-spin" />
-                    ) : (
-                        'Save Changes'
-                    )}
-                </button>
             </div>
         </BottomSheet>
     );

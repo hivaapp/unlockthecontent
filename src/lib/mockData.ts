@@ -11,7 +11,6 @@ export interface User {
     location?: string;
     isVerified?: boolean;
     joinedDate?: string;
-    hasSeenOnboarding?: boolean;
     isCreator?: boolean;
     referralCode?: string;
     referralCount?: number;
@@ -44,7 +43,6 @@ export const currentUser: User = {
     bio: "Creating tools and resources for designers and developers.",
     website: "https://alexcreator.com",
     joinedDate: "2024-01-15T00:00:00Z",
-    hasSeenOnboarding: false,
     isCreator: true,
     referralCode: "ADGATE-ALEX",
     referralCount: 3,
@@ -347,7 +345,6 @@ export const mockLinks = [
             incentiveText: "Subscribe to access this checklist and join 3,200 designers getting weekly systems thinking.",
             platform: "convertkit",
             platformDisplayName: "ConvertKit",
-            archiveUrl: null,
             confirmationMessage: "Check your inbox to confirm! Your checklist unlocks immediately.",
             totalSubscribers: 1203,
             thisMonthSubscribers: 187,
@@ -382,7 +379,6 @@ export const mockLinks = [
             incentiveText: "Subscribe and get the scripts plus a new freelance template every two weeks.",
             platform: "beehiiv",
             platformDisplayName: "Beehiiv",
-            archiveUrl: "https://freelanceforward.beehiiv.com",
             confirmationMessage: "You're subscribed! Your scripts are ready below.",
             totalSubscribers: 743,
             thisMonthSubscribers: 98,
@@ -1295,7 +1291,6 @@ export const mockExploreResources: ExploreResource[] = [
             incentiveText: "Subscribe to unlock these 500 prompts and step up your marketing game.",
             platform: "direct",
             platformDisplayName: "Direct",
-            archiveUrl: null,
             confirmationMessage: "Check your inbox to confirm!"
         }
     },
@@ -1425,7 +1420,11 @@ export const mockExploreResources: ExploreResource[] = [
     }
 ];
 
-
-
-
+export const mockSearchUsers = [
+  { id: 'creator_1', name: 'Alex Creator', username: 'alexcreator', initial: 'A', avatarColor: '#E8312A', isCreator: true, bio: 'Creating tools for designers and devs.' },
+  { id: 'user_2', name: 'Sarah Jenkins', username: 'sarahj', initial: 'S', avatarColor: '#10B981', isCreator: false, bio: 'Aspiring UI designer' },
+  { id: 'creator_3', name: 'Dev Guru', username: 'devguru', initial: 'D', avatarColor: '#3B82F6', isCreator: true, bio: 'Full-stack tips and tricks daily.' },
+  { id: 'creator_4', name: 'James Clear', username: 'jamesclear', initial: 'J', avatarColor: '#8B5CF6', isCreator: true, bio: 'Author of Atomic Habits. Productivity tips.' },
+  { id: 'user_5', name: 'Mike Ross', username: 'mikeross', initial: 'M', avatarColor: '#F59E0B', isCreator: false, bio: 'Law student by day, coder by night.' }
+];
 

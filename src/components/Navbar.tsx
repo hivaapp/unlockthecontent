@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useChatSessions } from '../context/ChatSessionsContext';
+import { useMessaging } from '../context/MessagingContext';
 import { Link, useLocation } from 'react-router-dom';
 import { SignInModal } from './SignInModal';
 import { Menu, X, Lightbulb, Briefcase, Compass, Tag, ChevronRight } from 'lucide-react';
@@ -49,10 +50,18 @@ export const Navbar = () => {
     let totalUnread = 0;
     try {
         const chatContext = useChatSessions();
-        totalUnread = chatContext.getTotalUnread();
+        totalUnread += chatContext.getTotalUnread();
     } catch {
         // ChatSessionsProvider not mounted yet — ignore
     }
+    
+    try {
+        const msgCtx = useMessaging();
+        if (currentUser?.id) {
+            totalUnread += msgCtx.getTotalDMUnread(currentUser.id);
+            totalUnread += msgCtx.getTotalPendingCount(currentUser.id);
+        }
+    } catch { /* ignore */ }
 
     const isDashboard = location.pathname === '/dashboard';
 

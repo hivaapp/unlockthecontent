@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import { useChatSessions } from '../context/ChatSessionsContext';
 import { mockChatSession, mockAccountabilityParticipants, mockLinks } from '../lib/mockData';
 import { getAvatarColor } from '../lib/utils';
+import { MessagesSidebar } from './MyChatsHub';
 
 interface MediaAttachment {
   type: 'image' | 'video' | 'file';
@@ -212,9 +213,24 @@ export const FollowerPairingChat = () => {
   if (!isLoggedIn) return null;
 
   return (
-    <div className="h-screen flex flex-col bg-white overflow-hidden">
+    <div className="flex h-screen w-full bg-white overflow-hidden lg:pt-[72px]">
+      {/* Desktop Sidebar */}
+      <div className="hidden lg:block w-[380px] shrink-0 border-r border-[#E6E2D9] h-full z-10">
+         <MessagesSidebar 
+            activeTab="pairing" 
+            setActiveTab={() => {}} 
+            activeChatId={sessionId} 
+            onSelectChat={(id, type) => {
+                if (type === 'dm') navigate(`/messages/${id}`);
+                if (type === 'pairing') navigate(`/chats/${id}`);
+            }}
+         />
+      </div>
+
+      {/* Main Chat Area */}
+      <div className="flex-1 min-w-0 flex flex-col h-full bg-white relative">
       {/* Header */}
-      <header className="shrink-0 h-[58px] bg-white flex items-center justify-between px-4" style={{ borderBottom: '1px solid #F0F0F0' }}>
+      <header className="shrink-0 h-[58px] bg-white flex items-center justify-between px-4 lg:hidden" style={{ borderBottom: '1px solid #F0F0F0' }}>
         <button onClick={() => { window.history.length > 1 ? navigate(-1) : navigate('/chats'); }} className="flex items-center gap-1.5 shrink-0" style={{ width: '80px' }}>
           <svg width="22" height="22" viewBox="0 0 22 22" fill="none"><path d="M14 5L8 11L14 17" stroke="#111" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>
           <span className="font-[900] text-[13px] tracking-tight text-[#111]">Back</span>
@@ -958,6 +974,7 @@ const AttachmentDisplay = ({
         .animate-fade-in { animation: fade-in 0.2s ease-out; }
         .animate-slide-up { animation: slideUp 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
       `}</style>
+      </div>
     </div>
   );
 };

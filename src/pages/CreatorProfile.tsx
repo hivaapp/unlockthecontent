@@ -3,6 +3,9 @@ import { useAuth } from '../context/AuthContext';
 import { getCreatorByUsername, getLinksByCreator } from '../lib/mockData';
 import { useState } from 'react';
 import { Globe, ChevronLeft } from 'lucide-react';
+import { useMessaging } from '../context/MessagingContext';
+import { useToast } from '../context/ToastContext';
+import { BottomSheet } from '../components/ui/BottomSheet';
 
 const getFileEmoji = (type: string) => {
     const t = type?.toUpperCase();
@@ -36,6 +39,15 @@ export const CreatorProfile = () => {
     const username = handle?.startsWith('@') ? handle.slice(1) : handle;
     const navigate = useNavigate();
     const { currentUser, isLoggedIn } = useAuth();
+    let sendRequest: any = null;
+    let hasPendingRequestTo: any = null;
+    try {
+        const msgCtx = useMessaging();
+        sendRequest = msgCtx.sendRequest;
+        hasPendingRequestTo = msgCtx.hasPendingRequestTo;
+    } catch { /* ignore */ }
+    
+    const { showToast } = useToast();
 
     // Check if viewing own profile
     const isOwner = isLoggedIn && currentUser?.username === username;
@@ -72,6 +84,37 @@ export const CreatorProfile = () => {
     const campaigns = allLinks.filter(l => l.unlockType === 'follower_pairing');
 
     const [activeTab, setActiveTab] = useState<'resources' | 'pairing'>('resources');
+    const [showMessageSheet, setShowMessageSheet] = useState(false);
+    const [messageText, setMessageText] = useState('');
+    const [isSending, setIsSending] = useState(false);
+    
+    // Check if request is already sent
+    const requestAlreadySent = isLoggedIn && currentUser && profileCreator && hasPendingRequestTo ? hasPendingRequestTo(currentUser.id, profileCreator.id) : false;
+
+    const handleSendMessage = () => {
+        if (!isLoggedIn) {
+            navigate('/?signIn=true');
+            return;
+        }
+        if (!messageText.trim() || !currentUser || !profileCreator || !sendRequest) return;
+        setIsSending(true);
+        setTimeout(() => {
+            sendRequest(profileCreator.id, messageText, {
+                id: currentUser.id,
+                name: currentUser.name,
+                username: currentUser.username,
+                initial: currentUser.initial || 'U',
+                avatarColor: currentUser.avatarColor || '#2563EB',
+                trustScore: currentUser.trustScore || 85,
+                isCreator: currentUser.isCreator || false,
+                joinedDate: currentUser.joinedDate || new Date().toISOString()
+            });
+            setIsSending(false);
+            setShowMessageSheet(false);
+            setMessageText('');
+            showToast('Message request sent!', 'success');
+        }, 600);
+    };
 
     // Parse date safely
     const parseJoinedDate = (d?: string) => {
@@ -182,7 +225,27 @@ export const CreatorProfile = () => {
                                     Edit
                                 </button>
                             )}
+                            
+                            {!isOwner && (
+                                <button 
+                                    onClick={() => requestAlreadySent ? navigate('/chats') : isLoggedIn ? setShowMessageSheet(true) : navigate('/?signIn=true')}
+                                    disabled={false} // don't disable, route to chats instead
+                                    className={`lg:hidden h-[36px] px-[16px] rounded-[10px] text-[13px] font-bold flex items-center justify-center shrink-0 mb-1 ml-auto self-start mt-[-2px] transition-colors ${requestAlreadySent ? 'bg-surfaceAlt text-textMid border border-border' : 'bg-brand text-white'}`}
+                                >
+                                    {requestAlreadySent ? 'Request Pending' : 'Message'}
+                                </button>
+                            )}
                         </div>
+
+                        {/* Desktop Message Button */}
+                        {!isOwner && (
+                            <button
+                                onClick={() => requestAlreadySent ? navigate('/chats') : isLoggedIn ? setShowMessageSheet(true) : navigate('/?signIn=true')}
+                                className={`hidden lg:flex w-full mt-4 h-[44px] rounded-[12px] text-[14px] font-[900] items-center justify-center transition-colors ${requestAlreadySent ? 'bg-surfaceAlt text-textMid border border-border' : 'bg-brand text-white hover:bg-brandHover shadow-sm'}`}
+                            >
+                                {requestAlreadySent ? 'Request Pending' : 'Message'}
+                            </button>
+                        )}
 
                         {/* Bio */}
                         {bio ? (
@@ -391,8 +454,49 @@ export const CreatorProfile = () => {
                             </div>
                         )}
                     </div>
-                </div>
+        </div>
             </div>
+
+            <BottomSheet isOpen={showMessageSheet} onClose={() => setShowMessageSheet(false)} title={`Message ${name}`}>
+                <div className="pt-2 pb-6">
+                    <div className="flex items-center gap-3 mb-4">
+                        <div className="w-10 h-10 rounded-full flex items-center justify-center text-white font-black text-[18px]" style={{ backgroundColor: avatarColor || '#E8312A' }}>
+                            {initial || name?.[0]?.toUpperCase() || 'C'}
+                        </div>
+                        <div>
+                            <div className="text-[15px] font-bold text-text">{name}</div>
+                            <div className="text-[13px] text-textMid">@{username}</div>
+                        </div>
+                    </div>
+                    
+                    <textarea 
+                        value={messageText}
+                        onChange={(e) => setMessageText(e.target.value)}
+                        placeholder="Write your introductory message..."
+                        className="w-full h-[120px] rounded-[14px] bg-surfaceAlt border border-border focus:border-brand/40 focus:ring-1 focus:ring-brand/40 px-4 py-3 text-[14px] font-semibold text-text outline-none resize-none placeholder:text-textLight mb-4 font-sans"
+                    />
+
+                    <div className="flex gap-3">
+                        <button 
+                            onClick={() => setShowMessageSheet(false)}
+                            className="flex-1 h-12 bg-surfaceAlt text-text font-black text-[14px] rounded-[14px] transition-colors hover:bg-border"
+                        >
+                            Cancel
+                        </button>
+                        <button 
+                            onClick={handleSendMessage}
+                            disabled={!messageText.trim() || isSending}
+                            className={`flex-[2] h-12 text-white font-black text-[14px] rounded-[14px] transition-all flex items-center justify-center ${messageText.trim() && !isSending ? 'bg-brand shadow-sm hover:scale-[1.02]' : 'bg-brand/50 cursor-not-allowed'}`}
+                        >
+                            {isSending ? (
+                                <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                            ) : (
+                                "Send Message Request"
+                            )}
+                        </button>
+                    </div>
+                </div>
+            </BottomSheet>
         </div>
     );
 };

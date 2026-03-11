@@ -151,12 +151,6 @@ export const SocialConfigForm = ({ value, onChange, onErrorStateChange }: Social
                         onChange={(e) => handleChange('customHeading', e.target.value)}
                     />
                     <span className="text-[11px] text-[#AAA49C] text-right">{data.customHeading.length}/60</span>
-                    {data.customHeading && (
-                        <div className="bg-[#FAF9F7] p-3 rounded-[6px] mt-1 flex flex-col gap-1 border border-[#E6E2D9]">
-                            <span className="text-[11px] font-[600] text-[#6B6860]">Viewers will see:</span>
-                            <span className="text-[18px] font-[900] text-[#21201C]">{data.customHeading}</span>
-                        </div>
-                    )}
                 </div>
 
                 <div className="flex flex-col gap-1.5 relative">

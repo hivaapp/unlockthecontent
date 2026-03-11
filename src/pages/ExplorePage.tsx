@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect, useLayoutEffect } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { Search, Grid, List as ListIcon, ChevronRight, Sparkles, X, Mail, Share2, Handshake } from 'lucide-react';
-import { mockExploreResources, type ExploreResource } from '../lib/mockData';
+import { mockExploreResources, mockSearchUsers, type ExploreResource } from '../lib/mockData';
 import { getAvatarColor } from '../lib/utils';
 
 const CATEGORIES = ['All', 'Dev', 'Design', 'Creators'];
@@ -75,6 +75,16 @@ export const ExplorePage = () => {
     }, [selectedCategory, searchQuery, sortBy]);
 
     const visibleResources = filteredResources.slice(0, visibleCount);
+
+    const filteredUsers = useMemo(() => {
+        if (!searchQuery.trim()) return [];
+        const q = searchQuery.toLowerCase();
+        return mockSearchUsers.filter(u => 
+            u.name.toLowerCase().includes(q) || 
+            u.username.toLowerCase().includes(q) ||
+            (u.bio && u.bio.toLowerCase().includes(q))
+        );
+    }, [searchQuery]);
 
     const handleLoadMore = () => {
         setIsLoadingMore(true);
@@ -182,6 +192,36 @@ export const ExplorePage = () => {
                     </button>
                 </div>
             </div>
+
+            {/* Users Container */}
+            {searchQuery && filteredUsers.length > 0 && (
+                <div className="w-full max-w-[800px] px-4 mb-8">
+                    <h2 className="text-[18px] font-black text-text mb-4">Users</h2>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        {filteredUsers.map(user => (
+                            <Link to={`/@${user.username}`} key={user.id} className="bg-white rounded-[14px] border border-border p-4 hover:border-brand transition-colors flex items-center gap-3">
+                                <div className="w-12 h-12 rounded-full flex items-center justify-center shrink-0" style={{ backgroundColor: user.avatarColor }}>
+                                    <span className="text-white font-black text-[16px]">{user.initial}</span>
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                    <div className="font-extrabold text-[15px] text-text flex items-center gap-1.5 truncate">
+                                        {user.name}
+                                        {user.isCreator && (
+                                            <svg width="14" height="14" viewBox="0 0 24 24" fill="#2563EB" className="shrink-0">
+                                                <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z" />
+                                            </svg>
+                                        )}
+                                    </div>
+                                    <div className="text-[13px] font-bold text-textMid truncate">@{user.username}</div>
+                                </div>
+                                <div className="h-[36px] px-4 rounded-full bg-brand text-white font-extrabold text-[13px] flex items-center justify-center shrink-0 transition-transform hover:scale-105 active:scale-95">
+                                    Message
+                                </div>
+                            </Link>
+                        ))}
+                    </div>
+                </div>
+            )}
 
             {/* Resources Container */}
             <div className="w-full max-w-[800px] px-4 flex flex-col items-center">

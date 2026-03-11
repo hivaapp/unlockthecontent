@@ -1,0 +1,26 @@
+
+> adgate@0.0.0 build
+> tsc -b && vite build
+
+src/pages/DMConversation.tsx(150,18): error TS7053: Element implicitly has an 'any' type because expression of type 'number' can't be used to index type '{ date: string; msgs: DMMessage[]; }'.
+  No index signature with a parameter of type 'number' was found on type '{ date: string; msgs: DMMessage[]; }'.
+src/pages/DMConversation.tsx(150,26): error TS2339: Property 'length' does not exist on type '{ date: string; msgs: DMMessage[]; }'.
+src/pages/DMConversation.tsx(154,11): error TS2339: Property 'push' does not exist on type '{ date: string; msgs: DMMessage[]; }'.
+src/pages/DMConversation.tsx(157,6): error TS2345: Argument of type 'never[]' is not assignable to parameter of type '{ date: string; msgs: DMMessage[]; }'.
+  Type 'never[]' is missing the following properties from type '{ date: string; msgs: DMMessage[]; }': date, msgs
+src/pages/DMConversation.tsx(214,26): error TS2339: Property 'map' does not exist on type 'DMMessage'.
+src/pages/DMConversation.tsx(214,31): error TS7006: Parameter 'group' implicitly has an 'any' type.
+src/pages/DMConversation.tsx(214,38): error TS7006: Parameter 'gi' implicitly has an 'any' type.
+src/pages/DMConversation.tsx(223,30): error TS7006: Parameter 'msg' implicitly has an 'any' type.
+src/pages/DMConversation.tsx(223,35): error TS6133: 'index' is declared but its value is never read.
+src/pages/DMConversation.tsx(223,35): error TS7006: Parameter 'index' implicitly has an 'any' type.
+src/pages/MyChatsHub.tsx(5,24): error TS1484: 'MessageRequest' is a type and must be imported using a type-only import when 'verbatimModuleSyntax' is enabled.
+src/pages/MyChatsHub.tsx(8,1): error TS6133: 'getAvatarColor' is declared but its value is never read.
+src/pages/MyChatsHub.tsx(320,24): error TS6133: 'activeChatId' is declared but its value is never read.
+src/pages/MyChatsHub.tsx(343,13): error TS2322: Type 'string | undefined' is not assignable to type 'string'.
+  Type 'undefined' is not assignable to type 'string'.
+src/pages/MyChatsHub.tsx(344,13): error TS2322: Type 'string | undefined' is not assignable to type 'string'.
+  Type 'undefined' is not assignable to type 'string'.
+src/pages/MyChatsHub.tsx(594,56): error TS6133: 'removeSession' is declared but its value is never read.
+src/pages/MyChatsHub.tsx(595,13): error TS6133: 'conversations' is declared but its value is never read.
+src/pages/MyChatsHub.tsx(602,12): error TS6133: 'actionSession' is declared but its value is never read.

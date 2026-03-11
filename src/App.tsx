@@ -4,6 +4,7 @@ import { AuthProvider, useAuth } from './context/AuthContext';
 import { ToastProvider } from './context/ToastContext';
 import { ProgressProvider } from './context/ProgressContext';
 import { ChatSessionsProvider } from './context/ChatSessionsContext';
+import { MessagingProvider } from './context/MessagingContext';
 import { Navbar } from './components/Navbar';
 import { MobileBottomNav } from './components/MobileBottomNav';
 import { Landing } from './pages/Landing';
@@ -12,6 +13,7 @@ import { ResourceUnlock } from './pages/ResourceUnlock';
 import { CreatorProfile } from './pages/CreatorProfile';
 import { ExplorePage } from './pages/ExplorePage';
 import { MyChatsHub } from './pages/MyChatsHub';
+import { DMConversation } from './pages/DMConversation';
 import { EditProfile } from './pages/EditProfile';
 import { SignIn } from './pages/SignIn';
 import { SignUp } from './pages/SignUp';
@@ -101,51 +103,55 @@ function App() {
       <ToastProvider>
         <AuthProvider>
           <ChatSessionsProvider>
-            <ProgressProvider>
-              <Routes>
-                <Route path="/pricing" element={<AppLayout><Pricing /></AppLayout>} />
-                <Route path="/how-it-works" element={<AppLayout><HowItWorks /></AppLayout>} />
-                <Route path="/use-cases" element={<AppLayout><UseCases /></AppLayout>} />
-                <Route
-                  path="/"
-                  element={
-                    <PublicOnlyRoute>
-                      <AppLayout>
-                        <Landing />
-                      </AppLayout>
-                    </PublicOnlyRoute>
-                  }
-                />
-                <Route path="/signin" element={<PublicOnlyRoute><SignIn /></PublicOnlyRoute>} />
-                <Route path="/signup" element={<PublicOnlyRoute><SignUp /></PublicOnlyRoute>} />
-                <Route path="/forgot-password" element={<PublicOnlyRoute><ForgotPassword /></PublicOnlyRoute>} />
-                <Route
-                  path="/dashboard"
-                  element={
-                    <PrivateRoute>
-                      <AppLayout hideNav>
-                        <Dashboard />
-                      </AppLayout>
-                    </PrivateRoute>
-                  }
-                />
-                <Route path="/explore" element={<AppLayout><ExplorePage /></AppLayout>} />
-                <Route path="/r/:slug" element={<ResourceRouter />} />
-                <Route path="/r/:slug/match" element={<FollowerPairingMatch />} />
-                <Route path="/r/:slug/matching" element={<FollowerPairingMatching />} />
-                <Route path="/chats/:sessionId" element={<PrivateRoute><FollowerPairingChat /></PrivateRoute>} />
-                <Route path="/chats" element={<PrivateRoute><AppLayout hideNav><MyChatsHub /></AppLayout></PrivateRoute>} />
-                <Route path="/my-chats" element={<Navigate to="/chats" replace />} />
-                <Route path="/terms" element={<AppLayout><Terms /></AppLayout>} />
-                <Route path="/privacy" element={<AppLayout><Privacy /></AppLayout>} />
-                <Route path="/help" element={<AppLayout><HelpPage /></AppLayout>} />
-                <Route path="/contact" element={<AppLayout><ContactPage /></AppLayout>} />
-                <Route path="/profile/edit" element={<PrivateRoute><EditProfile /></PrivateRoute>} />
-                <Route path="/account/edit" element={<PrivateRoute><EditProfile /></PrivateRoute>} />
-                <Route path="/:handle" element={<RootProfileRoute />} />
-                <Route path="*" element={<NotFound />} />
-              </Routes>
-            </ProgressProvider>
+            <MessagingProvider>
+              <ProgressProvider>
+                <Routes>
+                  <Route path="/pricing" element={<AppLayout><Pricing /></AppLayout>} />
+                  <Route path="/how-it-works" element={<AppLayout><HowItWorks /></AppLayout>} />
+                  <Route path="/use-cases" element={<AppLayout><UseCases /></AppLayout>} />
+                  <Route
+                    path="/"
+                    element={
+                      <PublicOnlyRoute>
+                        <AppLayout>
+                          <Landing />
+                        </AppLayout>
+                      </PublicOnlyRoute>
+                    }
+                  />
+                  <Route path="/signin" element={<PublicOnlyRoute><SignIn /></PublicOnlyRoute>} />
+                  <Route path="/signup" element={<PublicOnlyRoute><SignUp /></PublicOnlyRoute>} />
+                  <Route path="/forgot-password" element={<PublicOnlyRoute><ForgotPassword /></PublicOnlyRoute>} />
+                  <Route
+                    path="/dashboard"
+                    element={
+                      <PrivateRoute>
+                        <AppLayout hideNav>
+                          <Dashboard />
+                        </AppLayout>
+                      </PrivateRoute>
+                    }
+                  />
+                  <Route path="/explore" element={<AppLayout><ExplorePage /></AppLayout>} />
+                  <Route path="/r/:slug" element={<ResourceRouter />} />
+                  <Route path="/r/:slug/match" element={<FollowerPairingMatch />} />
+                  <Route path="/r/:slug/matching" element={<FollowerPairingMatching />} />
+                  <Route path="/chats/:sessionId" element={<PrivateRoute><FollowerPairingChat /></PrivateRoute>} />
+                  <Route path="/messages/:conversationId" element={<PrivateRoute><AppLayout><DMConversation /></AppLayout></PrivateRoute>} />
+                  <Route path="/chats" element={<PrivateRoute><AppLayout><MyChatsHub /></AppLayout></PrivateRoute>} />
+                  <Route path="/my-chats" element={<Navigate to="/chats" replace />} />
+                  <Route path="/my-messages" element={<Navigate to="/chats" replace />} />
+                  <Route path="/terms" element={<AppLayout><Terms /></AppLayout>} />
+                  <Route path="/privacy" element={<AppLayout><Privacy /></AppLayout>} />
+                  <Route path="/help" element={<AppLayout><HelpPage /></AppLayout>} />
+                  <Route path="/contact" element={<AppLayout><ContactPage /></AppLayout>} />
+                  <Route path="/profile/edit" element={<PrivateRoute><EditProfile /></PrivateRoute>} />
+                  <Route path="/account/edit" element={<PrivateRoute><EditProfile /></PrivateRoute>} />
+                  <Route path="/:handle" element={<RootProfileRoute />} />
+                  <Route path="*" element={<NotFound />} />
+                </Routes>
+              </ProgressProvider>
+            </MessagingProvider>
           </ChatSessionsProvider>
         </AuthProvider>
       </ToastProvider>

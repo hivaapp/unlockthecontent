@@ -89,9 +89,30 @@ export const CreateLinkSheet = ({ isOpen, onClose, onSuccess }: CreateLinkSheetP
         }, 300);
     };
 
+    const generateButton = (
+        <button
+            onClick={handleSubmit}
+            disabled={
+                (!title || isSubmitting) || 
+                (unlockType !== 'follower_pairing' && !(contentData.file || contentData.textContent.trim().length > 0 || contentData.links.length > 0 || contentData.youtubeUrl)) ||
+                (unlockType === 'custom_sponsor' && hasCustomAdErrors) ||
+                (unlockType === 'email_subscribe' && hasEmailErrors) ||
+                (unlockType === 'social_follow' && hasSocialErrors) ||
+                (unlockType === 'follower_pairing' && hasFollowerPairingErrors)
+            }
+            className="btn-primary w-full h-[52px] border-none bg-brand text-white font-[800] rounded-[14px] text-[16px] hover:bg-brandHover disabled:opacity-50 disabled:grayscale-[50%]"
+        >
+            {isSubmitting ? (
+                <div className="w-6 h-6 border-3 border-white/30 border-t-white rounded-full animate-spin mx-auto" />
+            ) : (
+                'Generate Link'
+            )}
+        </button>
+    );
+
     return (
-        <BottomSheet isOpen={isOpen} onClose={onClose} title="Create New Link" fullHeight>
-            <div className="flex flex-col gap-[20px] pb-[80px]">
+        <BottomSheet isOpen={isOpen} onClose={onClose} title="Create New Link" fullHeight footer={generateButton}>
+            <div className="flex flex-col gap-[20px]">
                 
                 {/* Section A - File / Info */}
                 {unlockType === 'follower_pairing' ? (
@@ -196,28 +217,6 @@ export const CreateLinkSheet = ({ isOpen, onClose, onSuccess }: CreateLinkSheetP
                         />
                     )}
                 </div>
-            </div>
-
-            {/* Sticky Action Bar */}
-            <div className="fixed bottom-0 left-0 w-full bg-white border-t border-border/60 p-4 pb-[env(safe-area-inset-bottom,16px)] sm:absolute z-20">
-                <button
-                    onClick={handleSubmit}
-                    disabled={
-                        (!title || isSubmitting) || 
-                        (unlockType !== 'follower_pairing' && !(contentData.file || contentData.textContent.trim().length > 0 || contentData.links.length > 0 || contentData.youtubeUrl)) ||
-                        (unlockType === 'custom_sponsor' && hasCustomAdErrors) ||
-                        (unlockType === 'email_subscribe' && hasEmailErrors) ||
-                        (unlockType === 'social_follow' && hasSocialErrors) ||
-                        (unlockType === 'follower_pairing' && hasFollowerPairingErrors)
-                    }
-                    className="btn-primary w-full h-[52px] border-none bg-brand text-white font-[800] rounded-[14px] text-[16px] hover:bg-brandHover disabled:opacity-50 disabled:grayscale-[50%]"
-                >
-                    {isSubmitting ? (
-                        <div className="w-6 h-6 border-3 border-white/30 border-t-white rounded-full animate-spin mx-auto" />
-                    ) : (
-                        'Generate Link'
-                    )}
-                </button>
             </div>
         </BottomSheet>
     );

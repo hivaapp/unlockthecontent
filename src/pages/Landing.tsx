@@ -120,6 +120,15 @@ export const Landing = () => {
         setTimeout(() => setIsCopied(false), 2000);
     };
 
+    useEffect(() => {
+        const handleSelectUnlockType = (e: Event) => {
+            const ce = e as CustomEvent;
+            setUnlockType(ce.detail);
+        };
+        window.addEventListener('SELECT_UNLOCK_TYPE', handleSelectUnlockType);
+        return () => window.removeEventListener('SELECT_UNLOCK_TYPE', handleSelectUnlockType);
+    }, []);
+
     const handleSignInSuccess = () => {
         if (isGenerated) {
             navigate('/dashboard');

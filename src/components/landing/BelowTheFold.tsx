@@ -1,21 +1,96 @@
-
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import './BelowTheFold.css';
+
+interface CreatorType {
+    id: string;
+    label: string;
+    icon: string;
+    lockItems: string[];
+    unlockIcon1: string;
+    unlockType1: string;
+    unlockColor1: string;
+    unlockIcon2?: string;
+    unlockType2?: string;
+    unlockColor2?: string;
+    reason: string;
+    primaryUnlock: string;
+}
+
+const CREATOR_TYPES: CreatorType[] = [
+    {
+        id: 'designer', label: 'Designer', icon: '🎨',
+        lockItems: ['📄 UI kit PDF', '🎨 Figma component files', '📸 Design system screenshots'],
+        unlockIcon1: '📧', unlockType1: 'Email', unlockColor1: '#166534',
+        unlockIcon2: '👥', unlockType2: 'Follow', unlockColor2: '#2563EB',
+        reason: 'Designers share on social — use follow gates to grow all your platforms at once.',
+        primaryUnlock: 'social_follow'
+    },
+    {
+        id: 'developer', label: 'Developer', icon: '💻',
+        lockItems: ['📄 Code templates', '🛠️ CLI tools', '✂️ Snippet packs', '📦 Boilerplates'],
+        unlockIcon1: '👥', unlockType1: 'Follow', unlockColor1: '#2563EB',
+        reason: 'Your audience is on YouTube and Twitter. Grow both from one resource.',
+        primaryUnlock: 'social_follow'
+    },
+    {
+        id: 'educator', label: 'Educator', icon: '📚',
+        lockItems: ['📝 Course outlines', '📖 Study guides', '🧠 Frameworks', '📄 Worksheets'],
+        unlockIcon1: '📧', unlockType1: 'Email', unlockColor1: '#166534',
+        unlockIcon2: '🤝', unlockType2: 'Pairing', unlockColor2: '#92400E',
+        reason: 'Build your pre-launch list now. Run pairing challenges to prove your methods work.',
+        primaryUnlock: 'email_subscribe'
+    },
+    {
+        id: 'coach', label: 'Coach', icon: '🏋️',
+        lockItems: ['🚫 No file needed'],
+        unlockIcon1: '🤝', unlockType1: 'Follower Pairing', unlockColor1: '#92400E',
+        reason: 'Your value is accountability structures. Pairing does that better than any PDF can.',
+        primaryUnlock: 'follower_pairing'
+    },
+    {
+        id: 'photographer', label: 'Photographer', icon: '📸',
+        lockItems: ['🏔️ Extended shoots', '🖼️ Raw galleries', '🎞️ Behind-the-scenes content'],
+        unlockIcon1: '📧', unlockType1: 'Email', unlockColor1: '#166534',
+        reason: 'People who want your premium work will subscribe. These become your highest-value list segment.',
+        primaryUnlock: 'email_subscribe'
+    },
+    {
+        id: 'writer', label: 'Writer', icon: '✍️',
+        lockItems: ['📄 Templates', '📁 Swipe files', '📝 Prompt packs', '🧠 Writing frameworks'],
+        unlockIcon1: '📧', unlockType1: 'Email', unlockColor1: '#166534',
+        reason: 'Writers build with email. Every free resource you give away becomes a subscriber.',
+        primaryUnlock: 'email_subscribe'
+    },
+    {
+        id: 'filmmaker', label: 'Filmmaker', icon: '🎬',
+        lockItems: ['🎥 Extended cuts', '🎬 BTS footage', '📚 Tutorial series', '🎨 Grade presets'],
+        unlockIcon1: '⭐', unlockType1: 'Sponsor', unlockColor1: '#4338CA',
+        unlockIcon2: '📧', unlockType2: 'Email', unlockColor2: '#166534',
+        reason: 'Premium video content is perfect for sponsor gates — attentive viewers who opted in.',
+        primaryUnlock: 'custom_sponsor'
+    },
+    {
+        id: 'freelancer', label: 'Freelancer', icon: '💼',
+        lockItems: ['📄 Proposal templates', '✍️ Client email scripts', '🧮 Rate calculators'],
+        unlockIcon1: '📧', unlockType1: 'Email', unlockColor1: '#166534',
+        unlockIcon2: '🤝', unlockType2: 'Pairing', unlockColor2: '#92400E',
+        reason: 'Build a list of freelancers. Run a revenue challenge. Both grow your credibility and community.',
+        primaryUnlock: 'email_subscribe'
+    }
+];
 
 export const BelowTheFold = () => {
     const observerRef = useRef<IntersectionObserver | null>(null);
+    const [selectedType, setSelectedType] = useState<CreatorType>(CREATOR_TYPES[0]);
 
     useEffect(() => {
-        observerRef.current = new IntersectionObserver(
-            (entries) => {
-                entries.forEach((entry) => {
-                    if (entry.isIntersecting) {
-                        entry.target.classList.add('btf-revealed');
-                    }
-                });
-            },
-            { threshold: 0.1 }
-        );
+        observerRef.current = new IntersectionObserver((entries) => {
+            entries.forEach((entry) => {
+                if (entry.isIntersecting) {
+                    entry.target.classList.add('btf-revealed');
+                }
+            });
+        }, { threshold: 0.15 });
 
         const targets = document.querySelectorAll('.btf-reveal');
         targets.forEach((t) => observerRef.current?.observe(t));
@@ -23,456 +98,594 @@ export const BelowTheFold = () => {
         return () => observerRef.current?.disconnect();
     }, []);
 
-    const scrollToTop = () => {
-        window.scrollTo({ top: 0, behavior: 'smooth' });
+    const scrollToGenerator = (unlockType?: string) => {
+        if (unlockType) {
+            window.dispatchEvent(new CustomEvent('SELECT_UNLOCK_TYPE', { detail: unlockType }));
+        }
+        const generationArea = document.getElementById('generator');
+        if (generationArea) {
+             generationArea.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        } else {
+             window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
     };
 
     return (
-        <div className="btf-root">
-
-            {/* ── SECTION 1 — HERO ─────────────────────────────────────────── */}
-            <section className="btf-hero btf-reveal">
-                <h1 className="btf-hero-headline">
-                    Lock your best content. Your followers unlock it free. You build something real.
-                </h1>
-                <p className="btf-hero-subtitle">
-                    Lock videos, photos, files, or run a challenge. Your followers unlock everything free by subscribing, following, or watching your sponsor's ad.
-                </p>
-                <div className="btf-hero-buttons">
-                    <button
-                        onClick={scrollToTop}
-                        className="btf-btn-primary"
-                    >
-                        Create your first link — it's free
-                    </button>
-                    <a
-                        href="#how-it-works"
-                        className="btf-btn-secondary"
-                        onClick={(e) => {
-                            e.preventDefault();
-                            document.getElementById('how-it-works')?.scrollIntoView({ behavior: 'smooth' });
-                        }}
-                    >
-                        See how it works ↓
-                    </a>
-                </div>
-                <p className="btf-hero-trust">Free to start · No credit card · 4 unlock types</p>
-            </section>
-
-            {/* ── SECTION 2 — ONE-LINE EXPLANATION ─────────────────────────── */}
-            <section className="btf-oneliner btf-reveal">
-                <p className="btf-oneliner-main">
-                    Your follower does one small thing. You get something real in return. They get your content for free.
-                </p>
-                <div className="btf-oneliner-divider" />
-                <p className="btf-oneliner-alt">
-                    Or skip the content entirely. Give your followers something harder to find than information — a partner who shows up for them every day.
-                </p>
-            </section>
-
-            {/* ── SECTION 3 — HOW IT WORKS ─────────────────────────────────── */}
-            <section className="btf-how btf-reveal" id="how-it-works">
-                <span className="btf-label">How it works</span>
-                <h2 className="btf-how-headline">Three steps. One link.</h2>
-
-                <div className="btf-steps">
-                    {/* Card 1 */}
-                    <div className="btf-step-card btf-step-card--red">
-                        <span className="btf-step-num">1</span>
-                        <span className="btf-step-who">You</span>
-                        <h3 className="btf-step-title">Upload a file, write a guide, or create a challenge.</h3>
-                        <p className="btf-step-desc">
-                            A premium photo shoot, an exclusive video, a PDF guide, a template, a prompt pack — anything your audience finds valuable. Lock it behind the action that grows your audience. Or skip the file entirely and run an accountability pairing challenge.
-                        </p>
-                        <div className="btf-file-pills">
-                            {['🎬 Exclusive video', '📸 Premium photos', '📄 PDF guide', '📊 Template', '🎨 Figma file', '🤝 Challenge'].map((p) => (
-                                <span key={p} className="btf-file-pill">{p}</span>
-                            ))}
-                        </div>
-                        <div className="btf-media-highlight">
-                            <span className="btf-media-highlight-icon">🔒</span>
-                            <span className="btf-media-highlight-text">Lock videos and photos your followers can only access after completing your chosen action — email subscribe, follow, or sponsor watch.</span>
-                        </div>
-                    </div>
-
-                    {/* Card 2 */}
-                    <div className="btf-step-card btf-step-card--blue">
-                        <span className="btf-step-num">2</span>
-                        <span className="btf-step-who">You</span>
-                        <h3 className="btf-step-title">Choose what your follower does to unlock it.</h3>
-                        <p className="btf-step-desc">Pick the action that grows something you care about right now.</p>
-
-                        <div className="btf-unlock-rows">
-                            {[
-                                { icon: '📧', bg: '#EDFAF3', name: 'Email Subscribe', benefit: 'They join your newsletter', tag: 'Own your list' },
-                                { icon: '👥', bg: '#EFF6FF', name: 'Social Follow', benefit: 'They follow your account', tag: 'Grow following' },
-                                { icon: '⭐', bg: '#F5F3FF', name: 'Custom Sponsor', benefit: "They watch your sponsor's video", tag: 'Earn 100%' },
-                                { icon: '🤝', bg: '#FFFBEB', name: 'Accountability Pair', benefit: 'They get paired with a partner', tag: 'Build community' },
-                            ].map((row, i) => (
-                                <div key={i} className="btf-unlock-row">
-                                    <div className="btf-unlock-icon" style={{ background: row.bg }}>{row.icon}</div>
-                                    <div className="btf-unlock-info">
-                                        <span className="btf-unlock-name">{row.name}</span>
-                                        <span className="btf-unlock-benefit">{row.benefit}</span>
-                                    </div>
-                                    <span className="btf-unlock-tag">{row.tag}</span>
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-
-                    {/* Card 3 */}
-                    <div className="btf-step-card btf-step-card--green">
-                        <span className="btf-step-num">3</span>
-                        <span className="btf-step-who btf-step-who--green">Your follower</span>
-                        <h3 className="btf-step-title">Completes the action. Gets your content instantly. Free.</h3>
-                        <p className="btf-step-desc">
-                            No payment. No signup wall unless you need one. They do the one thing you chose and get immediate access. You get a subscriber, a follower, a sponsor impression, or a paired participant.
-                        </p>
-                        <div className="btf-outcome-row">
-                            You earn → a subscriber, follower, sponsor revenue, or paired community member.
-                        </div>
-                    </div>
-                </div>
-            </section>
-
-            {/* ── SECTION 4 — FOUR UNLOCK TYPES ────────────────────────────── */}
-            <section className="btf-types btf-reveal">
-                <span className="btf-label">Four unlock types</span>
-                <h2 className="btf-types-headline">Pick the one that fits what you are building.</h2>
-
-                <div className="btf-types-list">
-                    {/* Email */}
-                    <div className="btf-type-card">
-                        <div className="btf-type-header">
-                            <div className="btf-type-icon" style={{ background: '#EDFAF3' }}>📧</div>
-                            <span className="btf-type-name" style={{ color: '#166534' }}>Email Subscribe</span>
-                            <span className="btf-type-fee btf-type-fee--green">0% fee</span>
-                        </div>
-                        <div className="btf-type-divider" />
-                        <div className="btf-type-side">
-                            <span className="btf-side-label">What you set up:</span>
-                             <p className="btf-side-desc">Your newsletter name, a description, and your locked content — a PDF, a premium photo set, an exclusive video, or any file up to the upload limit.</p>
-                        </div>
-                        <div className="btf-type-side">
-                            <span className="btf-side-label">What your follower does:</span>
-                            <p className="btf-side-desc">Enters their email and confirms. Gets your content immediately.</p>
-                        </div>
-                        <div className="btf-type-earn btf-type-earn--green">
-                            📧 A confirmed email subscriber — owned by you, not AdGate.
-                        </div>
-                    </div>
-
-                    {/* Social */}
-                    <div className="btf-type-card">
-                        <div className="btf-type-header">
-                            <div className="btf-type-icon" style={{ background: '#EFF6FF' }}>👥</div>
-                            <span className="btf-type-name" style={{ color: '#2563EB' }}>Social Follow</span>
-                            <span className="btf-type-fee btf-type-fee--blue">0% fee</span>
-                        </div>
-                        <div className="btf-type-divider" />
-                        <div className="btf-type-side">
-                            <span className="btf-side-label">What you set up:</span>
-                            <p className="btf-side-desc">Your social handle, a heading you write, and up to 6 accounts to follow — including custom links.</p>
-                        </div>
-                        <div className="btf-type-side">
-                            <span className="btf-side-label">What your follower does:</span>
-                            <p className="btf-side-desc">Follows each of your accounts in sequence, confirms, and gets your content.</p>
-                        </div>
-                        <div className="btf-type-earn btf-type-earn--blue">
-                            👥 A follower on every account you included — pre-qualified and interested.
-                        </div>
-                    </div>
-
-                    {/* Sponsor */}
-                    <div className="btf-type-card">
-                        <div className="btf-type-header">
-                            <div className="btf-type-icon" style={{ background: '#F5F3FF' }}>⭐</div>
-                            <span className="btf-type-name" style={{ color: '#6366F1' }}>Custom Sponsor</span>
-                            <span className="btf-type-fee btf-type-fee--purple">0% commission</span>
-                        </div>
-                        <div className="btf-type-divider" />
-                        <div className="btf-type-side">
-                            <span className="btf-side-label">What you set up:</span>
-                             <p className="btf-side-desc">Your sponsor's video, their link, a CTA label, and your locked content — including premium videos or photo galleries your audience only sees after watching.</p>
-                        </div>
-                        <div className="btf-type-side">
-                            <span className="btf-side-label">What your follower does:</span>
-                            <p className="btf-side-desc">Watches your sponsor's video. Optionally visits their site. Gets your content free.</p>
-                        </div>
-                        <div className="btf-type-earn btf-type-earn--purple">
-                            💰 100% of your sponsor deal. AdGate generates the campaign report for you.
-                        </div>
-                    </div>
-
-                    {/* Accountability */}
-                    <div className="btf-type-card">
-                        <div className="btf-type-header" style={{ flexWrap: 'wrap', gap: '8px' }}>
-                            <div className="btf-type-icon" style={{ background: '#FFFBEB' }}>🤝</div>
-                            <span className="btf-type-name" style={{ color: '#92400E' }}>Follower Pairing</span>
-                            <span className="btf-type-fee btf-type-fee--amber">No file needed</span>
-                        </div>
-                        <div className="btf-type-divider" />
-                        <div className="btf-type-side">
-                            <span className="btf-side-label">What you set up:</span>
-                             <p className="btf-side-desc">Your followers already know what to do — they follow you because your content teaches them. What stops them is doing it alone. Create a challenge around your core practice. Set a duration, write a commitment question, and preset a few messages that go out automatically. Your followers pair up with each other and implement your teaching together. You become the creator who actually changed someone's behavior — not just informed it.</p>
-                        </div>
-                        <div className="btf-type-side">
-                            <span className="btf-side-label">What your follower experiences:</span>
-                            <p className="btf-side-desc">They join your challenge, write what they personally commit to, and get matched with another follower who is starting the same journey. They share their progress daily in a private chat. When it gets hard — and it will — their partner is there. Not a group chat where no one is responsible. One specific person who is expecting to hear from them today.</p>
-                        </div>
-                        <div className="btf-type-earn btf-type-earn--amber">
-                            🤝 Followers who implemented your teaching together — the strongest proof your work creates real results.
-                        </div>
-                    </div>
-                </div>
-            </section>
-
-            {/* ── SECTION 5 — USE CASES ─────────────────────────────────────── */}
-            <section className="btf-usecases btf-reveal">
-                <span className="btf-label">Who uses AdGate</span>
-                <h2 className="btf-usecases-headline">See if this sounds like you.</h2>
-
-                <div className="btf-uc-list">
-                    {[
-                        {
-                            border: '#166534',
-                            type: 'Newsletter Creator',
-                            situation: 'You give away free templates but get nothing back from them.',
-                            how: 'Gate each template behind an email subscription. Every download adds a subscriber to your list. The template does not change — just where the value goes.',
-                            pill: '📧 Passive list growth from content you already have',
-                            pillClass: 'btf-uc-pill--green',
-                        },
-                        {
-                            border: '#2563EB',
-                            type: 'Designer',
-                            situation: 'You share free Figma files and UI kits that hundreds of people download.',
-                            how: 'Add a follow gate. Anyone who downloads has to follow your Instagram or YouTube first. You can add up to six accounts in one link — they follow all of them in sequence.',
-                            pill: '👥 Every download becomes a follower',
-                            pillClass: 'btf-uc-pill--blue',
-                        },
-                        {
-                            border: '#6366F1',
-                            type: 'Creator With A Brand Deal',
-                            situation: 'You have a sponsor paying you to reach your audience but you are managing it manually.',
-                            how: 'Upload their video to AdGate. Lock your most valuable resource behind it. AdGate tracks every impression and generates a one-tap campaign report. Your sponsor sees real verified data.',
-                            pill: '⭐ Zero commission · Professional sponsor reports',
-                            pillClass: 'btf-uc-pill--purple',
-                        },
-                        {
-                            border: '#92400E',
-                            type: 'Coach or Educator',
-                            situation: 'You teach something your audience genuinely wants to do. They watch your content, feel motivated, then fall back into the same patterns three days later.',
-                            how: 'The problem was never knowledge — it was doing it alone. Create a 14-day accountability challenge around your core practice. Your followers click your link, write their personal commitment, choose who they want to be matched with, and get paired instantly with another follower starting the same journey. They share their progress every day in a private chat. When one struggles the other pulls them forward. You write four messages upfront that go out automatically — a welcome, two check-ins, a final day note. The chat between your paired followers is private — you cannot read it. That privacy is what makes it honest. You find out it worked from the DMs you get afterwards.',
-                            pill: '🤝 Followers who grew together — because of a structure you built once',
-                            pillClass: 'btf-uc-pill--amber',
-                        },
-                        {
-                            border: '#E8312A',
-                            type: 'Video Creator or Photographer',
-                            situation: 'You produce premium content — extended shoots, behind-the-scenes footage, exclusive video series — and you are either giving it away free or sitting on it unused.',
-                            how: 'Lock your premium videos or full photo sets behind an email gate or social follow. Your most engaged audience — the ones who specifically seek your extended work — subscribe or follow to access it. You keep producing the public content that brings people in. The premium content converts them into subscribers or followers permanently. One shoot. Two audiences.',
-                            pill: '🔒 Premium media turns your best work into audience growth',
-                            pillClass: 'btf-uc-pill--red',
-                        },
-                        {
-                            border: '#166534',
-                            type: 'Course Creator Preparing A Launch',
-                            situation: 'You are launching a course in three months and you have almost no email list.',
-                            how: 'Create three or four free mini-resources — a worksheet, a checklist, a framework. Gate each one behind an email subscription. The subscribers you capture over the next three months are your warm launch audience. They already know your teaching before you ask them to buy.',
-                            pill: '📧 Warm launch audience built months before you ask for anything',
-                            pillClass: 'btf-uc-pill--green',
-                        },
-                    ].map((uc, i) => (
-                        <div
-                            key={i}
-                            className="btf-uc-card"
-                            style={{ borderLeftColor: uc.border }}
-                        >
-                            <span className="btf-uc-type">{uc.type}</span>
-                            <h3 className="btf-uc-situation">{uc.situation}</h3>
-                            <p className="btf-uc-how">{uc.how}</p>
-                            <span className={`btf-uc-pill ${uc.pillClass}`}>{uc.pill}</span>
-                        </div>
-                    ))}
-                </div>
-            </section>
-
-            {/* ── SECTION 6 — ACCOUNTABILITY DETAIL ───────────────────────── */}
-            <section className="btf-accountability btf-reveal">
-                <span className="btf-label btf-label--amber">Follower Pairing — explained simply</span>
-                <h2 className="btf-accountability-headline">
-                    Most people fail at new habits for one reason — they are doing it alone.
-                </h2>
-                <p className="btf-accountability-sub">
-                    Follower pairing gives your followers what no piece of content can — a specific person who is expecting to hear from them today. You create the structure. They show up for each other.
-                </p>
-
-                <div className="btf-acc-cards">
-                    {/* Creator card */}
-                    <div className="btf-acc-card">
-                        <span className="btf-acc-card-header">What you do as the creator</span>
-                        <div className="btf-acc-steps">
-                            {[
-                                { title: 'Write your challenge topic', desc: "One sentence describing what participants will work on together. E.g. 'Build a morning reading habit for 14 days.'" },
-                                { title: 'Write the commitment question', desc: "One question each participant answers when joining. E.g. 'What specific habit will you commit to?'" },
-                                { title: 'Choose the duration', desc: '7, 14, 21, or 30 days. The chat link between pairs expires automatically when time is up.' },
-                                { title: 'Write your scheduled messages', desc: 'Write 3 to 5 messages upfront that go to all pairs on specific days. Day 1 welcome, midpoint check-in, final day message. Takes 20 minutes.' },
-                                { title: 'Share your link', desc: 'That is it. You share the link. Everything else is automatic.' },
-                            ].map((step, i) => (
-                                <div key={i} className="btf-acc-step">
-                                    <span className="btf-acc-step-num">{i + 1}</span>
-                                    <div>
-                                        <span className="btf-acc-step-title">{step.title}</span>
-                                        <p className="btf-acc-step-desc">{step.desc}</p>
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-                        <div className="btf-acc-bottom-strip">
-                            You cannot see what pairs say to each other. Their chat is private. This is what makes it work.
-                        </div>
-                    </div>
-
-                    {/* Follower card */}
-                    <div className="btf-acc-card">
-                        <span className="btf-acc-card-header">What your follower experiences</span>
-                        <div className="btf-acc-steps">
-                            {[
-                                { title: 'Clicks your link', desc: 'Sees your challenge description, your creator profile, and the commitment question.' },
-                                { title: 'Writes their commitment', desc: 'Answers your commitment question honestly. This becomes visible to their partner.' },
-                                { title: 'Chooses a matching preference', desc: 'Male, female, or anyone. Gets matched with the most recently available person who fits.' },
-                                { title: 'Signs in or creates an account', desc: 'Required to access the private chat. Their match is held for 10 minutes while they do this.' },
-                                { title: 'Chats privately with their partner', desc: 'Private chat only they can see. Your scheduled messages arrive automatically. Chat expires when the challenge ends.' },
-                            ].map((step, i) => (
-                                <div key={i} className="btf-acc-step">
-                                    <span className="btf-acc-step-num">{i + 1}</span>
-                                    <div>
-                                        <span className="btf-acc-step-title">{step.title}</span>
-                                        <p className="btf-acc-step-desc">{step.desc}</p>
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-                        <div className="btf-acc-bottom-strip">
-                            No app to download. No community to join. Just two people helping each other show up.
-                        </div>
-                    </div>
-                </div>
-
-                {/* Honest note */}
-                <div className="btf-acc-note">
-                    <p className="btf-acc-note-q">Why one partner beats a group chat every time.</p>
-                    <p className="btf-acc-note-body">
-                        In a group chat of 50 people most people post twice then disappear. Nobody is waiting specifically for them. Nobody notices when they go quiet. In a one-to-one pair there is no hiding. One specific person wrote their commitment. One specific person is checking in today. That direct personal expectation — knowing someone is waiting for you — is the mechanism that creates consistency. It is not motivational. It is structural. AdGate builds the structure. Your followers do the rest.
-                    </p>
-                </div>
-            </section>
-
-            {/* ── SECTION 7 — WHAT YOU OWN ──────────────────────────────────── */}
-            <section className="btf-own btf-reveal">
-                <span className="btf-label">What you actually own</span>
-                <h2 className="btf-own-headline">Everything you build here belongs to you.</h2>
-
-                <div className="btf-own-grid">
-                    {[
-                        {
-                            emoji: '📧',
-                            title: 'Your email list',
-                            desc: 'Subscribers go to your platform — ConvertKit, Beehiiv, Mailchimp, or directly downloadable from AdGate. If you stop using AdGate you keep every email.',
-                        },
-                        {
-                            emoji: '👥',
-                            title: 'Your social following',
-                            desc: 'Followers land on your Instagram, YouTube, or wherever you send them. AdGate creates the gate — your platform owns the relationship.',
-                        },
-                        {
-                            emoji: '🔒',
-                            title: 'Your premium content value',
-                            desc: `Videos and photos you lock retain their value — they do not get devalued by being free everywhere. Viewers who unlock them are your most engaged audience segment. Their email addresses and follows are worth more than a casual visitor's.`,
-                        },
-                        {
-                            emoji: '🤝',
-                            title: 'Your community reputation',
-                            desc: 'Accountability challenge results, participant counts, and completion rates are your story to tell. AdGate just makes it happen.',
-                        },
-                    ].map((card, i) => (
-                        <div key={i} className="btf-own-card">
-                            <span className="btf-own-emoji">{card.emoji}</span>
-                            <h3 className="btf-own-title">{card.title}</h3>
-                            <p className="btf-own-desc">{card.desc}</p>
-                        </div>
-                    ))}
-                </div>
-                <p className="btf-own-tagline">AdGate is a tool. The audience is yours.</p>
-            </section>
-
-            {/* ── SECTION 8 — COMPARISON ────────────────────────────────────── */}
-            <section className="btf-compare btf-reveal">
-                <h2 className="btf-compare-headline">What changes when you add a link gate.</h2>
-
-                <div className="btf-compare-card">
-                    {/* Header */}
-                    <div className="btf-compare-header">
-                        <div className="btf-compare-col btf-compare-col--without">
-                            <span className="btf-compare-col-label">Without AdGate</span>
-                        </div>
-                        <div className="btf-compare-col btf-compare-col--with">
-                            <span className="btf-compare-col-label" style={{ color: '#E8312A' }}>With AdGate</span>
-                        </div>
-                    </div>
-
-                    {[
-                        {
-                            topic: 'When someone downloads your free resource',
-                            without: 'They leave. You have nothing to show for it.',
-                            with: 'They subscribe, follow, or join. You gain something permanent.',
-                        },
-                        {
-                            topic: 'When you post a sponsor mention',
-                            without: 'You track clicks in a spreadsheet and screenshot analytics.',
-                            with: 'AdGate tracks it. One-tap report. Zero commission.',
-                        },
-                        {
-                            topic: 'When you want followers to implement what you teach',
-                            without: 'You post a call to action. Some try. Most do not. You never find out why.',
-                            with: 'You run a pairing challenge. Each follower has a partner expecting them to show up. The implementation rate is structurally higher — not because you motivated them better but because they are not alone.',
-                        },
-                        {
-                            topic: 'When you want your audience to take action',
-                            without: 'You post a motivational caption and hope.',
-                            with: 'You run a pairing challenge. Real accountability. Real outcomes.',
-                        },
-                        {
-                            topic: 'What you own after 6 months',
-                            without: "Follower counts on platforms you do not control.",
-                            with: 'An email list, social accounts you own, and sponsor relationships.',
-                        },
-                    ].map((row, i) => (
-                        <div key={i} className="btf-compare-row">
-                            <div className="btf-compare-topic">{row.topic}</div>
-                            <div className="btf-compare-values">
-                                <div className="btf-compare-without">{row.without}</div>
-                                <div className="btf-compare-with">{row.with}</div>
+        <div className="btf-root text-[#21201C] selection:bg-[#FAF0EB] selection:text-[#D97757]">
+            {/* ── Section 1: The Honest Exchange ── */}
+            <section className="bg-white py-[80px] lg:py-[96px] w-full flex flex-col items-center">
+                <div className="w-full max-w-[1140px] px-6 lg:px-8 btf-reveal">
+                    <div className="flex flex-col lg:flex-row items-center justify-center gap-6 lg:gap-8 w-full max-w-[800px] mx-auto">
+                        
+                        {/* Item 1 — The Creator */}
+                        <div className="bg-white border-[1.5px] border-[#F0F0F0] rounded-[16px] p-6 flex flex-col items-center w-full lg:w-[200px]">
+                            <div className="w-[64px] h-[64px] bg-[#111] rounded-full flex items-center justify-center text-white text-[14px] font-[800]">
+                                You
+                            </div>
+                            <span className="text-[12px] font-[800] text-[#AAAAAA] uppercase tracking-[0.5px] mt-2">
+                                You
+                            </span>
+                            <div className="relative w-[40px] h-[40px] mt-4">
+                                <div className="absolute top-0 left-0 w-[28px] h-[28px] bg-red-100 border border-red-200 rounded-[4px] flex items-center justify-center text-[12px] transform -rotate-6 z-10">📄</div>
+                                <div className="absolute top-2 left-3 w-[28px] h-[28px] bg-blue-100 border border-blue-200 rounded-[4px] flex items-center justify-center text-[12px] transform rotate-3 z-20">📸</div>
+                                <div className="absolute top-4 left-0 w-[28px] h-[28px] bg-green-100 border border-green-200 rounded-[4px] flex items-center justify-center text-[12px] transform -rotate-3 z-30">🎬</div>
                             </div>
                         </div>
-                    ))}
+
+                        {/* Connecting element 1 */}
+                        <div className="flex flex-col items-center justify-center gap-1">
+                            <span className="hidden lg:block text-[#E8E8E8] text-[32px] font-[300] leading-none">→</span>
+                            <span className="block lg:hidden text-[#E8E8E8] text-[32px] font-[300] leading-none">↓</span>
+                            <span className="text-[11px] font-[700] text-[#AAAAAA]">locks it</span>
+                        </div>
+
+                        {/* Item 2 — The Lock */}
+                        <div className="bg-[#111] rounded-[16px] p-6 flex flex-col items-center w-full lg:w-[200px]">
+                            <div className="text-[48px] leading-none">🔒</div>
+                            <span className="text-[16px] font-[900] text-white mt-3 text-center">Free to unlock</span>
+                            <span className="text-[13px] text-white/50 text-center mt-1">No payment. Ever.</span>
+                        </div>
+
+                        {/* Connecting element 2 */}
+                        <div className="flex flex-col items-center justify-center gap-1">
+                            <span className="hidden lg:block text-[#E8E8E8] text-[32px] font-[300] leading-none">→</span>
+                            <span className="block lg:hidden text-[#E8E8E8] text-[32px] font-[300] leading-none">↓</span>
+                            <span className="text-[11px] font-[700] text-[#AAAAAA]">unlocks it by</span>
+                        </div>
+
+                        {/* Item 3 — The Follower */}
+                        <div className="bg-white border-[1.5px] border-[#F0F0F0] rounded-[16px] p-6 flex flex-col items-center w-full lg:w-[200px]">
+                            <div className="w-[64px] h-[64px] bg-[#2563EB] rounded-full flex items-center justify-center text-white text-[14px] font-[800]">
+                                Them
+                            </div>
+                            <div className="grid grid-cols-2 gap-2 mt-4">
+                                <div className="bg-[#F6F6F6] text-[#555] rounded-[10px] h-[24px] flex items-center justify-center px-2 text-[10px] font-[700] whitespace-nowrap">📧 Subscribe</div>
+                                <div className="bg-[#F6F6F6] text-[#555] rounded-[10px] h-[24px] flex items-center justify-center px-2 text-[10px] font-[700] whitespace-nowrap">👥 Follow</div>
+                                <div className="bg-[#F6F6F6] text-[#555] rounded-[10px] h-[24px] flex items-center justify-center px-2 text-[10px] font-[700] whitespace-nowrap">⭐ Watch</div>
+                                <div className="bg-[#F6F6F6] text-[#555] rounded-[10px] h-[24px] flex items-center justify-center px-2 text-[10px] font-[700] whitespace-nowrap">🤝 Pair</div>
+                            </div>
+                        </div>
+
+                    </div>
+                    
+                    <div className="mt-8">
+                        <p className="text-[15px] font-[700] text-[#888] text-center w-full block">
+                            Your followers get your content free. You get something that lasts.
+                        </p>
+                    </div>
                 </div>
             </section>
 
-            {/* ── SECTION 9 — FINAL CTA ─────────────────────────────────────── */}
-            <section className="btf-cta btf-reveal">
-                <h2 className="btf-cta-headline">Create your first link. It takes two minutes.</h2>
-                <p className="btf-cta-subtitle">Free forever for email and follow gates. Zero commission on your first sponsor deal.</p>
-                <button className="btf-cta-button" onClick={scrollToTop}>
-                    Get started for free →
-                </button>
-                <div className="btf-cta-trust">
-                    <span>No credit card</span>
-                    <span className="btf-trust-dot" />
-                    <span>Your audience unlocks for free</span>
-                    <span className="btf-trust-dot" />
-                    <span>Cancel anytime</span>
+            {/* ── Section 2: Four Ways In Four Cards ── */}
+            <section className="bg-[#FAFAFA] py-[80px] lg:py-[96px] w-full flex flex-col items-center">
+                <div className="w-full max-w-[1140px] px-6 lg:px-8 btf-reveal">
+                    
+                    <h2 className="text-[11px] font-[800] text-[#AAAAAA] uppercase tracking-[0.8px] text-center mb-0">How creators use it</h2>
+                    <h3 className="text-[36px] lg:text-[44px] font-[900] text-[#111] leading-[1.2] text-center mt-[12px] mb-[40px]">
+                        Pick what you want to build.
+                    </h3>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-[12px] md:gap-[16px]">
+                        
+                        {/* Email Card */}
+                        <div className="flex flex-col bg-white rounded-lg overflow-hidden border border-[#E6E2D9] h-auto btf-reveal btf-stagger-1">
+                            <div className="bg-[#166534] h-[56px] px-[20px] flex items-center gap-[12px] shrink-0">
+                                <div className="w-[36px] h-[36px] bg-white/20 rounded-full flex items-center justify-center text-[20px] shrink-0">📧</div>
+                                <div className="flex flex-col pt-0.5">
+                                    <span className="text-[14px] font-[900] text-white leading-none">Email</span>
+                                    <span className="text-[11px] text-white/75 mt-1 leading-[1.2]">They subscribe to your list.</span>
+                                </div>
+                            </div>
+                            <div className="p-[20px] bg-white flex-1">
+                                <span className="text-[10px] font-[800] text-[#AAAAAA] uppercase block mb-1">You set up:</span>
+                                <p className="text-[14px] font-[700] text-[#333] leading-[1.5]">Your newsletter name and the file you want to give away.</p>
+                            </div>
+                            <div className="p-[16px] bg-[#EDFAF3] border-t border-[#BBF7D0] shrink-0">
+                                <span className="text-[10px] font-[800] text-[#166534] uppercase block mb-1">You get:</span>
+                                <p className="text-[13px] font-[800] text-[#166534] truncate">A confirmed email subscriber you own.</p>
+                            </div>
+                        </div>
+
+                        {/* Follow Card */}
+                        <div className="flex flex-col bg-white rounded-lg overflow-hidden border border-[#E6E2D9] h-auto btf-reveal btf-stagger-2">
+                            <div className="bg-[#1E3A8A] h-[56px] px-[20px] flex items-center gap-[12px] shrink-0">
+                                <div className="w-[36px] h-[36px] bg-white/20 rounded-full flex items-center justify-center text-[20px] shrink-0">👥</div>
+                                <div className="flex flex-col pt-0.5">
+                                    <span className="text-[14px] font-[900] text-white leading-none">Follow</span>
+                                    <span className="text-[11px] text-white/75 mt-1 leading-[1.2]">They follow your accounts.</span>
+                                </div>
+                            </div>
+                            <div className="p-[20px] bg-white flex-1">
+                                <span className="text-[10px] font-[800] text-[#AAAAAA] uppercase block mb-1">You set up:</span>
+                                <p className="text-[14px] font-[700] text-[#333] leading-[1.5]">Your social handles — up to 6 accounts in sequence.</p>
+                            </div>
+                            <div className="p-[16px] bg-[#EFF6FF] border-t border-[#BFDBFE] shrink-0">
+                                <span className="text-[10px] font-[800] text-[#1E3A8A] uppercase block mb-1">You get:</span>
+                                <p className="text-[13px] font-[800] text-[#1E3A8A] truncate">A follower on every account you listed.</p>
+                            </div>
+                        </div>
+
+                        {/* Sponsor Card */}
+                        <div className="flex flex-col bg-white rounded-lg overflow-hidden border border-[#E6E2D9] h-auto btf-reveal btf-stagger-3">
+                            <div className="bg-[#4338CA] h-[56px] px-[20px] flex items-center gap-[12px] shrink-0">
+                                <div className="w-[36px] h-[36px] bg-white/20 rounded-full flex items-center justify-center text-[20px] shrink-0">⭐</div>
+                                <div className="flex flex-col pt-0.5">
+                                    <span className="text-[14px] font-[900] text-white leading-none">Sponsor</span>
+                                    <span className="text-[11px] text-white/75 mt-1 leading-[1.2]">They watch a brand video.</span>
+                                </div>
+                            </div>
+                            <div className="p-[20px] bg-white flex-1">
+                                <span className="text-[10px] font-[800] text-[#AAAAAA] uppercase block mb-1">You set up:</span>
+                                <p className="text-[14px] font-[700] text-[#333] leading-[1.5]">Your sponsor's video and their website link.</p>
+                            </div>
+                            <div className="p-[16px] bg-[#F5F3FF] border-t border-[#DDD6FE] shrink-0">
+                                <span className="text-[10px] font-[800] text-[#4338CA] uppercase block mb-1">You get:</span>
+                                <p className="text-[13px] font-[800] text-[#4338CA] truncate">100% of your sponsor deal. Verified data.</p>
+                            </div>
+                        </div>
+
+                        {/* Pairing Card */}
+                        <div className="flex flex-col bg-white rounded-lg overflow-hidden border border-[#E6E2D9] h-auto btf-reveal btf-stagger-4">
+                            <div className="bg-[#92400E] h-[56px] px-[20px] flex items-center gap-[12px] shrink-0">
+                                <div className="w-[36px] h-[36px] bg-white/20 rounded-full flex items-center justify-center text-[20px] shrink-0">🤝</div>
+                                <div className="flex flex-col pt-0.5">
+                                    <span className="text-[14px] font-[900] text-white leading-none">Pairing</span>
+                                    <span className="text-[11px] text-white/75 mt-1 leading-[1.2]">They commit to a challenge.</span>
+                                </div>
+                            </div>
+                            <div className="p-[20px] bg-white flex-1">
+                                <span className="text-[10px] font-[800] text-[#AAAAAA] uppercase block mb-1">You set up:</span>
+                                <p className="text-[14px] font-[700] text-[#333] leading-[1.5]">A challenge topic, a question, and a duration. No file needed.</p>
+                            </div>
+                            <div className="p-[16px] bg-[#FFFBEB] border-t border-[#FDE68A] shrink-0">
+                                <span className="text-[10px] font-[800] text-[#92400E] uppercase block mb-1">You get:</span>
+                                <p className="text-[13px] font-[800] text-[#92400E] truncate">Followers doing the work together. You guide.</p>
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+            </section>
+
+            {/* ── Section 3: Real Numbers, Real Creators ── */}
+            <section className="bg-white py-[80px] lg:py-[96px] w-full flex flex-col items-center">
+                <div className="w-full max-w-[1140px] px-6 lg:px-8 btf-reveal">
+                    
+                    <h2 className="text-[11px] font-[800] text-[#AAAAAA] uppercase tracking-[0.8px] text-center mb-0">From real creators</h2>
+                    <h3 className="text-[36px] lg:text-[44px] font-[900] text-[#111] leading-[1.2] text-center mt-[12px] mb-[40px]">
+                        What actually happens.
+                    </h3>
+
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-[16px]">
+                        
+                        {/* Story 1 */}
+                        <div className="bg-white border-[1.5px] border-[#F0F0F0] rounded-[16px] p-[24px] lg:min-h-[200px] flex flex-col justify-between btf-reveal btf-stagger-1">
+                            <div>
+                                <div className="flex items-center justify-between mb-4">
+                                    <div className="flex items-center gap-3">
+                                        <div className="w-[40px] h-[40px] bg-[#EDFAF3] text-[#166534] font-[800] flex items-center justify-center rounded-full text-[16px]">P</div>
+                                        <div>
+                                            <div className="text-[14px] font-[800] text-[#111] leading-none">Priya</div>
+                                            <div className="text-[11px] font-[600] text-[#888] mt-1">UX Designer</div>
+                                        </div>
+                                    </div>
+                                    <div className="bg-[#EDFAF3] text-[#166534] text-[10px] font-[800] px-2 py-1 rounded-[10px]">Email</div>
+                                </div>
+                                <span className="text-[11px] font-[800] text-[#AAAAAA] uppercase block mb-1">Before:</span>
+                                <p className="text-[13px] font-[600] text-[#888] line-height-[1.65]">800 saves on every Figma kit post. Zero emails to show for it.</p>
+                            </div>
+                            <div className="border-t border-[#F4F4F4] mt-[16px] pt-[16px]">
+                                <span className="text-[11px] font-[800] text-[#166534] uppercase block mb-1">After one month:</span>
+                                <p className="text-[16px] font-[900] text-[#111] leading-[1.3]">1,400 subscribers from 2 resources.</p>
+                            </div>
+                        </div>
+
+                        {/* Story 2 */}
+                        <div className="bg-white border-[1.5px] border-[#F0F0F0] rounded-[16px] p-[24px] lg:min-h-[200px] flex flex-col justify-between btf-reveal btf-stagger-2">
+                            <div>
+                                <div className="flex items-center justify-between mb-4">
+                                    <div className="flex items-center gap-3">
+                                        <div className="w-[40px] h-[40px] bg-[#EFF6FF] text-[#1E3A8A] font-[800] flex items-center justify-center rounded-full text-[16px]">A</div>
+                                        <div>
+                                            <div className="text-[14px] font-[800] text-[#111] leading-none">Arjun</div>
+                                            <div className="text-[11px] font-[600] text-[#888] mt-1">Developer</div>
+                                        </div>
+                                    </div>
+                                    <div className="bg-[#EFF6FF] text-[#1E3A8A] text-[10px] font-[800] px-2 py-1 rounded-[10px]">Follow</div>
+                                </div>
+                                <span className="text-[11px] font-[800] text-[#AAAAAA] uppercase block mb-1">Before:</span>
+                                <p className="text-[13px] font-[600] text-[#888] line-height-[1.65]">Free Python scripts getting 400 GitHub stars. Other platforms stayed flat.</p>
+                            </div>
+                            <div className="border-t border-[#F4F4F4] mt-[16px] pt-[16px]">
+                                <span className="text-[11px] font-[800] text-[#2563EB] uppercase block mb-1">After one month:</span>
+                                <p className="text-[16px] font-[900] text-[#111] leading-[1.3]">900 new YouTube subscribers, 700 on Twitter — from one resource.</p>
+                            </div>
+                        </div>
+
+                        {/* Story 3 */}
+                        <div className="bg-white border-[1.5px] border-[#F0F0F0] rounded-[16px] p-[24px] lg:min-h-[200px] flex flex-col justify-between btf-reveal btf-stagger-3">
+                            <div>
+                                <div className="flex items-center justify-between mb-4">
+                                    <div className="flex items-center gap-3">
+                                        <div className="w-[40px] h-[40px] bg-[#F5F3FF] text-[#4338CA] font-[800] flex items-center justify-center rounded-full text-[16px]">N</div>
+                                        <div>
+                                            <div className="text-[14px] font-[800] text-[#111] leading-none">Neha</div>
+                                            <div className="text-[11px] font-[600] text-[#888] mt-1">Lifestyle Creator</div>
+                                        </div>
+                                    </div>
+                                    <div className="bg-[#F5F3FF] text-[#4338CA] text-[10px] font-[800] px-2 py-1 rounded-[10px]">Sponsor</div>
+                                </div>
+                                <span className="text-[11px] font-[800] text-[#AAAAAA] uppercase block mb-1">Before:</span>
+                                <p className="text-[13px] font-[600] text-[#888] line-height-[1.65]">A brand deal with no way to prove her audience actually watched it.</p>
+                            </div>
+                            <div className="border-t border-[#F4F4F4] mt-[16px] pt-[16px]">
+                                <span className="text-[11px] font-[800] text-[#6366F1] uppercase block mb-1">After one month:</span>
+                                <p className="text-[16px] font-[900] text-[#111] leading-[1.3]">Sponsor report sent in one tap. Rebooking confirmed.</p>
+                            </div>
+                        </div>
+
+                        {/* Story 4 */}
+                        <div className="bg-white border-[1.5px] border-[#F0F0F0] rounded-[16px] p-[24px] lg:min-h-[200px] flex flex-col justify-between btf-reveal btf-stagger-4">
+                            <div>
+                                <div className="flex items-center justify-between mb-4">
+                                    <div className="flex items-center gap-3">
+                                        <div className="w-[40px] h-[40px] bg-[#FFFBEB] text-[#92400E] font-[800] flex items-center justify-center rounded-full text-[16px]">R</div>
+                                        <div>
+                                            <div className="text-[14px] font-[800] text-[#111] leading-none">Rohan</div>
+                                            <div className="text-[11px] font-[600] text-[#888] mt-1">Fitness Creator</div>
+                                        </div>
+                                    </div>
+                                    <div className="bg-[#FFFBEB] text-[#92400E] text-[10px] font-[800] px-2 py-1 rounded-[10px]">Pairing</div>
+                                </div>
+                                <span className="text-[11px] font-[800] text-[#AAAAAA] uppercase block mb-1">Before:</span>
+                                <p className="text-[13px] font-[600] text-[#888] line-height-[1.65]">21-day workout series. Same people commented 'fell off' every week.</p>
+                            </div>
+                            <div className="border-t border-[#F4F4F4] mt-[16px] pt-[16px]">
+                                <span className="text-[11px] font-[800] text-[#B45309] uppercase block mb-1">After one month:</span>
+                                <p className="text-[16px] font-[900] text-[#111] leading-[1.3]">68 pairs formed. First time most of them finished anything.</p>
+                            </div>
+                        </div>
+
+                    </div>
+
+                </div>
+            </section>
+
+            {/* ── Section 4: The One-Line Dark Strip ── */}
+            <section className="bg-[#111] py-[64px] px-6 w-full flex items-center justify-center text-center">
+                <div className="w-full max-w-[560px] btf-reveal">
+                    <h2 className="text-[26px] lg:text-[32px] font-[900] text-white leading-[1.4] m-0">
+                        You have been giving your content away. Start giving it away smarter.
+                    </h2>
+                </div>
+            </section>
+
+            {/* ── Section 5: Follower Pairing — The Visual Story ── */}
+            <section className="bg-[#FFFBEB] py-[80px] lg:py-[96px] w-full flex flex-col items-center">
+                <div className="w-full max-w-[1140px] px-6 lg:px-8 btf-reveal">
+                    
+                    <div className="flex justify-center mb-[12px]">
+                        <span className="bg-[#FDE68A] text-[#92400E] px-4 py-1 rounded-[20px] text-[11px] font-[800] uppercase tracking-[0.8px]">Follower Pairing</span>
+                    </div>
+                    <h2 className="text-[36px] lg:text-[44px] font-[900] text-[#111] leading-[1.2] text-center max-w-[480px] mx-auto m-0">
+                        Most people fail alone. Your followers won't.
+                    </h2>
+                    <p className="text-[15px] font-[600] text-[#666] text-center max-w-[400px] leading-[1.65] mt-[12px] mx-auto">
+                        No file needed. You create a challenge. They pair up and support each other every day.
+                    </p>
+
+                    {/* Visual Journey */}
+                    <div className="mt-[40px] flex flex-col lg:flex-row items-center lg:items-stretch justify-center gap-[12px] lg:gap-2">
+                        
+                        {/* Step 1 */}
+                        <div className="bg-white border-[1.5px] border-[#FDE68A] rounded-[12px] p-[16px] text-center w-full lg:w-[160px] flex flex-col items-center">
+                            <span className="text-[32px] block">✏️</span>
+                            <span className="text-[14px] font-[800] text-[#111] mt-2 block">You write a challenge</span>
+                            <span className="text-[12px] font-[600] text-[#555] mt-2 block">Topic + commitment question + duration.</span>
+                        </div>
+                        <span className="text-[24px] text-[#FDE68A] block lg:hidden font-[300]">↓</span>
+                        <span className="text-[24px] text-[#FDE68A] hidden lg:flex items-center justify-center font-[300]">→</span>
+
+                        {/* Step 2 */}
+                        <div className="bg-white border-[1.5px] border-[#FDE68A] rounded-[12px] p-[16px] text-center w-full lg:w-[160px] flex flex-col items-center">
+                            <span className="text-[32px] block">👆</span>
+                            <span className="text-[14px] font-[800] text-[#111] mt-2 block">They click your link</span>
+                            <span className="text-[12px] font-[600] text-[#555] mt-2 block">They read the challenge and write their personal commitment.</span>
+                        </div>
+                        <span className="text-[24px] text-[#FDE68A] block lg:hidden font-[300]">↓</span>
+                        <span className="text-[24px] text-[#FDE68A] hidden lg:flex items-center justify-center font-[300]">→</span>
+
+                        {/* Step 3 */}
+                        <div className="bg-white border-[1.5px] border-[#FDE68A] rounded-[12px] p-[16px] text-center w-full lg:w-[160px] flex flex-col items-center">
+                            <span className="text-[32px] block">🤝</span>
+                            <span className="text-[14px] font-[800] text-[#111] mt-2 block">They get matched</span>
+                            <span className="text-[12px] font-[600] text-[#555] mt-2 block">Paired instantly with someone starting the same journey.</span>
+                        </div>
+                        <span className="text-[24px] text-[#FDE68A] block lg:hidden font-[300]">↓</span>
+                        <span className="text-[24px] text-[#FDE68A] hidden lg:flex items-center justify-center font-[300]">→</span>
+
+                        {/* Step 4 */}
+                        <div className="bg-white border-[1.5px] border-[#FDE68A] rounded-[12px] p-[16px] text-center w-full lg:w-[160px] flex flex-col items-center">
+                            <span className="text-[32px] block">💬</span>
+                            <span className="text-[14px] font-[800] text-[#111] mt-2 block">They chat privately</span>
+                            <span className="text-[12px] font-[600] text-[#555] mt-2 block">Daily check-ins with their partner. <span className="text-[#B45309] font-[700] text-[11px]">You cannot read it.</span></span>
+                        </div>
+                        <span className="text-[24px] text-[#FDE68A] block lg:hidden font-[300]">↓</span>
+                        <span className="text-[24px] text-[#FDE68A] hidden lg:flex items-center justify-center font-[300]">→</span>
+
+                        {/* Step 5 */}
+                        <div className="bg-white border-[1.5px] border-[#FDE68A] rounded-[12px] p-[16px] text-center w-full lg:w-[160px] flex flex-col items-center">
+                            <span className="text-[32px] block">📣</span>
+                            <span className="text-[14px] font-[800] text-[#111] mt-2 block">You guide them</span>
+                            <span className="text-[12px] font-[600] text-[#555] mt-2 block">Your pre-written messages go out automatically on set days.</span>
+                        </div>
+
+                    </div>
+
+                    {/* Evidence Box */}
+                    <div className="mt-[40px] w-full max-w-[480px] mx-auto bg-white border-[1.5px] border-[#FDE68A] rounded-[16px] p-[20px] flex flex-col sm:flex-row items-center sm:items-stretch gap-[20px]">
+                        <div className="flex flex-col items-center sm:items-end justify-center w-full sm:w-[140px] shrink-0 text-center sm:text-right">
+                            <span className="text-[48px] font-[900] text-[#B45309] leading-none mb-1 block">68</span>
+                            <span className="text-[13px] font-[600] text-[#888] block">pairs formed</span>
+                        </div>
+                        <div className="flex flex-col justify-center border-t-2 sm:border-t-0 sm:border-l-2 border-[#FDE68A] w-full sm:w-auto pt-[20px] sm:pt-0 sm:pl-[20px] gap-1">
+                            <span className="text-[15px] font-[800] text-[#111]">25 minutes setup.</span>
+                            <span className="text-[13px] font-[600] text-[#888]">4 messages written upfront.</span>
+                            <span className="text-[13px] font-[600] text-[#888]">0 hours of daily facilitation.</span>
+                        </div>
+                    </div>
+                    <p className="text-[12px] font-[600] text-[#AAAAAA] italic text-center mt-[12px]">— Rohan, Fitness Creator</p>
+
+                </div>
+            </section>
+
+            {/* ── Section 6: Three Things That Are True ── */}
+            <section className="bg-white py-[80px] lg:py-[96px] w-full flex flex-col items-center">
+                <div className="w-full max-w-[1140px] px-6 lg:px-8">
+                    
+                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-[16px]">
+                        
+                        <div className="bg-white border-[1.5px] border-[#F0F0F0] rounded-[16px] p-[24px] flex flex-col btf-reveal btf-stagger-1 lg:min-h-[160px]">
+                            <span className="text-[64px] font-[900] text-[#F0F0F0] leading-none block mb-4">01</span>
+                            <span className="text-[20px] font-[900] text-[#111] block mb-2 leading-[1.2]">Your followers never pay.</span>
+                            <p className="text-[13px] font-[600] text-[#888] line-height-[1.75]">
+                                Every unlock type is free for the person on the other side. The exchange is an action — not a payment. That's why conversion rates are high.
+                            </p>
+                        </div>
+
+                        <div className="bg-white border-[1.5px] border-[#F0F0F0] rounded-[16px] p-[24px] flex flex-col btf-reveal btf-stagger-2 lg:min-h-[160px]">
+                            <span className="text-[64px] font-[900] text-[#F0F0F0] leading-none block mb-4">02</span>
+                            <span className="text-[20px] font-[900] text-[#111] block mb-2 leading-[1.2]">You keep everything you build.</span>
+                            <p className="text-[13px] font-[600] text-[#888] line-height-[1.75]">
+                                Emails go to your list — not ours. Followers land on your accounts. Sponsor money goes directly to you. AdGate is a tool, not a platform that owns your audience.
+                            </p>
+                        </div>
+
+                        <div className="bg-white border-[1.5px] border-[#F0F0F0] rounded-[16px] p-[24px] flex flex-col btf-reveal btf-stagger-3 lg:min-h-[160px]">
+                            <span className="text-[64px] font-[900] text-[#F0F0F0] leading-none block mb-4">03</span>
+                            <span className="text-[20px] font-[900] text-[#111] block mb-2 leading-[1.2]">Links take under five minutes to make.</span>
+                            <p className="text-[13px] font-[600] text-[#888] line-height-[1.75]">
+                                Upload your file, choose your unlock type, configure it, copy the link. Share it anywhere. Works on every platform that allows links.
+                            </p>
+                        </div>
+
+                    </div>
+
+                </div>
+            </section>
+
+            {/* ── Section 7: Creator Type Matcher ── */}
+            <section className="bg-[#FAFAFA] py-[80px] lg:py-[96px] w-full flex flex-col items-center">
+                <div className="w-full max-w-[1140px] px-6 lg:px-8 btf-reveal">
+                    
+                    <h2 className="text-[11px] font-[800] text-[#AAAAAA] uppercase tracking-[0.8px] text-center mb-0">Find your fit</h2>
+                    <h3 className="text-[36px] lg:text-[44px] font-[900] text-[#111] leading-[1.2] text-center mt-[12px] mb-0">
+                        See yourself in one of these?
+                    </h3>
+
+                    {/* Scrollable Pills */}
+                    <div className="mt-[24px] btf-scroll-pills pl-0">
+                        {CREATOR_TYPES.map(cat => (
+                            <button 
+                                key={cat.id} 
+                                className={`btf-pill shrink-0 ${selectedType.id === cat.id ? 'active' : ''}`}
+                                onClick={() => setSelectedType(cat)}
+                            >
+                                {cat.label} {cat.icon}
+                            </button>
+                        ))}
+                    </div>
+
+                    {/* Result Card */}
+                    <div className="mt-[24px] w-full max-w-[640px] mx-auto bg-white border-[1.5px] border-[#F0F0F0] rounded-[16px] p-[24px] transition-all duration-200 ease-in-out">
+                        <div className="flex flex-col md:flex-row gap-[24px]">
+                            
+                            {/* Left Col */}
+                            <div className="flex-1 flex flex-col">
+                                <span className="text-[11px] font-[800] text-[#AAAAAA] uppercase block mb-3">What to lock</span>
+                                <div className="flex flex-col gap-2">
+                                    {selectedType.lockItems.map((item, idx) => (
+                                        <div key={idx} className="text-[14px] font-[700] text-[#333]">{item}</div>
+                                    ))}
+                                </div>
+                            </div>
+
+                            {/* Right Col */}
+                            <div className="flex-1 flex flex-col border-t md:border-t-0 md:border-l border-[#F0F0F0] pt-4 md:pt-0 md:pl-[24px]">
+                                <span className="text-[11px] font-[800] text-[#AAAAAA] uppercase block mb-3">Unlock with</span>
+                                
+                                {/* Recommended type strip */}
+                                <div className="w-full flex items-center gap-2 mb-2">
+                                    <span className="text-[24px] leading-none block">{selectedType.unlockIcon1}</span>
+                                    <span className="text-[16px] font-[900]" style={{ color: selectedType.unlockColor1 }}>{selectedType.unlockType1}</span>
+                                </div>
+                                {selectedType.unlockIcon2 && selectedType.unlockType2 && (
+                                    <div className="w-full flex items-center gap-2 mb-2">
+                                        <span className="text-[24px] leading-none block">{selectedType.unlockIcon2}</span>
+                                        <span className="text-[16px] font-[900]" style={{ color: selectedType.unlockColor2 }}>{selectedType.unlockType2}</span>
+                                    </div>
+                                )}
+
+                                <p className="text-[13px] font-[600] text-[#888] leading-[1.5]">
+                                    {selectedType.reason}
+                                </p>
+                            </div>
+                        </div>
+
+                        {/* CTA Link */}
+                        <div className="mt-[24px] border-t border-[#F0F0F0] pt-[16px]">
+                            <button 
+                                onClick={() => scrollToGenerator(selectedType.primaryUnlock)}
+                                className="text-[13px] font-[700] text-[#E8312A] hover:underline bg-transparent p-0 m-0 border-none cursor-pointer"
+                            >
+                                Create this link →
+                            </button>
+                        </div>
+                    </div>
+
+                </div>
+            </section>
+
+            {/* ── Section 8: Pricing — Dead Simple ── */}
+            <section className="bg-white py-[80px] lg:py-[96px] w-full flex flex-col items-center">
+                <div className="w-full max-w-[1140px] px-6 lg:px-8 btf-reveal">
+                    
+                    <h2 className="text-[11px] font-[800] text-[#AAAAAA] uppercase tracking-[0.8px] text-center mb-0">Pricing</h2>
+                    <h3 className="text-[36px] lg:text-[44px] font-[900] text-[#111] leading-[1.2] text-center mt-[12px] mb-[12px]">
+                        Almost everything is free.
+                    </h3>
+                    <p className="text-[15px] font-[600] text-[#888] text-center max-w-[440px] mx-auto m-0 mb-[40px]">
+                        The only paid feature is running large Follower Pairing campaigns.
+                    </p>
+
+                    <div className="w-full max-w-[700px] mx-auto flex flex-col md:flex-row gap-[16px]">
+                        
+                        {/* Free Card */}
+                        <div className="flex-1 bg-white border-[1.5px] border-[#E8E8E8] rounded-[16px] p-[28px] flex flex-col">
+                            <div className="flex items-center gap-1">
+                                <span className="text-[52px] font-[900] text-[#111] leading-none">$0</span>
+                                <span className="text-[16px] font-[600] text-[#AAAAAA] leading-none mt-4">/forever</span>
+                            </div>
+                            <div className="w-full h-[1px] bg-[#F0F0F0] my-[16px]"></div>
+                            
+                            <div className="flex flex-col gap-3 flex-1 mb-[20px]">
+                                <div className="flex items-center gap-2">
+                                    <svg className="w-[18px] h-[18px] text-[#166534] shrink-0 fill-current" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>
+                                    <span className="text-[14px] font-[700] text-[#333]">Unlimited Lock Content links</span>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    <svg className="w-[18px] h-[18px] text-[#166534] shrink-0 fill-current" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>
+                                    <span className="text-[14px] font-[700] text-[#333]">Email, Follow and Sponsor unlock types</span>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    <svg className="w-[18px] h-[18px] text-[#166534] shrink-0 fill-current" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>
+                                    <span className="text-[14px] font-[700] text-[#333]">0% commission on sponsor deals</span>
+                                </div>
+                                <div className="flex items-center gap-2 bg-[#FFFBEB] rounded-[8px] p-1.5 -mx-2">
+                                    <svg className="w-[18px] h-[18px] text-[#166534] shrink-0 fill-current" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>
+                                    <span className="text-[14px] font-[700] text-[#333]">1 Follower Pairing campaign</span>
+                                </div>
+                                <div className="flex items-center gap-2 bg-[#FFFBEB] rounded-[8px] p-1.5 -mx-2">
+                                    <svg className="w-[18px] h-[18px] text-[#166534] shrink-0 fill-current" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>
+                                    <span className="text-[14px] font-[700] text-[#333]">Up to 10 pairs per campaign</span>
+                                </div>
+                            </div>
+                            
+                            <button onClick={() => scrollToGenerator()} className="w-full h-[48px] bg-[#111] text-white font-[900] text-[14px] rounded-[12px]">
+                                Start free →
+                            </button>
+                        </div>
+
+                        {/* Pro Card */}
+                        <div className="flex-1 bg-[#111] rounded-[16px] p-[28px] flex flex-col relative">
+                            <div className="absolute top-[28px] right-[28px] bg-[#E8312A] text-white text-[10px] font-[900] tracking-[1px] h-[20px] px-[10px] rounded-[6px] flex items-center">
+                                PRO
+                            </div>
+                            <div className="flex items-center gap-1">
+                                <span className="text-[52px] font-[900] text-white leading-none">$10</span>
+                                <span className="text-[16px] text-white/50 leading-none mt-4">/month</span>
+                            </div>
+                            <div className="w-full h-[1px] bg-white/10 my-[16px]"></div>
+                            
+                            <div className="flex flex-col gap-3 flex-1 mb-[20px]">
+                                <div className="flex items-center gap-2">
+                                    <svg className="w-[18px] h-[18px] text-[#E8312A] shrink-0 fill-current" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>
+                                    <span className="text-[14px] font-[700] text-white">Everything in Free</span>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    <svg className="w-[18px] h-[18px] text-[#E8312A] shrink-0 fill-current" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>
+                                    <span className="text-[14px] font-[700] text-white">5 Follower Pairing campaigns</span>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    <svg className="w-[18px] h-[18px] text-[#E8312A] shrink-0 fill-current" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>
+                                    <span className="text-[14px] font-[700] text-white">Unlimited pairs per campaign</span>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    <svg className="w-[18px] h-[18px] text-[#E8312A] shrink-0 fill-current" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>
+                                    <span className="text-[14px] font-[700] text-white">Completion reward assets</span>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    <svg className="w-[18px] h-[18px] text-[#E8312A] shrink-0 fill-current" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>
+                                    <span className="text-[14px] font-[700] text-white">Full pairing analytics</span>
+                                </div>
+                            </div>
+                            
+                            <button onClick={() => scrollToGenerator()} className="w-full h-[48px] bg-white text-[#111] font-[900] text-[14px] rounded-[12px] mt-[20px]">
+                                Start Pro →
+                            </button>
+                            <span className="text-[11px] text-white/40 text-center block mt-3">Cancel anytime.</span>
+                        </div>
+
+                    </div>
+                </div>
+            </section>
+
+            {/* ── Section 9: Final CTA ── */}
+            <section className="bg-[#E8312A] py-[96px] w-full flex flex-col items-center">
+                <div className="w-full max-w-[560px] px-6 text-center btf-reveal">
+                    
+                    <h2 className="text-[36px] lg:text-[48px] font-[900] text-white leading-[1.2] m-0">
+                        Your content is already good enough.
+                    </h2>
+                    <h3 className="text-[20px] font-[600] text-white/80 mt-[12px] mb-0">
+                        Now make it work for you.
+                    </h3>
+                    
+                    <button 
+                        onClick={() => scrollToGenerator()}
+                        className="bg-white text-[#E8312A] h-[56px] w-[200px] mt-[32px] rounded-[16px] text-[18px] font-[900] transition-transform active:scale-95"
+                    >
+                        Create a free link →
+                    </button>
+                    
+                    <div className="flex flex-wrap items-center justify-center gap-[24px] mt-[16px]">
+                        <span className="text-[12px] font-[600] text-white/60">No credit card</span>
+                        <span className="text-[12px] font-[600] text-white/60">·</span>
+                        <span className="text-[12px] font-[600] text-white/60">Free forever</span>
+                        <span className="text-[12px] font-[600] text-white/60">·</span>
+                        <span className="text-[12px] font-[600] text-white/60">Takes 5 minutes</span>
+                    </div>
+
                 </div>
             </section>
         </div>

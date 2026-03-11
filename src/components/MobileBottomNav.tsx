@@ -2,15 +2,24 @@ import { Link, useLocation } from 'react-router-dom';
 import { Home, LayoutDashboard, Compass, MessageCircle, User } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useChatSessions } from '../context/ChatSessionsContext';
+import { useMessaging } from '../context/MessagingContext';
 
 export const MobileBottomNav = () => {
-    const { isLoggedIn } = useAuth();
+    const { isLoggedIn, currentUser } = useAuth();
     const location = useLocation();
 
     let chatUnread = 0;
     try {
-        const ctx = useChatSessions();
-        chatUnread = ctx.getTotalUnread();
+        const chatCtx = useChatSessions();
+        chatUnread += chatCtx.getTotalUnread();
+    } catch { /* ignore */ }
+    
+    try {
+        const msgCtx = useMessaging();
+        if (currentUser?.id) {
+            chatUnread += msgCtx.getTotalDMUnread(currentUser.id);
+            chatUnread += msgCtx.getTotalPendingCount(currentUser.id);
+        }
     } catch { /* ignore */ }
 
     if (!isLoggedIn) return null;

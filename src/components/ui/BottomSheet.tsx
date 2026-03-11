@@ -8,10 +8,11 @@ interface BottomSheetProps {
     onClose: () => void;
     title: string;
     children: ReactNode;
+    footer?: ReactNode;
     fullHeight?: boolean;
 }
 
-export const BottomSheet = ({ isOpen, onClose, title, children, fullHeight = false }: BottomSheetProps) => {
+export const BottomSheet = ({ isOpen, onClose, title, children, footer, fullHeight = false }: BottomSheetProps) => {
     const [shouldRender, setShouldRender] = useState(isOpen);
 
     if (isOpen && !shouldRender) {
@@ -32,7 +33,7 @@ export const BottomSheet = ({ isOpen, onClose, title, children, fullHeight = fal
     if (!shouldRender) return null;
 
     return (
-        <div className="fixed inset-0 z-50 flex flex-col justify-end sm:items-center sm:justify-center">
+        <div className="fixed inset-0 z-[100] flex flex-col justify-end sm:items-center sm:justify-center">
             {/* Backdrop */}
             <div
                 className={`absolute inset-0 bg-text/40 backdrop-blur-sm transition-opacity duration-[400ms] ${isOpen ? 'opacity-100' : 'opacity-0'
@@ -65,9 +66,16 @@ export const BottomSheet = ({ isOpen, onClose, title, children, fullHeight = fal
                 </div>
 
                 {/* Content */}
-                <div className="flex-1 overflow-y-auto w-full p-4 relative bg-white pb-[env(safe-area-inset-bottom,16px)]">
+                <div className="flex-1 overflow-y-auto w-full p-4 relative bg-white">
                     {children}
                 </div>
+
+                {/* Footer (pinned inside modal) */}
+                {footer && (
+                    <div className="flex-shrink-0 w-full bg-white border-t border-border/60 p-4 pb-[env(safe-area-inset-bottom,16px)]">
+                        {footer}
+                    </div>
+                )}
             </div>
         </div>
     );

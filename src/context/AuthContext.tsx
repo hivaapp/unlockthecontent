@@ -67,7 +67,6 @@ type AuthContextType = {
     currentUser: User | null;
     links: LinkData[];
     activity: ActivityData[];
-    hasSeenOnboarding: boolean;
     activeTab: string;
     login: (provider?: string) => Promise<void>;
     logout: () => void;
@@ -76,7 +75,6 @@ type AuthContextType = {
     deleteLink: (id: string) => Promise<void>;
     disableLink: (id: string) => Promise<void>;
     updateProfile: (data: Partial<User>) => Promise<void>;
-    markOnboardingSeen: () => void;
     setActiveTab: (tab: string) => void;
     isLoggingIn: boolean;
 };
@@ -94,9 +92,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
 
 
-    const [hasSeenOnboarding, setHasSeenOnboarding] = useState(() => {
-        return sessionStorage.getItem('adgate_onboarding_seen') === 'true';
-    });
     const [activeTab, setActiveTab] = useState('home');
 
     // Utility to simulate network delay & random failure
@@ -119,7 +114,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         try {
             await simulateNetwork(() => {
                 setIsLoggedIn(true);
-                setCurrentUser({ ...mockUser, hasSeenOnboarding });
+                setCurrentUser({ ...mockUser });
             });
             addToast("Successfully signed in", "success");
         } finally {
@@ -202,21 +197,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         });
     };
 
-    const markOnboardingSeen = () => {
-        setHasSeenOnboarding(true);
-        sessionStorage.setItem('adgate_onboarding_seen', 'true');
-        if (currentUser) {
-            setCurrentUser({ ...currentUser, hasSeenOnboarding: true });
-        }
-    };
-
     return (
         <AuthContext.Provider value={{
             isLoggedIn,
             currentUser,
             links,
             activity,
-            hasSeenOnboarding,
             activeTab,
             login,
             logout,
@@ -225,7 +211,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             deleteLink,
             disableLink,
             updateProfile,
-            markOnboardingSeen,
             setActiveTab,
             isLoggingIn
         }}>

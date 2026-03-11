@@ -2,10 +2,14 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useChatSessions } from '../context/ChatSessionsContext';
+import { useMessaging } from '../context/MessagingContext';
+import type { MessageRequest } from '../context/MessagingContext';
+import { useToast } from '../context/ToastContext';
 import type { ViewerChatSession } from '../lib/mockData';
+import { BottomSheet } from '../components/ui/BottomSheet';
 
-// --- Helpers ---
-const formatRelativeTime = (ts: string) => {
+// --- Shared Types & Helpers ---
+export const formatRelativeTime = (ts: string) => {
   const now = Date.now();
   const then = new Date(ts).getTime();
   const diff = now - then;
@@ -20,10 +24,12 @@ const formatRelativeTime = (ts: string) => {
   return new Date(ts).toLocaleDateString([], { month: 'short', day: 'numeric' });
 };
 
-const truncate = (str: string, len: number) =>
+export const truncate = (str: string, len: number) =>
   str.length > len ? str.slice(0, len) + '…' : str;
 
-// --- Mock Message Poller Hook ---
+// --- Pairing Tab Components ---
+// (Mostly original code, refactored into a tab)
+
 const useMockMessagePoller = () => {
   const { sessions, setSessions } = useChatSessions();
 
@@ -72,30 +78,13 @@ const useMockMessagePoller = () => {
     }, 45000);
 
     return () => clearInterval(interval);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sessions.length]);
+  }, [sessions.length, setSessions, sessions]);
 };
 
-// --- Filter Bottom Sheet ---
-const FilterSheet = ({
-  isOpen,
-  onClose,
-  filter,
-  setFilter,
-  sortBy,
-  setSortBy,
-  counts,
-  onMarkAllRead,
-}: {
-  isOpen: boolean;
-  onClose: () => void;
-  filter: string;
-  setFilter: (f: string) => void;
-  sortBy: string;
-  setSortBy: (s: string) => void;
-  counts: { all: number; active: number; completed: number };
-  onMarkAllRead: () => void;
-}) => {
+// ... existing FilterSheet and ActionSheet for Pairing ...
+const PairingFilterSheet = ({
+  isOpen, onClose, filter, setFilter, sortBy, setSortBy, counts, onMarkAllRead
+}: any) => {
   const [localFilter, setLocalFilter] = useState(filter);
   const [localSort, setLocalSort] = useState(sortBy);
 
@@ -135,38 +124,35 @@ const FilterSheet = ({
       <div className="absolute inset-0 bg-black/40 backdrop-blur-sm animate-fade-in" onClick={onClose} />
       <div className="relative bg-white rounded-t-[24px] animate-slide-up" style={{ height: '360px' }}>
         <div className="flex flex-col items-center pt-3 pb-2">
-          <div className="w-8 h-1 bg-[#E8E8E8] rounded-full mb-3" />
+          <div className="w-8 h-1 bg-border rounded-full mb-3" />
           <div className="w-full flex items-center justify-between px-4">
             <div className="w-11" />
-            <span className="text-[15px] font-[900] text-[#111]">Filter Chats</span>
-            <button onClick={onClose} className="w-11 h-11 flex items-center justify-center text-[#888]">✕</button>
+            <span className="text-[15px] font-[900] text-text">Filter Chats</span>
+            <button onClick={onClose} className="w-11 h-11 flex items-center justify-center text-textMid">✕</button>
           </div>
         </div>
 
         <div className="px-4 pb-4 flex flex-col gap-4 overflow-y-auto" style={{ maxHeight: 'calc(360px - 60px)' }}>
           {/* Status */}
           <div>
-            <span className="text-[11px] font-[800] text-[#888] uppercase tracking-widest">Status</span>
+            <span className="text-[11px] font-[800] text-textMid uppercase tracking-widest">Status</span>
             <div className="mt-2 flex flex-col">
               {filterOptions.map(opt => (
                 <button
                   key={opt.value}
                   onClick={() => setLocalFilter(opt.value)}
-                  className="h-[48px] flex items-center justify-between"
-                  style={{ borderBottom: '1px solid #F4F4F4' }}
+                  className="h-[48px] flex items-center justify-between border-b border-border/50"
                 >
                   <div className="flex items-center gap-3">
                     <div
-                      className="w-5 h-5 rounded-full border-2 flex items-center justify-center"
-                      style={{ borderColor: localFilter === opt.value ? '#D97757' : '#DDD' }}
+                      className="w-5 h-5 rounded-full border-2 flex items-center justify-center transition-colors"
+                      style={{ borderColor: localFilter === opt.value ? '#D97757' : '#E6E2D9' }}
                     >
-                      {localFilter === opt.value && (
-                        <div className="w-2.5 h-2.5 rounded-full bg-[#D97757]" />
-                      )}
+                      {localFilter === opt.value && <div className="w-2.5 h-2.5 rounded-full bg-brand" />}
                     </div>
-                    <span className="text-[14px] font-[700] text-[#333]">{opt.label}</span>
+                    <span className="text-[14px] font-[700] text-text">{opt.label}</span>
                   </div>
-                  <span className="text-[13px] text-[#888]">({opt.count})</span>
+                  <span className="text-[13px] text-textMid">({opt.count})</span>
                 </button>
               ))}
             </div>
@@ -174,24 +160,21 @@ const FilterSheet = ({
 
           {/* Sort */}
           <div>
-            <span className="text-[11px] font-[800] text-[#888] uppercase tracking-widest">Sort By</span>
+            <span className="text-[11px] font-[800] text-textMid uppercase tracking-widest">Sort By</span>
             <div className="mt-2 flex flex-col">
               {sortOptions.map(opt => (
                 <button
                   key={opt.value}
                   onClick={() => setLocalSort(opt.value)}
-                  className="h-[48px] flex items-center gap-3"
-                  style={{ borderBottom: '1px solid #F4F4F4' }}
+                  className="h-[48px] flex items-center gap-3 border-b border-border/50"
                 >
                   <div
-                    className="w-5 h-5 rounded-full border-2 flex items-center justify-center"
-                    style={{ borderColor: localSort === opt.value ? '#D97757' : '#DDD' }}
+                    className="w-5 h-5 rounded-full border-2 flex items-center justify-center transition-colors"
+                    style={{ borderColor: localSort === opt.value ? '#D97757' : '#E6E2D9' }}
                   >
-                    {localSort === opt.value && (
-                      <div className="w-2.5 h-2.5 rounded-full bg-[#D97757]" />
-                    )}
+                    {localSort === opt.value && <div className="w-2.5 h-2.5 rounded-full bg-brand" />}
                   </div>
-                  <span className="text-[14px] font-[700] text-[#333]">{opt.label}</span>
+                  <span className="text-[14px] font-[700] text-text">{opt.label}</span>
                 </button>
               ))}
             </div>
@@ -199,19 +182,18 @@ const FilterSheet = ({
 
           <button
             onClick={() => { onMarkAllRead(); onClose(); }}
-            className="w-full h-[48px] flex items-center justify-center text-[13px] font-[800] text-[#E8312A] border border-[#FEE2E2] rounded-[12px]"
+            className="w-full h-[48px] flex items-center justify-center text-[13px] font-[800] text-error border border-errorBg rounded-[12px] bg-errorBg/50"
           >
             Mark all read
           </button>
 
           <button
             onClick={handleApply}
-            className="w-full h-[48px] rounded-[12px] text-white text-[14px] font-[800] flex items-center justify-center"
-            style={{ backgroundColor: '#D97757' }}
+            className="w-full h-[48px] rounded-[12px] text-white text-[14px] font-[800] flex items-center justify-center bg-brand hover:bg-brandHover transition-colors"
           >
             Apply
           </button>
-          <button onClick={handleReset} className="text-[13px] font-[700] text-[#888] text-center pb-2">
+          <button onClick={handleReset} className="text-[13px] font-[700] text-textMid text-center pb-2 hover:text-text selection:bg-transparent">
             Reset
           </button>
         </div>
@@ -220,31 +202,18 @@ const FilterSheet = ({
   );
 };
 
-// --- Section Header ---
 const SectionHeader = ({ label, count }: { label: string; count: number }) => (
-  <div
-    className="bg-[#FAFAFA] px-4 py-3 flex items-center justify-between"
-    style={{ borderBottom: '1px solid #F0F0F0' }}
-  >
-    <span className="text-[12px] font-[800] text-[#999] uppercase tracking-wide">
+  <div className="bg-surfaceAlt px-4 py-2 flex items-center justify-between border-b border-border">
+    <span className="text-[11px] font-[800] text-textLight uppercase tracking-wide">
       {label}
     </span>
-    <span className="text-[11px] font-[600] text-[#AAAAAA]">
+    <span className="text-[11px] font-[600] text-textLight">
       {count} {count === 1 ? 'chat' : 'chats'}
     </span>
   </div>
 );
 
-// --- Session Card ---
-const SessionCard = ({
-  session,
-  onTap,
-  onLongPress,
-}: {
-  session: ViewerChatSession;
-  onTap: () => void;
-  onLongPress: () => void;
-}) => {
+const SessionCard = ({ session, onTap, onLongPress }: { session: ViewerChatSession; onTap: () => void; onLongPress: () => void; }) => {
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isLongPress = useRef(false);
   const touchStartPos = useRef({ x: 0, y: 0 });
@@ -291,7 +260,7 @@ const SessionCard = ({
     }
     const isOwn = lm.senderId === session.viewerParticipantId;
     const prefix = isOwn ? 'You: ' : (lm.senderName ? `${lm.senderName}: ` : '');
-    return `${prefix}${truncate(lm.content, 48)}`;
+    return `${prefix}${truncate(lm.content, 45)}`;
   })();
 
   return (
@@ -303,55 +272,42 @@ const SessionCard = ({
       onMouseUp={handleTouchEnd}
       onMouseLeave={handleTouchEnd}
       onClick={handleClick}
-      className={`relative w-full cursor-pointer select-none flex flex-col transition-colors duration-150 active:bg-[#F3F1EC] ${isCompleted ? 'bg-[#FAFAFA]' : 'bg-white'}`}
-      style={{
-        borderBottom: '1px solid #F0F0F0',
-        minHeight: '72px',
-      }}
+      className={`relative w-full cursor-pointer select-none flex flex-col transition-colors duration-150 active:bg-surfaceAlt ${isCompleted ? 'bg-surfaceAlt' : 'bg-white'}`}
+      style={{ borderBottom: '1px solid #E6E2D9', minHeight: '72px' }}
     >
       <div className="flex items-start gap-3 px-4 py-3.5">
-        
-        {/* Left: Indicator */}
-        <div className="flex flex-col items-center justify-center pt-1 shrink-0">
+        <div className="flex flex-col items-center justify-center pt-1 shrink-0 w-4">
           {isCompleted ? (
-            <div className="text-[16px]">✅</div>
+            <div className="text-[12px]">✅</div>
           ) : hasUnread ? (
-            <div className="w-2.5 h-2.5 rounded-full bg-[#E8312A]" />
+            <div className="w-2 h-2 rounded-full bg-error" />
           ) : (
-            <div className="w-2 h-2 rounded-full border border-[#D97757]" />
+            <div className="w-1.5 h-1.5 rounded-full border border-brand" />
           )}
         </div>
-
-        {/* Center: Content */}
-        <div className="flex-1 min-w-0 flex flex-col gap-1">
-          {/* Row 1: Name + Topic */}
-          <div className="flex items-center gap-2 overflow-hidden">
-            <span className={`text-[15px] truncate ${hasUnread ? 'font-[800] text-[#111]' : 'font-[700] text-[#444]'} ${isCompleted ? 'text-[#888]' : ''}`}>
+        <div className="w-12 h-12 rounded-full flex items-center justify-center shrink-0" style={{ backgroundColor: session.partner.avatarColor || '#E8312A' }}>
+             <span className="text-[16px] font-black text-white">{session.partner.initial || session.partner.displayName[0]}</span>
+        </div>
+        <div className="flex-1 min-w-0 flex flex-col justify-center h-12">
+          <div className="flex items-center gap-2 overflow-hidden mb-0.5">
+            <span className={`text-[15px] truncate leading-tight ${hasUnread ? 'font-[800] text-text' : 'font-[700] text-textMid'} ${isCompleted ? 'text-textLight' : ''}`}>
               {session.partner.displayName}
             </span>
-            <span
-              className="px-2 py-0.5 bg-[#FAF9F7] text-[#6B6860] text-[10px] font-[600] rounded-md whitespace-nowrap overflow-hidden text-ellipsis"
-            >
-              {truncate(session.challengeTopic, 20)}
+            <span className="px-1.5 py-0.5 bg-surfaceAlt text-textMid text-[10px] font-bold rounded-md whitespace-nowrap overflow-hidden text-ellipsis border border-border">
+              {truncate(session.challengeTopic, 15)}
             </span>
           </div>
-
-          {/* Row 3: Last Message */}
-          <div className={`text-[13px] font-[500] truncate ${hasUnread ? 'text-[#333]' : 'text-[#888]'}`}>
+          <div className={`text-[13px] font-semibold truncate leading-tight ${hasUnread ? 'text-text' : 'text-textMid'}`}>
             {lastMsgPreview}
           </div>
         </div>
-
-        {/* Right: Meta */}
-        <div className="shrink-0 flex flex-col items-end w-[48px]">
-          <span className="text-[11px] font-[600] text-[#AAA49C]">
+        <div className="shrink-0 flex flex-col items-end w-[48px] h-12 pt-0.5">
+          <span className="text-[11px] font-bold text-textLight">
             {formatRelativeTime(session.lastMessage.timestamp)}
           </span>
           {hasUnread && (
-            <div className="mt-1 flex items-center justify-center rounded-full bg-[#E8312A] min-w-[20px] h-[20px] px-1">
-              <span className="text-[10px] font-[800] text-white">
-                {session.unreadCount}
-              </span>
+            <div className="mt-1.5 flex items-center justify-center rounded-full bg-error min-w-[20px] h-[20px] px-1 shadow-sm">
+              <span className="text-[10px] font-black text-white">{session.unreadCount}</span>
             </div>
           )}
         </div>
@@ -360,458 +316,535 @@ const SessionCard = ({
   );
 };
 
-// --- Action Sheet ---
-const ActionSheet = ({
-  isOpen,
-  onClose,
-  session,
-  onOpenChat,
-  onViewChallenge,
-  onMarkRead,
-  onLeave,
-  onRate,
-  onDelete,
-}: {
-  isOpen: boolean;
-  onClose: () => void;
-  session: ViewerChatSession | null;
-  onOpenChat: () => void;
-  onViewChallenge: () => void;
-  onMarkRead: () => void;
-  onLeave: () => void;
-  onRate: () => void;
-  onDelete: () => void;
-}) => {
-  const [showLeaveConfirm, setShowLeaveConfirm] = useState(false);
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-  const [showRating, setShowRating] = useState(false);
-  const [rating, setRating] = useState(0);
+// --- Requests Tab ---
+const RequestsTab = ({ onSelectChat }: { onSelectChat?: (id: string, type: 'request') => void }) => {
+    const { currentUser } = useAuth();
+    const { getPendingRequests, approveRequest, declineRequest } = useMessaging();
+    const { showToast } = useToast();
+    const [expandedRequest, setExpandedRequest] = useState<string | null>(null);
+    const [decliningId, setDecliningId] = useState<string | null>(null);
+    
+    // We will simulate the "DECLINED" section for visual effect 
+    const [declinedLocally, setDeclinedLocally] = useState<MessageRequest[]>([]);
+    const [showDeclined, setShowDeclined] = useState(false);
 
-  useEffect(() => {
-    if (!isOpen) {
-      setShowLeaveConfirm(false);
-      setShowDeleteConfirm(false);
-      setShowRating(false);
-      setRating(0);
-    }
-  }, [isOpen]);
+    if (!currentUser) return null;
 
-  if (!isOpen || !session) return null;
+    const pendingRequests = getPendingRequests(currentUser.id)
+        .filter(r => !declinedLocally.find(d => d.requestId === r.requestId))
+        .sort((a, b) => new Date(b.sentAt).getTime() - new Date(a.sentAt).getTime());
 
-  if (showRating) {
+    const handleApprove = (req: MessageRequest) => {
+        // Build currentUser profile for the conversation
+        approveRequest(req.requestId, {
+            id: currentUser.id,
+            name: currentUser.name,
+            username: currentUser.username,
+            initial: currentUser.initial || 'U',
+            avatarColor: currentUser.avatarColor || '#2563EB',
+            isCreator: currentUser.isCreator,
+        });
+        showToast(`Chat started with ${req.sender.name}`, 'success');
+        if (onSelectChat) {
+             // The new conversation id isn't explicitly returned here without a slight tweak,
+             // but we will route to /chats and let the user click it, or just do nothing on desktop.
+        }
+    };
+
+    const handleDecline = (req: MessageRequest) => {
+        declineRequest(req.requestId);
+        setDeclinedLocally(prev => [req, ...prev]);
+        showToast(`Request declined`, 'info');
+    };
+
     return (
-      <div className="fixed inset-0 z-50 flex flex-col justify-end">
-        <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
-        <div className="relative bg-white rounded-t-[24px] p-6 animate-slide-up">
-          <div className="w-8 h-1 bg-[#E8E8E8] rounded-full mx-auto mb-4" />
-          <h3 className="text-[15px] font-[900] text-[#111] text-center mb-4">Rate This Challenge</h3>
-          <div className="flex items-center justify-center gap-2 mb-4">
-            {[1, 2, 3, 4, 5].map(star => (
-              <button key={star} onClick={() => setRating(star)} className="p-1">
-                <svg width="32" height="32" viewBox="0 0 24 24" fill={star <= rating ? '#D97757' : 'none'} stroke={star <= rating ? '#D97757' : '#DDD'} strokeWidth="2">
-                  <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
-                </svg>
-              </button>
-            ))}
-          </div>
-          <textarea
-            placeholder="Any comments? (optional)"
-            className="w-full h-[80px] rounded-[12px] p-3 text-[13px] font-[600] resize-none"
-            style={{ border: '1px solid #E6E2D9', outline: 'none' }}
-          />
-          <div className="flex gap-3 mt-4">
-            <button
-              onClick={() => { onRate(); onClose(); }}
-              className="flex-1 h-[44px] rounded-[12px] text-white text-[14px] font-[800]"
-              style={{ backgroundColor: '#D97757', opacity: rating > 0 ? 1 : 0.4 }}
-              disabled={rating === 0}
-            >
-              Submit
-            </button>
-            <button
-              onClick={() => setShowRating(false)}
-              className="flex-1 h-[44px] rounded-[12px] bg-[#F3F1EC] text-[#21201C] text-[14px] font-[800]"
-            >
-              Cancel
-            </button>
-          </div>
+        <div className="flex-1 overflow-y-auto bg-bg relative">
+            {pendingRequests.length === 0 && declinedLocally.length === 0 ? (
+                <div className="flex flex-col items-center justify-center text-center px-4" style={{ paddingTop: '80px' }}>
+                    <span className="text-[48px] mb-4 opacity-50">📫</span>
+                    <h3 className="text-[18px] font-black text-text mt-3">No message requests</h3>
+                    <p className="text-[14px] font-semibold text-textMid mt-2 max-w-[280px]">
+                        When someone wants to message you, their request will appear here for your approval.
+                    </p>
+                </div>
+            ) : (
+                <div className="px-4 py-4 max-w-[800px] mx-auto w-full flex flex-col gap-4">
+                    {/* Mark all read button top right */}
+                    <div className="flex justify-between items-center mb-2">
+                        <span className="text-[14px] font-black text-text">Pending Approvals</span>
+                        {pendingRequests.length > 0 && (
+                            <button className="text-[12px] font-bold text-brand hover:underline">
+                                Mark all read
+                            </button>
+                        )}
+                    </div>
+
+                    {pendingRequests.map(req => {
+                        const isExpanded = expandedRequest === req.requestId;
+                        const requiresExpand = req.openingMessage.length > 120;
+                        const isDeclining = decliningId === req.requestId;
+
+                        return (
+                            <div key={req.requestId} className="bg-white rounded-[16px] border-l-4 border-l-warning border border-border shadow-sm p-4 relative overflow-hidden transition-all">
+                                <span className="absolute top-4 right-4 text-[11px] font-bold text-textLight">{formatRelativeTime(req.sentAt)}</span>
+                                
+                                <div className="flex items-center gap-3 mb-3 pr-16">
+                                    <div className="w-10 h-10 rounded-full flex items-center justify-center text-white font-black text-[14px] shrink-0" style={{ backgroundColor: req.sender.avatarColor }}>
+                                        {req.sender.initial}
+                                    </div>
+                                    <div className="flex flex-col">
+                                        <span className="text-[14px] font-black text-text flex items-center gap-1">
+                                            {req.sender.name}
+                                            {req.sender.isCreator && (
+                                                <svg width="12" height="12" viewBox="0 0 24 24" fill="#2563EB">
+                                                    <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z" />
+                                                </svg>
+                                            )}
+                                        </span>
+                                        <div className="flex items-center gap-1.5 mt-0.5">
+                                            <span className="text-[11px] font-bold text-textMid bg-surfaceAlt px-1.5 py-0.5 rounded-[4px] flex items-center gap-1">
+                                                <span className="text-success text-[10px]">★</span> {req.sender.trustScore} Trust Score
+                                            </span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="bg-surfaceAlt rounded-[12px] p-3 mb-4">
+                                    <p className="text-[13px] font-semibold text-text leading-relaxed">
+                                        {isExpanded || !requiresExpand ? req.openingMessage : `${req.openingMessage.slice(0, 120)}...`}
+                                        {requiresExpand && !isExpanded && (
+                                            <button onClick={() => setExpandedRequest(req.requestId)} className="text-brand font-bold ml-1 hover:underline text-[12px]">Read more</button>
+                                        )}
+                                        {isExpanded && (
+                                            <button onClick={() => setExpandedRequest(null)} className="text-textLight font-bold ml-1 hover:underline text-[12px]">Show less</button>
+                                        )}
+                                    </p>
+                                </div>
+
+                                {isDeclining ? (
+                                    <div className="flex flex-col gap-2 animate-fadeIn">
+                                        <span className="text-[12px] font-bold text-text text-center mb-1">Decline this request?</span>
+                                        <div className="flex gap-2">
+                                            <button onClick={() => handleDecline(req)} className="flex-1 h-10 bg-error text-white font-bold text-[13px] rounded-[10px]">
+                                                Yes, Decline
+                                            </button>
+                                            <button onClick={() => setDecliningId(null)} className="flex-1 h-10 bg-surfaceAlt text-text font-bold text-[13px] rounded-[10px]">
+                                                Cancel
+                                            </button>
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <div className="flex gap-2">
+                                        <button onClick={() => handleApprove(req)} className="flex-1 h-10 bg-brand hover:bg-brandHover text-white font-black text-[13px] rounded-[10px] transition-colors">
+                                            Accept
+                                        </button>
+                                        <button onClick={() => setDecliningId(req.requestId)} className="flex-1 h-10 bg-white border border-border text-text font-black text-[13px] rounded-[10px] hover:bg-surfaceAlt transition-colors">
+                                            Decline
+                                        </button>
+                                    </div>
+                                )}
+                            </div>
+                        );
+                    })}
+
+                    {declinedLocally.length > 0 && (
+                        <div className="mt-6 border-t border-border pt-4">
+                            <button 
+                                onClick={() => setShowDeclined(!showDeclined)}
+                                className="w-full flex justify-between items-center text-[13px] font-bold text-textMid hover:text-text transition-colors"
+                            >
+                                <span>Declined Requests ({declinedLocally.length})</span>
+                                <span>{showDeclined ? '▲' : '▼'}</span>
+                            </button>
+                            
+                            {showDeclined && (
+                                <div className="mt-4 flex flex-col gap-3 animate-slide-up">
+                                    {declinedLocally.map(req => (
+                                        <div key={req.requestId} className="opacity-60 bg-white rounded-[12px] border border-border p-3 flex justify-between items-center">
+                                             <div className="flex items-center gap-3">
+                                                <div className="w-8 h-8 rounded-full flex items-center justify-center text-white font-black text-[12px] shrink-0" style={{ backgroundColor: req.sender.avatarColor }}>
+                                                    {req.sender.initial}
+                                                </div>
+                                                <span className="text-[13px] font-bold text-text">{req.sender.name}</span>
+                                             </div>
+                                             <span className="text-[11px] font-bold text-error bg-errorBg px-2 py-0.5 rounded-full">Declined</span>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+                    )}
+                </div>
+            )}
         </div>
-      </div>
     );
-  }
-
-  if (showLeaveConfirm) {
-    return (
-      <div className="fixed inset-0 z-50 flex flex-col justify-end">
-        <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
-        <div className="relative bg-white rounded-t-[24px] p-6 animate-slide-up">
-          <div className="w-8 h-1 bg-[#E8E8E8] rounded-full mx-auto mb-4" />
-          <p className="text-[15px] font-[700] text-[#21201C] text-center mb-6">
-            Are you sure? Your partner will be notified.
-          </p>
-          <div className="flex gap-3">
-            <button
-              onClick={() => { onLeave(); onClose(); }}
-              className="flex-1 h-[44px] rounded-[12px] bg-[#C0392B] text-white text-[14px] font-[800]"
-            >
-              Leave
-            </button>
-            <button
-              onClick={() => setShowLeaveConfirm(false)}
-              className="flex-1 h-[44px] rounded-[12px] bg-[#F3F1EC] text-[#21201C] text-[14px] font-[800]"
-            >
-              Stay
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  if (showDeleteConfirm) {
-    return (
-      <div className="fixed inset-0 z-50 flex flex-col justify-end">
-        <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
-        <div className="relative bg-white rounded-t-[24px] p-6 animate-slide-up">
-          <div className="w-8 h-1 bg-[#E8E8E8] rounded-full mx-auto mb-4" />
-          <p className="text-[15px] font-[700] text-[#21201C] text-center mb-2">
-            Remove this chat from your list?
-          </p>
-          <p className="text-[13px] font-[600] text-[#6B6860] text-center mb-6">
-            Your message history will be cleared from this device.
-          </p>
-          <div className="flex gap-3">
-            <button
-              onClick={() => { onDelete(); onClose(); }}
-              className="flex-1 h-[44px] rounded-[12px] bg-[#C0392B] text-white text-[14px] font-[800]"
-            >
-              Remove
-            </button>
-            <button
-              onClick={() => setShowDeleteConfirm(false)}
-              className="flex-1 h-[44px] rounded-[12px] bg-[#F3F1EC] text-[#21201C] text-[14px] font-[800]"
-            >
-              Cancel
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  const isActive = session.status === 'active';
-  const isCompleted = session.status === 'completed';
-
-  return (
-    <div className="fixed inset-0 z-50 flex flex-col justify-end">
-      <div className="absolute inset-0 bg-black/40 backdrop-blur-sm animate-fade-in" onClick={onClose} />
-      <div className="relative bg-white rounded-t-[24px] animate-slide-up pb-[env(safe-area-inset-bottom)]">
-        <div className="flex flex-col items-center pt-3 pb-2">
-          <div className="w-8 h-1 bg-[#E8E8E8] rounded-full mb-3" />
-        </div>
-        {/* Header */}
-        <div className="px-4 pb-3" style={{ borderBottom: '1px solid #E6E2D9' }}>
-          <span className="text-[15px] font-[800] text-[#21201C]">{session.partner.displayName}</span>
-          <span className="text-[12px] font-[600] text-[#6B6860] ml-2">{session.challengeTopic}</span>
-        </div>
-
-        {/* Actions */}
-        <div className="flex flex-col">
-          <button onClick={() => { onOpenChat(); onClose(); }} className="h-[52px] flex items-center px-4 hover:bg-[#FAF9F7] active:bg-[#F3F1EC]" style={{ borderBottom: '1px solid #E6E2D9' }}>
-            <span className="text-[15px] font-[800] text-[#21201C]">Open Chat →</span>
-          </button>
-          <button onClick={() => { onViewChallenge(); onClose(); }} className="h-[52px] flex items-center px-4 hover:bg-[#FAF9F7] active:bg-[#F3F1EC]" style={{ borderBottom: '1px solid #E6E2D9' }}>
-            <span className="text-[15px] font-[800] text-[#21201C]">View Challenge Details</span>
-          </button>
-
-          {isActive && (
-            <>
-              <button onClick={() => { onMarkRead(); onClose(); }} className="h-[52px] flex items-center px-4 hover:bg-[#FAF9F7] active:bg-[#F3F1EC]" style={{ borderBottom: '1px solid #E6E2D9' }}>
-                <span className="text-[15px] font-[800] text-[#21201C]">Mark All Read</span>
-              </button>
-              <button onClick={() => setShowLeaveConfirm(true)} className="h-[52px] flex items-center px-4 hover:bg-[#FAF9F7] active:bg-[#F3F1EC]">
-                <span className="text-[15px] font-[800] text-[#C0392B]">Leave Challenge</span>
-              </button>
-            </>
-          )}
-
-          {isCompleted && (
-            <button onClick={() => setShowRating(true)} className="h-[52px] flex items-center px-4 hover:bg-[#FAF9F7] active:bg-[#F3F1EC]">
-              <span className="text-[15px] font-[800] text-[#21201C]">Rate This Challenge</span>
-            </button>
-          )}
-
-          {(session.status === 'expired' || session.status === 'partner_left') && (
-            <button onClick={() => setShowDeleteConfirm(true)} className="h-[52px] flex items-center px-4 hover:bg-[#FAF9F7] active:bg-[#F3F1EC]">
-              <span className="text-[15px] font-[800] text-[#C0392B]">Delete</span>
-            </button>
-          )}
-        </div>
-
-        <div className="h-4" />
-      </div>
-    </div>
-  );
 };
 
-// --- Main Page ---
+// --- Chats Tab (Direct Messages) ---
+const ChatsTab = ({ activeChatId, onSelectChat }: { activeChatId?: string, onSelectChat?: (id: string, type: 'dm') => void }) => {
+    const { currentUser } = useAuth();
+    const { conversations } = useMessaging();
+    const navigate = useNavigate();
+
+    if (!currentUser) return null;
+
+    const sortedConversations = [...conversations].sort((a, b) => 
+        new Date(b.lastMessage.timestamp).getTime() - new Date(a.lastMessage.timestamp).getTime()
+    );
+
+    return (
+        <div className="flex-1 overflow-y-auto bg-bg">
+            {sortedConversations.length === 0 ? (
+                <div className="flex flex-col items-center justify-center text-center px-4" style={{ paddingTop: '80px' }}>
+                    <span className="text-[48px] mb-4 opacity-50">💬</span>
+                    <h3 className="text-[18px] font-black text-text mt-3">No direct messages</h3>
+                    <p className="text-[14px] font-semibold text-textMid mt-2 max-w-[280px]">
+                        Start a conversation with a creator or wait for someone to message you.
+                    </p>
+                    <button
+                        onClick={() => navigate('/explore')}
+                        className="mt-6 h-11 px-6 bg-brand text-white font-black text-[14px] rounded-[14px] hover:bg-brandHover transition-colors flex items-center justify-center"
+                    >
+                        Find someone to message →
+                    </button>
+                </div>
+            ) : (
+                <div className="flex flex-col">
+                    {sortedConversations.map(conv => {
+                        const isUnread = conv.unreadCount > 0;
+                        const partner = conv.participants.find(p => p.id !== currentUser.id);
+                        if (!partner) return null;
+
+                        const isOwnLastMsg = conv.lastMessage.senderId === currentUser.id;
+                        const lastMsgPreview = isOwnLastMsg 
+                            ? `You: ${truncate(conv.lastMessage.content, 40)}`
+                            : truncate(conv.lastMessage.content, 45);
+
+                        return (
+                            <div
+                                key={conv.conversationId}
+                                onClick={() => {
+                                    if (onSelectChat) {
+                                        onSelectChat(conv.conversationId, 'dm');
+                                    } else {
+                                        navigate(`/messages/${conv.conversationId}`);
+                                    }
+                                }}
+                                className={`relative w-full cursor-pointer select-none flex flex-col transition-colors duration-150 py-3.5 px-4 bg-white hover:bg-surfaceAlt active:bg-border
+                                    ${activeChatId === conv.conversationId ? 'bg-brandTint border-l-4 border-l-brand' : 'border-b border-border'}
+                                `}
+                            >
+                                <div className="flex items-start gap-3">
+                                    <div className="flex flex-col items-center justify-center pt-1 shrink-0 w-3 -ml-1">
+                                        {isUnread && (
+                                            <div className="w-2.5 h-2.5 rounded-full bg-brand" />
+                                        )}
+                                    </div>
+                                    <div className="w-12 h-12 rounded-full flex items-center justify-center shrink-0" style={{ backgroundColor: partner.avatarColor }}>
+                                        <span className="text-[16px] font-black text-white">{partner.initial}</span>
+                                    </div>
+                                    <div className="flex-1 min-w-0 flex flex-col justify-center h-12">
+                                        <div className="flex items-center gap-1.5 mb-0.5">
+                                            <span className={`text-[15px] truncate leading-tight ${isUnread ? 'font-black text-text' : 'font-extrabold text-text'}`}>
+                                                {partner.name}
+                                            </span>
+                                            {partner.isCreator && (
+                                                <span className="px-1.5 py-0.5 bg-blue-50 text-blue-600 border border-blue-200 text-[9px] font-black uppercase rounded-sm whitespace-nowrap">
+                                                    Creator
+                                                </span>
+                                            )}
+                                        </div>
+                                        <div className={`text-[13px] font-semibold truncate leading-tight ${isUnread ? 'text-text' : 'text-textMid'}`}>
+                                            {lastMsgPreview}
+                                        </div>
+                                    </div>
+                                    <div className="shrink-0 flex flex-col items-end w-[48px] h-12 pt-0.5">
+                                        <span className={`text-[11px] font-bold ${isUnread ? 'text-brand' : 'text-textLight'}`}>
+                                            {formatRelativeTime(conv.lastMessage.timestamp)}
+                                        </span>
+                                        {isUnread && (
+                                            <div className="mt-1.5 flex items-center justify-center rounded-full bg-brand min-w-[20px] h-[20px] px-1 shadow-sm">
+                                                <span className="text-[10px] font-black text-white">{conv.unreadCount}</span>
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+                        );
+                    })}
+                </div>
+            )}
+        </div>
+    );
+};
+
+// --- Left Panel Sidebar Export for Desktop Layout ---
+export const MessagesSidebar = ({ 
+    activeTab, 
+    setActiveTab, 
+    activeChatId, 
+    onSelectChat 
+}: { 
+    activeTab: 'chats' | 'requests' | 'pairing'; 
+    setActiveTab: (tab: 'chats' | 'requests' | 'pairing') => void;
+    activeChatId?: string;
+    onSelectChat?: (id: string, type: 'dm' | 'pairing') => void;
+}) => {
+    const { currentUser } = useAuth();
+    const { sessions, markSessionRead, getTotalUnread } = useChatSessions();
+    const { getTotalDMUnread, getTotalPendingCount } = useMessaging();
+    const navigate = useNavigate();
+    
+    // Pairing specific
+    const [filter, setFilter] = useState('active');
+    const [sortBy, setSortBy] = useState('recent');
+    const [showFilter, setShowFilter] = useState(false);
+    const [showActionSheet, setShowActionSheet] = useState(false);
+
+    useMockMessagePoller();
+
+    const dmUnread = currentUser ? getTotalDMUnread(currentUser.id) : 0;
+    const pendingCount = currentUser ? getTotalPendingCount(currentUser.id) : 0;
+    const pairingUnread = getTotalUnread();
+
+    const markAllReadPairing = useCallback(() => {
+        sessions.forEach(s => markSessionRead(s.sessionId));
+    }, [sessions, markSessionRead]);
+
+    return (
+        <div className="flex flex-col h-full w-full bg-white border-r border-border/60">
+            {/* Header */}
+            <header className="shrink-0 flex items-center justify-between px-4 h-[58px] bg-white border-b border-border">
+                <button
+                    onClick={() => navigate('/dashboard')}
+                    className="flex items-center gap-1 shrink-0 text-textMid hover:text-text transition-colors"
+                >
+                    <svg width="22" height="22" viewBox="0 0 22 22" fill="none">
+                        <path d="M14 5L8 11L14 17" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                    <span className="text-[14px] font-bold">Back</span>
+                </button>
+
+                <div className="flex items-center min-w-[44px] justify-end">
+                    {activeTab === 'chats' && (
+                        <button className="w-10 h-10 flex items-center justify-center text-textMid hover:text-text">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+                                <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" />
+                            </svg>
+                        </button>
+                    )}
+                    {activeTab === 'pairing' && (
+                        <button onClick={() => setShowFilter(true)} className="w-10 h-10 flex items-center justify-center text-textMid hover:text-text">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+                                <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" />
+                            </svg>
+                        </button>
+                    )}
+                </div>
+            </header>
+
+            {/* Tabs */}
+            <div className="flex items-center px-2 bg-white border-b border-border shrink-0">
+                <button 
+                    onClick={() => setActiveTab('chats')} 
+                    className={`flex-1 h-12 flex items-center justify-center text-[13px] font-black relative transition-colors ${activeTab === 'chats' ? 'text-brand' : 'text-textLight hover:text-textMid'}`}
+                >
+                    Chats
+                    {dmUnread > 0 && <div className="ml-1.5 w-5 h-5 rounded-full bg-brand text-white text-[10px] flex items-center justify-center">{dmUnread}</div>}
+                    {activeTab === 'chats' && <div className="absolute bottom-0 left-4 right-4 h-[3px] rounded-t-full bg-brand" />}
+                </button>
+                <button 
+                    onClick={() => setActiveTab('requests')} 
+                    className={`flex-1 h-12 flex items-center justify-center text-[13px] font-black relative transition-colors ${activeTab === 'requests' ? 'text-brand' : 'text-textLight hover:text-textMid'}`}
+                >
+                    Requests
+                    {pendingCount > 0 && <div className="ml-1.5 w-5 h-5 rounded-full bg-warning text-white text-[10px] flex items-center justify-center">{pendingCount}</div>}
+                    {activeTab === 'requests' && <div className="absolute bottom-0 left-4 right-4 h-[3px] rounded-t-full bg-brand" />}
+                </button>
+                <button 
+                    onClick={() => setActiveTab('pairing')} 
+                    className={`flex-1 h-12 flex items-center justify-center text-[13px] font-black relative transition-colors ${activeTab === 'pairing' ? 'text-brand' : 'text-textLight hover:text-textMid'}`}
+                >
+                    Pairing
+                    {pairingUnread > 0 && <div className="ml-1.5 w-5 h-5 rounded-full bg-brand text-white text-[10px] flex items-center justify-center">{pairingUnread}</div>}
+                    {activeTab === 'pairing' && <div className="absolute bottom-0 left-4 right-4 h-[3px] rounded-t-full bg-brand" />}
+                </button>
+            </div>
+
+            {/* Tab content wrapper */}
+            <div className="flex-1 overflow-hidden flex flex-col relative w-full h-full bg-bg">
+                {activeTab === 'chats' && <ChatsTab activeChatId={activeChatId} onSelectChat={onSelectChat} />}
+                {activeTab === 'requests' && <RequestsTab />}
+                {activeTab === 'pairing' && (
+                    <div className="flex-1 overflow-y-auto w-full">
+                        {/* Summary Strip */}
+                        <div className="bg-white px-4 py-3 flex items-center gap-4 border-b border-border">
+                            <div className="flex items-center gap-1.5">
+                                <span className="text-[13px] font-black text-brand">{sessions.filter(s => s.status === 'active').length}</span>
+                                <span className="text-[12px] font-bold text-textMid">active</span>
+                            </div>
+                            <div className="flex items-center gap-1.5">
+                                <span className={`text-[13px] font-black ${pairingUnread > 0 ? 'text-error' : 'text-text'}`}>{pairingUnread}</span>
+                                <span className="text-[12px] font-bold text-textMid">unread</span>
+                            </div>
+                        </div>
+
+                        {pairingUnread === 0 && sessions.filter(s => s.status === 'active').length > 0 && (
+                            <div className="flex items-center justify-center h-8 bg-successBg animate-fadeIn">
+                                <span className="text-[11px] font-bold text-success">All caught up ✓</span>
+                            </div>
+                        )}
+
+                        {sessions.length === 0 ? (
+                            <div className="flex flex-col items-center justify-center text-center px-4 pt-20">
+                                <span className="text-[40px] mb-3 opacity-50">🤝</span>
+                                <h3 className="text-[16px] font-black text-text">No pairing chats</h3>
+                                <p className="text-[13px] font-semibold text-textMid mt-2 max-w-[240px]">
+                                    Join an accountability challenge and get paired.
+                                </p>
+                            </div>
+                        ) : (
+                            <div>
+                                {(() => {
+                                    const filteredSessions = sessions.filter(s => {
+                                        if (filter === 'active') return s.status === 'active';
+                                        if (filter === 'completed') return s.status === 'completed';
+                                        return true;
+                                    });
+                                    const sortedSessions = [...filteredSessions].sort((a, b) => 
+                                        new Date(b.lastMessage.timestamp).getTime() - new Date(a.lastMessage.timestamp).getTime()
+                                    );
+
+                                    if (filter === 'all') {
+                                        const active = sortedSessions.filter(s => s.status === 'active');
+                                        const comp = sortedSessions.filter(s => s.status === 'completed');
+                                        
+                                        return (
+                                            <>
+                                                {active.length > 0 && (
+                                                    <>
+                                                        <SectionHeader label="Active" count={active.length} />
+                                                        {active.map(s => (
+                                                            <SessionCard key={s.sessionId} session={s} onTap={() => onSelectChat ? onSelectChat(s.sessionId, 'pairing') : navigate(`/chats/${s.sessionId}`)} onLongPress={() => setShowActionSheet(true)} />
+                                                        ))}
+                                                    </>
+                                                )}
+                                                {comp.length > 0 && (
+                                                    <>
+                                                        <SectionHeader label="Completed" count={comp.length} />
+                                                        {comp.map(s => (
+                                                            <SessionCard key={s.sessionId} session={s} onTap={() => onSelectChat ? onSelectChat(s.sessionId, 'pairing') : navigate(`/chats/${s.sessionId}`)} onLongPress={() => setShowActionSheet(true)} />
+                                                        ))}
+                                                    </>
+                                                )}
+                                            </>
+                                        );
+                                    }
+
+                                    return sortedSessions.map(s => (
+                                        <SessionCard key={s.sessionId} session={s} onTap={() => onSelectChat ? onSelectChat(s.sessionId, 'pairing') : navigate(`/chats/${s.sessionId}`)} onLongPress={() => setShowActionSheet(true)} />
+                                    ));
+                                })()}
+                            </div>
+                        )}
+                    </div>
+                )}
+            </div>
+
+            {/* Modals for Pairing */}
+            <PairingFilterSheet
+                isOpen={showFilter}
+                onClose={() => setShowFilter(false)}
+                filter={filter}
+                setFilter={setFilter}
+                sortBy={sortBy}
+                setSortBy={setSortBy}
+                counts={{
+                    all: sessions.length,
+                    active: sessions.filter(s => s.status === 'active').length,
+                    completed: sessions.filter(s => s.status === 'completed').length,
+                }}
+                onMarkAllRead={markAllReadPairing}
+            />
+
+            {/* Mock action sheet just to prevent errors, actual action sheet handling in pairing tab... */}
+            <BottomSheet isOpen={showActionSheet} onClose={() => setShowActionSheet(false)} title="Options">
+                 <div className="flex flex-col gap-2 p-2">
+                     <button className="h-12 bg-surfaceAlt rounded-[12px] font-black" onClick={() => setShowActionSheet(false)}>Close</button>
+                 </div>
+            </BottomSheet>
+        </div>
+    );
+};
+
+// --- Main Page (Layout Wrapper) ---
+// This handles the Desktop Two-Panel Layout
 export const MyChatsHub = () => {
-  const navigate = useNavigate();
   const { isLoggedIn } = useAuth();
-  const { sessions, setSessions, markSessionRead, getTotalUnread, removeSession } = useChatSessions();
+  const navigate = useNavigate();
+  const [activeTab, setActiveTab] = useState<'chats' | 'requests' | 'pairing'>('chats');
+  const [isDesktop, setIsDesktop] = useState(window.innerWidth >= 1024);
 
-  const [filter, setFilter] = useState('all');
-  const [sortBy, setSortBy] = useState('recent');
-  const [showFilter, setShowFilter] = useState(false);
-  const [actionSession, setActionSession] = useState<ViewerChatSession | null>(null);
-  const [showActionSheet, setShowActionSheet] = useState(false);
+  useEffect(() => {
+    const handleResize = () => setIsDesktop(window.innerWidth >= 1024);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
-  useMockMessagePoller();
-
-
-  const markAllRead = useCallback(() => {
-    setSessions(prev => prev.map(s => ({ ...s, unreadCount: 0, unreadBroadcasts: 0 })));
-  }, [setSessions]);
-
-  // Auth guard
   useEffect(() => {
     if (!isLoggedIn) {
       navigate('/?redirect=/chats', { replace: true });
     }
   }, [isLoggedIn, navigate]);
 
-  // Filtering
-  const filteredSessions = sessions.filter(s => {
-    if (filter === 'active') return s.status === 'active';
-    if (filter === 'completed') return s.status === 'completed';
-    return true;
-  });
-
-  // Sorting
-  const sortedSessions = [...filteredSessions].sort((a, b) => {
-    if (sortBy === 'ending') {
-      return new Date(a.expiresAt).getTime() - new Date(b.expiresAt).getTime();
-    }
-    return new Date(b.lastMessage.timestamp).getTime() - new Date(a.lastMessage.timestamp).getTime();
-  });
-
-  // Group by status (only for "all" filter)
-  const activeSessions = sortedSessions.filter(s => s.status === 'active');
-  const completedSessions = sortedSessions.filter(s => s.status === 'completed');
-  const expiredSessions = sortedSessions.filter(s => s.status === 'expired' || s.status === 'partner_left');
-
-  const counts = {
-    all: sessions.length,
-    active: sessions.filter(s => s.status === 'active').length,
-    completed: sessions.filter(s => s.status === 'completed').length,
-  };
-
-  const totalUnread = getTotalUnread();
-
   if (!isLoggedIn) return null;
 
+  // Render the two-panel layout on desktop, or just the list on mobile
+  if (isDesktop) {
+      return (
+          <div className="w-full flex bg-bg overflow-hidden" style={{ height: 'calc(100vh - 64px)' }}>
+              <div className="w-[380px] flex flex-col shrink-0 border-r border-border z-10 overflow-hidden">
+                  <MessagesSidebar 
+                      activeTab={activeTab} 
+                      setActiveTab={setActiveTab} 
+                      onSelectChat={(id, type) => {
+                          if (type === 'dm') navigate(`/messages/${id}`);
+                          if (type === 'pairing') navigate(`/chats/${id}`);
+                      }}
+                  />
+              </div>
+              <div className="flex-1 max-w-full min-w-0 bg-bg flex flex-col">
+                  {/* Right panel header — matches sidebar header height */}
+                  <header className="shrink-0 h-[58px] bg-white border-b border-border flex items-center px-6">
+                      <span className="text-[15px] font-bold text-textMid">
+                          {activeTab === 'chats' && 'Direct Messages'}
+                          {activeTab === 'requests' && 'Message Requests'}
+                          {activeTab === 'pairing' && 'Accountability Pairing'}
+                      </span>
+                  </header>
+                  {/* Empty state when no chat is selected */}
+                  <div className="flex-1 flex items-center justify-center">
+                      <div className="flex flex-col items-center justify-center text-center opacity-60">
+                          <div className="w-20 h-20 rounded-full bg-surfaceAlt flex items-center justify-center text-[32px] text-textLight mb-6">
+                             <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+                             </svg>
+                          </div>
+                          <h3 className="text-[24px] font-black text-text mb-2 tracking-tight">Your Messages</h3>
+                          <p className="text-[15px] font-bold text-textMid max-w-[300px]">
+                              Select a conversation from the sidebar to start chatting.
+                          </p>
+                      </div>
+                  </div>
+              </div>
+          </div>
+      );
+  }
+
+  // Mobile layout - just the sidebar taking up the whole screen
   return (
-    <div className="h-screen flex flex-col bg-white overflow-hidden">
-      {/* Fixed Header */}
-      <header
-        className="shrink-0 flex items-center justify-between px-4 bg-white"
-        style={{ height: '58px', borderBottom: '1px solid #F0F0F0' }}
-      >
-        <button
-          onClick={() => { window.history.length > 1 ? navigate(-1) : navigate('/'); }}
-          className="flex items-center gap-1 shrink-0"
-        >
-          <svg width="22" height="22" viewBox="0 0 22 22" fill="none">
-            <path d="M14 5L8 11L14 17" stroke="#555" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
-          <span className="text-[14px] font-[700] text-[#555]">Back</span>
-        </button>
-
-        <span className="text-[17px] font-[900] text-[#111]">My Chats</span>
-
-        <div className="flex items-center">
-          {totalUnread > 0 && (
-            <button
-              onClick={markAllRead}
-              className="hidden sm:block text-[13px] font-[700] text-[#E8312A] mr-2"
-            >
-              Mark all read
-            </button>
-          )}
-          <button
-            onClick={() => setShowFilter(true)}
-            className="w-[44px] h-[44px] flex items-center justify-center"
-          >
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#555" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <line x1="4" y1="6" x2="20" y2="6" />
-              <line x1="7" y1="12" x2="17" y2="12" />
-              <line x1="10" y1="18" x2="14" y2="18" />
-            </svg>
-          </button>
-        </div>
-      </header>
-
-      {/* Pull To Refresh Indicator */}
-
-      {/* Content */}
-      <div className="flex-1 overflow-y-auto">
-        {/* Summary Strip */}
-        <div
-          className="bg-white px-4 py-3 flex items-center justify-between"
-          style={{ borderBottom: '1px solid #E6E2D9' }}
-        >
-          <div className="flex gap-4">
-            <div className="flex items-center gap-1.5">
-              <span className="text-[14px] font-[800] text-[#D97757]">{counts.active}</span>
-              <span className="text-[13px] font-[600] text-[#6B6860]">active</span>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <span className={`text-[14px] font-[800] ${totalUnread > 0 ? 'text-[#C0392B]' : 'text-[#21201C]'}`}>{totalUnread}</span>
-              <span className="text-[13px] font-[600] text-[#6B6860]">unread</span>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <span className="text-[14px] font-[800] text-[#417A55]">{counts.completed}</span>
-              <span className="text-[13px] font-[600] text-[#6B6860]">done</span>
-            </div>
-          </div>
-        </div>
-
-        {/* All caught up */}
-        {totalUnread === 0 && counts.active > 0 && (
-          <div
-            className="flex items-center justify-center animate-fade-in"
-            style={{ height: '32px', backgroundColor: '#EBF5EE' }}
-          >
-            <span className="text-[12px] font-[700]" style={{ color: '#417A55' }}>All caught up ✓</span>
-          </div>
-        )}
-
-        {/* Empty State */}
-        {sessions.length === 0 ? (
-          <div className="flex flex-col items-center justify-center text-center px-4" style={{ paddingTop: '80px' }}>
-            <span className="text-[48px]">🤝</span>
-            <h3 className="text-[20px] font-[900] text-[#21201C] mt-3">No chats yet</h3>
-            <p className="text-[14px] font-[600] text-[#6B6860] mt-2 max-w-[280px]" style={{ lineHeight: '1.65' }}>
-              When you join an accountability challenge and get paired with someone your chat will appear here.
-            </p>
-            <button
-              onClick={() => navigate('/explore')}
-              className="mt-6 flex items-center justify-center rounded-md"
-              style={{
-                height: '40px',
-                width: '160px',
-                backgroundColor: '#D97757',
-                color: 'white',
-                fontSize: '14px',
-                fontWeight: 800,
-              }}
-            >
-              Start Chatting →
-            </button>
-          </div>
-        ) : filteredSessions.length === 0 ? (
-          <div className="flex flex-col items-center justify-center text-center px-4" style={{ paddingTop: '60px' }}>
-            <span className="text-[36px]">🔍</span>
-            <h3 className="text-[17px] font-[900] text-[#21201C] mt-3">No matching chats</h3>
-            <p className="text-[13px] font-[600] text-[#6B6860] mt-2">Try changing your filter.</p>
-          </div>
-        ) : (
-          /* Session Cards List */
-          <div onTouchStart={() => {}}>
-            {filter === 'all' ? (
-              <>
-                {activeSessions.length > 0 && (
-                  <>
-                    <SectionHeader
-                      label="Active"
-                      count={activeSessions.length}
-                    />
-                    {activeSessions.map(s => (
-                      <SessionCard
-                        key={s.sessionId}
-                        session={s}
-                        onTap={() => navigate(`/chats/${s.sessionId}`)}
-                        onLongPress={() => {
-                          setActionSession(s);
-                          setShowActionSheet(true);
-                        }}
-                      />
-                    ))}
-                  </>
-                )}
-                {completedSessions.length > 0 && (
-                  <>
-                    <SectionHeader label="Completed" count={completedSessions.length} />
-                    {completedSessions.map(s => (
-                      <SessionCard
-                        key={s.sessionId}
-                        session={s}
-                        onTap={() => navigate(`/chats/${s.sessionId}`)}
-                        onLongPress={() => {
-                          setActionSession(s);
-                          setShowActionSheet(true);
-                        }}
-                      />
-                    ))}
-                  </>
-                )}
-                {expiredSessions.length > 0 && (
-                  <>
-                    <SectionHeader label="Expired" count={expiredSessions.length} />
-                    {expiredSessions.map(s => (
-                      <SessionCard
-                        key={s.sessionId}
-                        session={s}
-                        onTap={() => navigate(`/chats/${s.sessionId}`)}
-                        onLongPress={() => {
-                          setActionSession(s);
-                          setShowActionSheet(true);
-                        }}
-                      />
-                    ))}
-                  </>
-                )}
-              </>
-            ) : (
-              sortedSessions.map(s => (
-                <SessionCard
-                  key={s.sessionId}
-                  session={s}
-                  onTap={() => navigate(`/chats/${s.sessionId}`)}
-                  onLongPress={() => {
-                    setActionSession(s);
-                    setShowActionSheet(true);
-                  }}
-                />
-              ))
-            )}
-          </div>
-        )}
+      <div className="h-screen w-full flex flex-col bg-bg overflow-hidden pb-[64px]"> {/* bottom nav buffer */}
+         <MessagesSidebar activeTab={activeTab} setActiveTab={setActiveTab} />
       </div>
-
-      {/* Filter Sheet */}
-      <FilterSheet
-        isOpen={showFilter}
-        onClose={() => setShowFilter(false)}
-        filter={filter}
-        setFilter={setFilter}
-        sortBy={sortBy}
-        setSortBy={setSortBy}
-        counts={counts}
-        onMarkAllRead={markAllRead}
-      />
-
-      <ActionSheet
-        isOpen={showActionSheet}
-        onClose={() => setShowActionSheet(false)}
-        session={actionSession}
-        onOpenChat={() => actionSession && navigate(`/chats/${actionSession.sessionId}`)}
-        onViewChallenge={() => actionSession && navigate(`/challenge/${actionSession.linkId}`)}
-        onMarkRead={() => actionSession && markSessionRead(actionSession.sessionId)}
-        onLeave={() => actionSession && removeSession(actionSession.sessionId)}
-        onRate={() => { /* mock */ }}
-        onDelete={() => actionSession && removeSession(actionSession.sessionId)}
-      />
-    </div>
   );
 };
