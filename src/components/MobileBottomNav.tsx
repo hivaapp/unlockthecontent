@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import { useChatSessions } from '../context/ChatSessionsContext';
 
 export const MobileBottomNav = () => {
-    const { isLoggedIn, currentUser } = useAuth();
+    const { isLoggedIn } = useAuth();
     const location = useLocation();
 
     let chatUnread = 0;
@@ -20,7 +20,7 @@ export const MobileBottomNav = () => {
         { id: 'explore', path: '/explore', icon: Compass, label: 'Explore' },
         { id: 'dashboard', path: '/dashboard?tab=analytics', icon: LayoutDashboard, label: 'Dashboard' },
         { id: 'chats', path: '/chats', icon: MessageCircle, label: 'Chats' },
-        { id: 'account', path: currentUser?.isCreator ? '/dashboard?tab=settings' : '/account', icon: User, label: 'Account' }
+        { id: 'account', path: '/dashboard?tab=account', icon: User, label: 'Account' }
     ];
 
     const getIsActive = (item: typeof navItems[0]) => {

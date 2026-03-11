@@ -199,14 +199,14 @@ export const Pricing = () => {
 
             {/* Plan Comparison Section */}
             <div className="w-full bg-white py-12 flex flex-col items-center">
-                <div className="w-full max-w-[500px] px-5 flex flex-col items-center">
-                    <h2 className="text-[20px] font-black text-[#111] text-center mb-1">100% Free / Custom Sponsor Only</h2>
-                    <p className="text-[14px] text-textMid text-center mb-10">Start for free today. Focus purely on creators owning their deals. Everything else is free.</p>
+                <div className="w-full max-w-[900px] px-5 flex flex-col items-center">
+                    <h2 className="text-[24px] font-black text-[#111] text-center mb-1">Simple, Transparent Pricing</h2>
+                    <p className="text-[14px] text-textMid text-center mb-10">Start for free, upgrade when you're ready to scale.</p>
 
-                    <div className="w-full flex flex-col sm:flex-row gap-4 sm:gap-4 items-stretch justify-center">
+                    <div className="w-full flex flex-col sm:flex-row gap-6 items-stretch justify-center">
                         {/* Free Plan */}
                         <div className="flex-1 bg-white border-2 border-[#E8E8E8] rounded-[18px] p-6 flex flex-col">
-                            <h3 className="text-[16px] font-black text-[#111]">Free</h3>
+                            <h3 className="text-[18px] font-black text-[#111]">Free</h3>
                             <p className="text-[13px] text-textMid mb-6">Perfect for getting started</p>
 
                             <div className="flex items-baseline mb-2">
@@ -217,26 +217,69 @@ export const Pricing = () => {
 
                             <div className="w-full h-px bg-border mb-6" />
 
-                            <div className="flex flex-col gap-0 mb-8 flex-1">
-                                {["Unlimited link creation", "Custom sponsor ads", "Sponsor media library & reporting", "Supabase file storage up to 100MB"].map((feature, i) => (
-                                    <div key={i} className="flex items-center gap-3 h-[40px]">
-                                        <Check size={16} className="text-[#333] shrink-0" />
-                                        <span className="text-[13px] font-bold text-[#333]">{feature}</span>
-                                    </div>
-                                ))}
-                                <div className="flex items-center gap-3 h-[40px]">
-                                    <Check size={16} className="text-success shrink-0" />
-                                    <span className="text-[13px] font-bold text-success bg-[#EBF5EE] px-2 py-0.5 rounded-[14px]">Custom Sponsor: 0% always free</span>
+                            <div className="flex flex-col gap-3 mb-8 flex-1">
+                                <div className="flex items-start gap-3">
+                                    <Check size={16} className="text-[#333] shrink-0 mt-0.5" />
+                                    <span className="text-[13px] font-bold text-[#333]">Unlimited Custom Sponsor links (0% fee)</span>
+                                </div>
+                                <div className="flex items-start gap-3">
+                                    <Check size={16} className="text-[#333] shrink-0 mt-0.5" />
+                                    <span className="text-[13px] font-bold text-[#333]">Up to 3 Follower Pairing active challenges</span>
+                                </div>
+                                <div className="flex items-start gap-3">
+                                    <Check size={16} className="text-[#333] shrink-0 mt-0.5" />
+                                    <span className="text-[13px] font-bold text-[#333]">100MB file storage per resource</span>
                                 </div>
                             </div>
 
-                            <Link to="/" className="w-full h-[48px] bg-[#E8312A] text-white font-black text-[15px] rounded-[14px] flex items-center justify-center hover:bg-[#C42823] transition-colors">
+                            <Link to="/" className="w-full h-[48px] bg-white border-2 border-[#E8E8E8] text-[#111] font-black text-[15px] rounded-[14px] flex items-center justify-center hover:bg-[#F8F8F8] transition-colors">
                                 Get Started Free
+                            </Link>
+                        </div>
+
+                        {/* Pro Plan */}
+                        <div className="flex-1 bg-white border-[3px] border-brand rounded-[18px] p-6 flex flex-col relative shadow-sm">
+                            <div className="absolute top-0 right-6 -translate-y-1/2 bg-brand text-white font-black text-[11px] uppercase tracking-wider px-3 py-1 rounded-full">
+                                Most Popular
+                            </div>
+                            <h3 className="text-[18px] font-black text-[#111]">Pro</h3>
+                            <p className="text-[13px] text-textMid mb-6">For serious creators scaling their communities</p>
+
+                            <div className="flex items-baseline mb-2">
+                                <span className="text-[24px] font-black text-[#111] -mt-2 self-start">$</span>
+                                <span className="text-[48px] font-black text-[#111] leading-none">10</span>
+                                <span className="text-[16px] font-bold text-textMid ml-1">/mo</span>
+                            </div>
+                            <p className="text-[14px] font-bold text-textMid mb-6">billed monthly</p>
+
+                            <div className="w-full h-px bg-border mb-6" />
+
+                            <div className="flex flex-col gap-3 mb-8 flex-1">
+                                <div className="flex items-start gap-3">
+                                    <Check size={16} className="text-brand shrink-0 mt-0.5" />
+                                    <span className="text-[13px] font-black text-[#111]">Unlimited Follower Pairing challenges</span>
+                                </div>
+                                <div className="flex items-start gap-3">
+                                    <Check size={16} className="text-[#333] shrink-0 mt-0.5" />
+                                    <span className="text-[13px] font-bold text-[#333]">Advanced custom sponsor targeting</span>
+                                </div>
+                                <div className="flex items-start gap-3">
+                                    <Check size={16} className="text-[#333] shrink-0 mt-0.5" />
+                                    <span className="text-[13px] font-bold text-[#333]">1GB file storage per resource</span>
+                                </div>
+                                <div className="flex items-start gap-3">
+                                    <Check size={16} className="text-[#333] shrink-0 mt-0.5" />
+                                    <span className="text-[13px] font-bold text-[#333]">Priority email support</span>
+                                </div>
+                            </div>
+
+                            <Link to="/" className="w-full h-[48px] bg-brand text-white font-black text-[15px] rounded-[14px] flex items-center justify-center hover:bg-brandHover transition-colors shadow-md">
+                                Upgrade to Pro
                             </Link>
                         </div>
                     </div>
 
-                    <p className="text-[13px] text-textMid text-center mt-8">Includes the tree planting donation option. 🌱</p>
+                    <p className="text-[13px] text-textMid text-center mt-8">Includes the tree planting donation option on all plans. 🌱</p>
                 </div>
             </div>
 
