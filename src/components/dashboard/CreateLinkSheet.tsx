@@ -7,7 +7,7 @@ import { ContentBuilder, type ContentData } from '../ContentBuilder';
 import { UnlockTypeSelector, type UnlockType } from './UnlockTypeSelector';
 import { EmailConfigForm, type EmailConfigData } from './EmailConfigForm';
 import { SocialConfigForm, type SocialConfigData } from './SocialConfigForm';
-import { AccountabilityConfigForm, type AccountabilityConfigData } from './AccountabilityConfigForm';
+import { FollowerPairingConfigForm, type FollowerPairingConfigData } from './FollowerPairingConfigForm';
 
 interface CreateLinkSheetProps {
     isOpen: boolean;
@@ -30,13 +30,13 @@ export const CreateLinkSheet = ({ isOpen, onClose, onSuccess }: CreateLinkSheetP
     const [customAd, setCustomAd] = useState<CustomAdData | null>(null);
     const [emailConfig, setEmailConfig] = useState<EmailConfigData | null>(null);
     const [socialConfig, setSocialConfig] = useState<SocialConfigData | null>(null);
-    const [accountabilityConfig, setAccountabilityConfig] = useState<AccountabilityConfigData | null>(null);
+    const [followerPairingConfig, setFollowerPairingConfig] = useState<FollowerPairingConfigData | null>(null);
     
     // Error states
     const [hasCustomAdErrors, setHasCustomAdErrors] = useState(true);
     const [hasEmailErrors, setHasEmailErrors] = useState(true);
     const [hasSocialErrors, setHasSocialErrors] = useState(true);
-    const [hasAccountabilityErrors, setHasAccountabilityErrors] = useState(true);
+    const [hasFollowerPairingErrors, setHasFollowerPairingErrors] = useState(true);
 
     const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -45,7 +45,7 @@ export const CreateLinkSheet = ({ isOpen, onClose, onSuccess }: CreateLinkSheetP
 
     const handleSubmit = async () => {
         const hasTextContent = contentData.textContent.trim().length > 0 || contentData.links.length > 0;
-        const hasContent = unlockType === 'accountability' ? true : (contentData.file || hasTextContent);
+        const hasContent = unlockType === 'follower_pairing' ? true : (contentData.file || hasTextContent);
         if (!hasContent) return;
 
         if (unlockType === 'custom_sponsor' && hasCustomAdErrors) {
@@ -65,10 +65,10 @@ export const CreateLinkSheet = ({ isOpen, onClose, onSuccess }: CreateLinkSheetP
             customAd: unlockType === 'custom_sponsor' ? customAd as any : undefined,
             emailConfig: unlockType === 'email_subscribe' ? emailConfig : undefined,
             socialConfig: unlockType === 'social_follow' ? socialConfig : undefined,
-            accountabilityConfig: unlockType === 'accountability' ? accountabilityConfig : undefined,
-            contentMode: unlockType === 'accountability' ? undefined : contentData.contentMode,
-            fileType: unlockType === 'accountability' ? '' : (contentData.file ? (contentData.file.name.split('.').pop()?.toUpperCase() || 'FILE') : (contentData.contentMode === 'text' ? 'TEXT' : 'BOTH')),
-            fileName: unlockType === 'accountability' ? '' : (contentData.file ? contentData.file.name : (contentData.contentMode === 'text' ? 'Text Content' : 'Combined Content')),
+            followerPairingConfig: unlockType === 'follower_pairing' ? followerPairingConfig : undefined,
+            contentMode: unlockType === 'follower_pairing' ? undefined : contentData.contentMode,
+            fileType: unlockType === 'follower_pairing' ? '' : (contentData.file ? (contentData.file.name.split('.').pop()?.toUpperCase() || 'FILE') : (contentData.contentMode === 'text' ? 'TEXT' : 'BOTH')),
+            fileName: unlockType === 'follower_pairing' ? '' : (contentData.file ? contentData.file.name : (contentData.contentMode === 'text' ? 'Text Content' : 'Combined Content')),
         });
 
         setIsSubmitting(false);
@@ -92,22 +92,45 @@ export const CreateLinkSheet = ({ isOpen, onClose, onSuccess }: CreateLinkSheetP
         <BottomSheet isOpen={isOpen} onClose={onClose} title="Create New Link" fullHeight>
             <div className="flex flex-col gap-[20px] pb-[80px]">
                 
-                {/* Unlock Type Selector */}
-                <div className="w-full">
-                    <UnlockTypeSelector value={unlockType} onChange={setUnlockType} />
-                </div>
-
-                {/* Upload Section */}
-                {unlockType === 'accountability' ? (
-                    <div className="w-full bg-[#FAF9F7] rounded-[14px] p-4 flex items-center gap-3 border border-[#E6E2D9] h-[64px]">
-                        <span className="text-[20px]">🤝</span>
-                        <span className="text-[13px] font-[600] text-[#666]">No file needed for Accountability links. The pairing experience itself is what participants receive.</span>
+                {/* Section A - File / Info */}
+                {unlockType === 'follower_pairing' ? (
+                    <div className="w-full bg-[#FFFBEB] rounded-[10px] p-[12px] border border-[#FDE68A] h-auto flex flex-col justify-center animate-in slide-in-from-top-2 fade-in duration-200">
+                        <span className="text-[12px] font-[700] text-[#92400E]">🤝 No file needed for Follower Pairing. Your followers pair up and support each other.</span>
                     </div>
                 ) : (
                     <div className="w-full">
                         <ContentBuilder value={contentData} onChange={setContentData} isSheet={true} />
                     </div>
                 )}
+
+                {/* Section B - Mode Switch */}
+                <div className="flex flex-col gap-2 relative z-10 w-full mt-[-8px]">
+                    <div className="w-full flex items-center p-1 border-[1.5px] border-[#E8E8E8] rounded-[12px] h-[52px] bg-white mx-auto shadow-sm">
+                        <button
+                            onClick={() => { if (unlockType === 'follower_pairing') setUnlockType('custom_sponsor'); }}
+                            className={`flex-1 flex items-center justify-center gap-[8px] h-[44px] rounded-[10px] transition-all duration-200 ${unlockType !== 'follower_pairing' ? 'bg-[#111] text-white shadow-[0_1px_4px_rgba(0,0,0,0.15)]' : 'bg-transparent text-[#666]'}`}
+                        >
+                            <span className="text-[16px]">🔒</span>
+                            <span className="text-[14px] font-[800]">Lock</span>
+                        </button>
+                        <button
+                            onClick={() => setUnlockType('follower_pairing')}
+                            className={`flex-1 flex items-center justify-center gap-[8px] h-[44px] rounded-[10px] transition-all duration-200 ${unlockType === 'follower_pairing' ? 'bg-[#111] text-white shadow-[0_1px_4px_rgba(0,0,0,0.15)]' : 'bg-transparent text-[#666]'}`}
+                        >
+                            <span className="text-[16px]">🤝</span>
+                            <span className="text-[14px] font-[800]">Pairing</span>
+                        </button>
+                    </div>
+                </div>
+
+                {/* Section C - Config */}
+                <div className="w-full mt-2">
+                    {unlockType !== 'follower_pairing' && (
+                        <div className="mb-6">
+                            <UnlockTypeSelector value={unlockType} onChange={setUnlockType} />
+                        </div>
+                    )}
+                </div>
 
                 {/* Title and Description */}
                 <div className="flex flex-col gap-4">
@@ -164,11 +187,11 @@ export const CreateLinkSheet = ({ isOpen, onClose, onSuccess }: CreateLinkSheetP
                             onErrorStateChange={setHasSocialErrors}
                         />
                     )}
-                    {unlockType === 'accountability' && (
-                        <AccountabilityConfigForm
-                            value={accountabilityConfig}
-                            onChange={setAccountabilityConfig}
-                            onErrorStateChange={setHasAccountabilityErrors}
+                    {unlockType === 'follower_pairing' && (
+                        <FollowerPairingConfigForm
+                            value={followerPairingConfig}
+                            onChange={setFollowerPairingConfig}
+                            onErrorStateChange={setHasFollowerPairingErrors}
                         />
                     )}
                 </div>
@@ -180,11 +203,11 @@ export const CreateLinkSheet = ({ isOpen, onClose, onSuccess }: CreateLinkSheetP
                     onClick={handleSubmit}
                     disabled={
                         (!title || isSubmitting) || 
-                        (unlockType !== 'accountability' && !(contentData.file || contentData.textContent.trim().length > 0 || contentData.links.length > 0)) ||
+                        (unlockType !== 'follower_pairing' && !(contentData.file || contentData.textContent.trim().length > 0 || contentData.links.length > 0)) ||
                         (unlockType === 'custom_sponsor' && hasCustomAdErrors) ||
                         (unlockType === 'email_subscribe' && hasEmailErrors) ||
                         (unlockType === 'social_follow' && hasSocialErrors) ||
-                        (unlockType === 'accountability' && hasAccountabilityErrors)
+                        (unlockType === 'follower_pairing' && hasFollowerPairingErrors)
                     }
                     className="btn-primary w-full h-[52px] border-none bg-brand text-white font-[800] rounded-[14px] text-[16px] hover:bg-brandHover disabled:opacity-50 disabled:grayscale-[50%]"
                 >

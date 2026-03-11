@@ -4,12 +4,12 @@ import { mockLinks } from '../lib/mockData';
 
 type GenderOption = 'male' | 'female' | 'any';
 
-export const AccountabilityMatch = () => {
+export const FollowerPairingMatch = () => {
   const { slug } = useParams();
   const navigate = useNavigate();
   const [selected, setSelected] = useState<GenderOption | null>(null);
 
-  const link = mockLinks.find(l => l.slug === slug && l.unlockType === 'accountability');
+  const link = mockLinks.find(l => l.slug === slug && l.unlockType === 'follower_pairing');
 
   // Check commitment exists
   useEffect(() => {

@@ -8,7 +8,7 @@ export interface ScheduledMessage {
     isSent: boolean;
 }
 
-export interface AccountabilityConfigData {
+export interface FollowerPairingConfigData {
     topic: string;
     description: string;
     commitmentPrompt: string;
@@ -24,11 +24,18 @@ export interface AccountabilityConfigData {
     completedPairs?: number;
     isAcceptingParticipants?: boolean;
     waitingPool?: { male: number; female: number; any: number };
+    completionAsset?: {
+        enabled: boolean;
+        fileName: string | null;
+        fileSize: string | null;
+        fileType: string | null;
+        unlockMessage: string;
+    };
 }
 
-interface AccountabilityConfigFormProps {
-    value: AccountabilityConfigData | null;
-    onChange: (data: AccountabilityConfigData) => void;
+interface FollowerPairingConfigFormProps {
+    value: FollowerPairingConfigData | null;
+    onChange: (data: FollowerPairingConfigData) => void;
     onErrorStateChange: (hasErrors: boolean) => void;
 }
 
@@ -59,8 +66,8 @@ const messageTemplates = [
     },
 ];
 
-export const AccountabilityConfigForm = ({ value, onChange, onErrorStateChange }: AccountabilityConfigFormProps) => {
-    const [data, setData] = useState<AccountabilityConfigData>(value || {
+export const FollowerPairingConfigForm = ({ value, onChange, onErrorStateChange }: FollowerPairingConfigFormProps) => {
+    const [data, setData] = useState<FollowerPairingConfigData>(value || {
         topic: '',
         description: '',
         commitmentPrompt: '',
@@ -71,12 +78,20 @@ export const AccountabilityConfigForm = ({ value, onChange, onErrorStateChange }
         creatorResourceLabel: null,
         genderMatchingEnabled: true,
         scheduledMessages: [],
+        completionAsset: {
+            enabled: false,
+            fileName: null,
+            fileSize: null,
+            fileType: null,
+            unlockMessage: '',
+        }
     });
 
     const [hasLimit] = useState(false);
     const [showAddForm, setShowAddForm] = useState(false);
     const [showTemplates, setShowTemplates] = useState(false);
     const [editingId, setEditingId] = useState<string | null>(null);
+    const [showCompletionReward, setShowCompletionReward] = useState(data.completionAsset?.enabled || false);
 
     // Add form fields
     const [addDay, setAddDay] = useState(1);
@@ -94,7 +109,7 @@ export const AccountabilityConfigForm = ({ value, onChange, onErrorStateChange }
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [data, hasLimit]);
 
-    const handleChange = <K extends keyof AccountabilityConfigData>(field: K, val: AccountabilityConfigData[K]) => {
+    const handleChange = <K extends keyof FollowerPairingConfigData>(field: K, val: FollowerPairingConfigData[K]) => {
         setData(prev => ({ ...prev, [field]: val }));
     };
 
@@ -421,6 +436,97 @@ export const AccountabilityConfigForm = ({ value, onChange, onErrorStateChange }
                             >
                                 Cancel
                             </button>
+                        </div>
+                    </div>
+                )}
+            </div>
+
+            {/* ═══════ Section C — Completion Reward ═══════ */}
+            <div className="border-t border-[#F0F0F0] pt-4 mt-2">
+                <div className="flex flex-col gap-1 mb-3">
+                    <button
+                        type="button"
+                        onClick={() => {
+                            const willShow = !showCompletionReward;
+                            setShowCompletionReward(willShow);
+                            handleChange('completionAsset', {
+                                enabled: willShow,
+                                fileName: willShow ? data.completionAsset?.fileName || null : null,
+                                fileSize: willShow ? data.completionAsset?.fileSize || null : null,
+                                fileType: willShow ? data.completionAsset?.fileType || null : null,
+                                unlockMessage: willShow ? data.completionAsset?.unlockMessage || '' : ''
+                            });
+                        }}
+                        className="flex justify-between items-center w-full text-left"
+                    >
+                        <div className="flex flex-col gap-1">
+                            <h4 className="text-[13px] font-[900] text-[#111]">🎁 Reward for completions (Optional)</h4>
+                            <p className="text-[12px] font-[600] text-[#888] pr-4">Give a downloadable file to pairs that successfully complete the full duration.</p>
+                        </div>
+                        <div className={`w-10 h-6 rounded-full p-1 transition-colors duration-200 ease-in-out ${showCompletionReward ? 'bg-brand' : 'bg-gray-200'}`}>
+                            <div className={`w-4 h-4 bg-white rounded-full transition-transform duration-200 ease-in-out ${showCompletionReward ? 'translate-x-4' : 'translate-x-0'}`} />
+                        </div>
+                    </button>
+                </div>
+
+                {showCompletionReward && (
+                    <div className="flex flex-col gap-4 bg-[#FFFBEB] p-4 rounded-[12px] border border-[#FDE68A] animate-in fade-in zoom-in-95 duration-200">
+                        {/* File Upload Zone */}
+                        <div className="flex flex-col gap-1.5">
+                            <label className="text-[12px] font-[700] text-[#92400E]">Upload Reward File</label>
+                            {!data.completionAsset?.fileName ? (
+                                <button
+                                    type="button"
+                                    onClick={() => handleChange('completionAsset', {
+                                        ...data.completionAsset!,
+                                        fileName: 'bonus_reward.zip',
+                                        fileSize: '4.2 MB',
+                                        fileType: 'zip'
+                                    })}
+                                    className="w-full h-[100px] border-2 border-dashed border-[#F59E0B] rounded-[12px] flex flex-col items-center justify-center bg-white/50 hover:bg-white transition-colors"
+                                >
+                                    <span className="text-[24px] mb-1">🎁</span>
+                                    <span className="text-[13px] font-[700] text-[#92400E]">Tap to upload reward</span>
+                                    <span className="text-[11px] font-[600] text-[#D97757]">ZIP, PDF, MP4 up to 2GB</span>
+                                </button>
+                            ) : (
+                                <div className="w-full h-[60px] bg-white border border-[#FDE68A] rounded-[12px] flex items-center justify-between px-4">
+                                    <div className="flex items-center gap-3">
+                                        <div className="w-10 h-10 rounded-[8px] bg-[#FEF3C7] flex items-center justify-center text-[20px]">
+                                            📦
+                                        </div>
+                                        <div className="flex flex-col">
+                                            <span className="text-[14px] font-[800] text-[#111]">{data.completionAsset.fileName}</span>
+                                            <span className="text-[12px] font-[600] text-[#888]">{data.completionAsset.fileSize}</span>
+                                        </div>
+                                    </div>
+                                    <button
+                                        type="button"
+                                        onClick={() => handleChange('completionAsset', {
+                                            ...data.completionAsset!,
+                                            fileName: null,
+                                            fileSize: null,
+                                            fileType: null
+                                        })}
+                                        className="text-[12px] font-[700] text-[#E8312A] hover:bg-[#FDECEA] px-2 py-1 rounded-[6px]"
+                                    >
+                                        Remove
+                                    </button>
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Optional Unlock Message */}
+                        <div className="flex flex-col gap-1.5">
+                            <label className="text-[12px] font-[700] text-[#92400E]">Bonus Message (Optional)</label>
+                            <textarea
+                                className="w-full h-[80px] rounded-[12px] border border-[#FDE68A] p-3 text-[14px] font-[600] resize-none focus:outline-none focus:border-[#F59E0B] focus:ring-1 focus:ring-[#F59E0B] bg-white/80"
+                                placeholder="A note that appears with their reward when they finish..."
+                                maxLength={200}
+                                value={data.completionAsset?.unlockMessage || ''}
+                                onChange={(e) => handleChange('completionAsset', { ...data.completionAsset!, unlockMessage: e.target.value })}
+                            />
+                            <span className="text-[11px] text-[#D97757] text-right">{(data.completionAsset?.unlockMessage || '').length}/200</span>
                         </div>
                     </div>
                 )}

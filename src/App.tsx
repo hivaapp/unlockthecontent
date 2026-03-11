@@ -24,10 +24,10 @@ import { Privacy } from './pages/Privacy';
 import { HelpPage } from './pages/HelpPage';
 import { ContactPage } from './pages/ContactPage';
 import { ScrollToTop } from './components/ScrollToTop';
-import { AccountabilityLanding } from './pages/AccountabilityLanding';
-import { AccountabilityMatch } from './pages/AccountabilityMatch';
-import { AccountabilityMatching } from './pages/AccountabilityMatching';
-import { AccountabilityChat } from './pages/AccountabilityChat';
+import { FollowerPairingLanding } from './pages/FollowerPairingLanding';
+import { FollowerPairingMatch } from './pages/FollowerPairingMatch';
+import { FollowerPairingMatching } from './pages/FollowerPairingMatching';
+import { FollowerPairingChat } from './pages/FollowerPairingChat';
 
 const AppLayout = ({ children, hideNav = false }: { children: ReactNode, hideNav?: boolean }) => (
   <>
@@ -79,9 +79,9 @@ const ResourceRouter = () => {
   const slug = window.location.pathname.split('/r/')[1]?.split('/')[0];
   const linkData = mockLinks.find(l => l.slug === slug);
   const exploreData = mockExploreResources.find(r => r.slug === slug);
-  const isAccountability = linkData?.unlockType === 'accountability' || exploreData?.unlockType === 'accountability';
+  const isAccountability = linkData?.unlockType === 'follower_pairing' || exploreData?.unlockType === 'follower_pairing';
   
-  if (isAccountability) return <AccountabilityLanding />;
+  if (isAccountability) return <FollowerPairingLanding />;
   return <ResourceUnlock />;
 };
 
@@ -122,9 +122,9 @@ function App() {
                 />
                 <Route path="/explore" element={<AppLayout><ExplorePage /></AppLayout>} />
                 <Route path="/r/:slug" element={<ResourceRouter />} />
-                <Route path="/r/:slug/match" element={<AccountabilityMatch />} />
-                <Route path="/r/:slug/matching" element={<AccountabilityMatching />} />
-                <Route path="/chats/:sessionId" element={<PrivateRoute><AccountabilityChat /></PrivateRoute>} />
+                <Route path="/r/:slug/match" element={<FollowerPairingMatch />} />
+                <Route path="/r/:slug/matching" element={<FollowerPairingMatching />} />
+                <Route path="/chats/:sessionId" element={<PrivateRoute><FollowerPairingChat /></PrivateRoute>} />
                 <Route path="/chats" element={<PrivateRoute><AppLayout hideNav><MyChatsHub /></AppLayout></PrivateRoute>} />
                 <Route path="/my-chats" element={<Navigate to="/chats" replace />} />
                 <Route path="/terms" element={<AppLayout><Terms /></AppLayout>} />

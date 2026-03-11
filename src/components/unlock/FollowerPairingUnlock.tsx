@@ -1,18 +1,18 @@
 import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import type { AccountabilityConfigData } from '../dashboard/AccountabilityConfigForm';
+import type { FollowerPairingConfigData } from '../dashboard/FollowerPairingConfigForm';
 
 /**
  * Legacy redirect component — the old accountability unlock flow is replaced.
  * Redirects to the new multi-page accountability flow at /r/:slug
  */
-interface AccountabilityUnlockProps {
+interface FollowerPairingUnlockProps {
     slug?: string;
-    config?: AccountabilityConfigData;
+    config?: FollowerPairingConfigData;
     onComplete?: () => void;
 }
 
-export const AccountabilityUnlock = ({ slug }: AccountabilityUnlockProps) => {
+export const FollowerPairingUnlock = ({ slug }: FollowerPairingUnlockProps) => {
     const navigate = useNavigate();
 
     useEffect(() => {

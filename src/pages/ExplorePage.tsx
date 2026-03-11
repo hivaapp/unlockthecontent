@@ -210,7 +210,7 @@ export const ExplorePage = () => {
                                                 <span className="text-[10px] sm:text-[11px] font-bold px-1.5 py-0.5 bg-[#166534] text-white rounded-[14px] flex items-center gap-1 shadow-sm"><Mail size={10} /> Email Subscribe</span>
                                             ) : r.unlockType === 'social_follow' ? (
                                                 <span className="text-[10px] sm:text-[11px] font-bold px-1.5 py-0.5 bg-[#2563EB] text-white rounded-[14px] flex items-center gap-1 shadow-sm"><Share2 size={10} /> Social Follow</span>
-                                            ) : r.unlockType === 'accountability' ? (
+                                            ) : r.unlockType === 'follower_pairing' ? (
                                                 <span className="text-[10px] sm:text-[11px] font-bold px-1.5 py-0.5 bg-[#92400E] text-white rounded-[14px] flex items-center gap-1 shadow-sm"><Handshake size={10} /> Accountability</span>
                                             ) : null}
                                         </div>
@@ -253,7 +253,7 @@ export const ExplorePage = () => {
                                             <span className="flex items-center gap-1 text-[11px] font-bold px-1.5 py-0.5 bg-[#166534] text-white rounded-[14px] mb-1 shadow-sm"><Mail size={10} /> Email Subscribe</span>
                                         ) : r.unlockType === 'social_follow' ? (
                                             <span className="flex items-center gap-1 text-[11px] font-bold px-1.5 py-0.5 bg-[#2563EB] text-white rounded-[14px] mb-1 shadow-sm"><Share2 size={10} /> Social Follow</span>
-                                        ) : r.unlockType === 'accountability' ? (
+                                        ) : r.unlockType === 'follower_pairing' ? (
                                             <span className="flex items-center gap-1 text-[11px] font-bold px-1.5 py-0.5 bg-[#92400E] text-white rounded-[14px] mb-1 shadow-sm"><Handshake size={10} /> Accountability</span>
                                         ) : null}
                                         <span className="text-[11px] font-bold text-textLight">{r.unlockCount} unlocks</span>

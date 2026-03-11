@@ -7,7 +7,7 @@ import { MoreActionSheet } from '../MoreActionSheet';
 import { AnalyticsSheet } from '../AnalyticsSheet';
 import { useToast } from '../../../context/ToastContext';
 
-import type { AccountabilityConfigData } from '../AccountabilityConfigForm';
+import type { FollowerPairingConfigData } from '../FollowerPairingConfigForm';
 
 export interface DashboardLink {
     id: string;
@@ -18,7 +18,7 @@ export interface DashboardLink {
     views: number;
     unlocks: number;
     status: string;
-    unlockType?: 'custom_sponsor' | 'email_subscribe' | 'social_follow' | 'accountability';
+    unlockType?: 'custom_sponsor' | 'email_subscribe' | 'social_follow' | 'follower_pairing';
     clicks?: number;
     customAd?: {
         requiresClick?: boolean;
@@ -27,7 +27,7 @@ export interface DashboardLink {
     };
     emailConfig?: Record<string, unknown>;
     socialConfig?: Record<string, unknown>;
-    accountabilityConfig?: AccountabilityConfigData | null;
+    followerPairingConfig?: FollowerPairingConfigData | null;
 }
 
 export const LinksTab = ({ searchQuery, setSearchQuery }: { searchQuery: string, setSearchQuery: (q: string) => void }) => {
@@ -95,7 +95,7 @@ export const LinksTab = ({ searchQuery, setSearchQuery }: { searchQuery: string,
             unlocks: 156,
             
             status: 'active',
-            unlockType: 'accountability'
+            unlockType: 'follower_pairing'
         }
     ]);
 

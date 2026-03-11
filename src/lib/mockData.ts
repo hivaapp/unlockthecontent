@@ -486,7 +486,7 @@ export const mockLinks = [
         slug: "morning-routine-accountability",
         title: "14-Day Morning Routine Challenge",
         description: "Pair up with someone building a morning routine. Check in daily. Support each other.",
-        unlockType: "accountability",
+        unlockType: "follower_pairing",
         contentMode: "file",
         textContent: "",
         links: [],
@@ -504,7 +504,7 @@ export const mockLinks = [
         conversionRate: "0.0%",
         geography: [],
         deviceSplit: { mobile: 50, desktop: 50, tablet: 0 },
-        accountabilityConfig: {
+        followerPairingConfig: {
             topic: "14-Day Morning Routine Challenge",
             description: "Pair up with someone building the same habit. Check in daily. Support each other for 14 days.",
             commitmentPrompt: "What specific morning habit will you commit to for the next 14 days?",
@@ -525,6 +525,13 @@ export const mockLinks = [
             completedPairs: 156,
             isAcceptingParticipants: true,
             waitingPool: { male: 3, female: 2, any: 1 },
+            completionAsset: {
+                enabled: true,
+                fileName: "morning-routine-bonus.pdf",
+                fileSize: "1.2 MB",
+                fileType: "pdf",
+                unlockMessage: "You made it! Here is the bonus PDF guide to keep your momentum going."
+            }
         }
     },
     {
@@ -532,7 +539,7 @@ export const mockLinks = [
         slug: "freelance-goal-accountability",
         title: "30-Day Freelance Revenue Goal",
         description: "Set a freelance revenue goal for next month and get an accountability partner to keep you on track.",
-        unlockType: "accountability",
+        unlockType: "follower_pairing",
         contentMode: "file",
         textContent: "",
         links: [],
@@ -550,7 +557,7 @@ export const mockLinks = [
         conversionRate: "0.0%",
         geography: [],
         deviceSplit: { mobile: 50, desktop: 50, tablet: 0 },
-        accountabilityConfig: {
+        followerPairingConfig: {
             topic: "30-Day Freelance Revenue Goal",
             description: "Set a freelance revenue goal for next month and get an accountability partner to keep you on track.",
             commitmentPrompt: "What is your freelance revenue goal for the next 30 days, and what is one specific action you will take this week to move toward it?",
@@ -570,6 +577,13 @@ export const mockLinks = [
             completedPairs: 31,
             isAcceptingParticipants: true,
             waitingPool: { male: 2, female: 1, any: 0 },
+            completionAsset: {
+                enabled: false,
+                fileName: null,
+                fileSize: null,
+                fileType: null,
+                unlockMessage: ""
+            }
         }
     },
     {
@@ -991,7 +1005,7 @@ export const mockCreatorProfile = { ...currentUser, links: mockLinks.filter(l =>
 
 import type { EmailConfigData } from '../components/dashboard/EmailConfigForm';
 import type { SocialConfigData } from '../components/dashboard/SocialConfigForm';
-import type { AccountabilityConfigData } from '../components/dashboard/AccountabilityConfigForm';
+import type { FollowerPairingConfigData } from '../components/dashboard/FollowerPairingConfigForm';
 
 export interface ExploreResource {
     id: string;
@@ -1027,10 +1041,10 @@ export interface ExploreResource {
     fileSize?: string;
     donateEnabled?: boolean;
     contentMode?: "file";
-    unlockType?: "custom_sponsor" | "email_subscribe" | "social_follow" | "accountability";
+    unlockType?: "custom_sponsor" | "email_subscribe" | "social_follow" | "follower_pairing";
     emailConfig?: EmailConfigData;
     socialConfig?: SocialConfigData;
-    accountabilityConfig?: AccountabilityConfigData;
+    followerPairingConfig?: FollowerPairingConfigData;
 }
 
 export const mockExploreResources: ExploreResource[] = [
@@ -1149,8 +1163,8 @@ export const mockExploreResources: ExploreResource[] = [
         adSource: "custom",
         requiresClick: false,
         sponsorName: "Figma",
-        unlockType: "accountability",
-        accountabilityConfig: {
+        unlockType: "follower_pairing",
+        followerPairingConfig: {
             topic: "30-Day Drawing Challenge",
             description: "Pair up with another artist to build a daily drawing habit. Share your sketches and stay accountable.",
             commitmentPrompt: "What are you committing to draw every day?",

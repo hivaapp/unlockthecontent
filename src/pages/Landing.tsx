@@ -9,7 +9,7 @@ import { ContentBuilder, type ContentData } from '../components/ContentBuilder';
 import { UnlockTypeSelector, type UnlockType } from '../components/dashboard/UnlockTypeSelector';
 import { EmailConfigForm, type EmailConfigData } from '../components/dashboard/EmailConfigForm';
 import { SocialConfigForm, type SocialConfigData } from '../components/dashboard/SocialConfigForm';
-import { AccountabilityConfigForm, type AccountabilityConfigData } from '../components/dashboard/AccountabilityConfigForm';
+import { FollowerPairingConfigForm, type FollowerPairingConfigData } from '../components/dashboard/FollowerPairingConfigForm';
 import { BelowTheFold } from '../components/landing/BelowTheFold';
 
 
@@ -35,11 +35,11 @@ export const Landing = () => {
     const [unlockType, setUnlockType] = useState<UnlockType>('custom_sponsor');
     const [emailConfig, setEmailConfig] = useState<EmailConfigData | null>(null);
     const [socialConfig, setSocialConfig] = useState<SocialConfigData | null>(null);
-    const [accountabilityConfig, setAccountabilityConfig] = useState<AccountabilityConfigData | null>(null);
+    const [followerPairingConfig, setFollowerPairingConfig] = useState<FollowerPairingConfigData | null>(null);
     
     const [hasEmailErrors, setHasEmailErrors] = useState(true);
     const [hasSocialErrors, setHasSocialErrors] = useState(true);
-    const [hasAccountabilityErrors, setHasAccountabilityErrors] = useState(true);
+    const [hasFollowerPairingErrors, setHasFollowerPairingErrors] = useState(true);
 
     // Generate state
     const [isGenerating, setIsGenerating] = useState(false);
@@ -66,7 +66,7 @@ export const Landing = () => {
 
     useEffect(() => {
         const hasTextContent = contentData.textContent.trim().length > 0 || contentData.links.length > 0;
-        const hasContent = unlockType === 'accountability' ? true : (contentData.file || hasTextContent);
+        const hasContent = unlockType === 'follower_pairing' ? true : (contentData.file || hasTextContent);
         if (hasContent && !hasPulsed && !hasConfiguredAdSetup) {
             const timer = setTimeout(() => {
                 if (!hasConfiguredAdSetup) setHasPulsed(true);
@@ -90,7 +90,7 @@ export const Landing = () => {
 
     const handleGenerate = () => {
         const hasTextContent = contentData.textContent.trim().length > 0 || contentData.links.length > 0;
-        const hasContent = unlockType === 'accountability' ? true : (contentData.file || hasTextContent);
+        const hasContent = unlockType === 'follower_pairing' ? true : (contentData.file || hasTextContent);
         if (!hasContent) return;
 
         if (unlockType === 'custom_sponsor' && hasCustomAdErrors) {
@@ -119,12 +119,12 @@ export const Landing = () => {
     };
 
     const isGenerateDisabled = isGenerating || 
-        (unlockType !== 'accountability' && !(contentData.file || contentData.textContent.trim().length > 0 || contentData.links.length > 0)) ||
+        (unlockType !== 'follower_pairing' && !(contentData.file || contentData.textContent.trim().length > 0 || contentData.links.length > 0)) ||
         (hasConfiguredAdSetup && (
             (unlockType === 'custom_sponsor' && hasCustomAdErrors) ||
             (unlockType === 'email_subscribe' && hasEmailErrors) ||
             (unlockType === 'social_follow' && hasSocialErrors) ||
-            (unlockType === 'accountability' && hasAccountabilityErrors)
+            (unlockType === 'follower_pairing' && hasFollowerPairingErrors)
         ));
 
     return (
@@ -174,27 +174,50 @@ export const Landing = () => {
                             <h3 className="font-black text-text text-[18px] tracking-tight">Create your resource</h3>
                         </div>
 
-                        {unlockType === 'accountability' ? (
-                            <div className="w-full bg-[#FAF9F7] rounded-[14px] p-4 flex items-center gap-3 border border-[#E6E2D9] h-[64px]">
-                                <span className="text-[20px]">🤝</span>
-                                <span className="text-[13px] font-[600] text-[#666]">No file needed for Accountability links. The pairing experience itself is what participants receive.</span>
+                        {unlockType === 'follower_pairing' ? (
+                            <div className="w-full bg-[#FFFBEB] rounded-[10px] p-[12px] border border-[#FDE68A] h-auto flex flex-col justify-center animate-in slide-in-from-top-2 fade-in duration-200">
+                                <span className="text-[12px] font-[700] text-[#92400E]">🤝 No file needed for Follower Pairing. Your followers pair up and support each other.</span>
                             </div>
                         ) : (
                             <ContentBuilder value={contentData} onChange={setContentData} />
                         )}
                     </div>
 
-                    <div className="h-px w-full bg-border" />
+                    <div className="w-full h-px bg-border my-2" />
 
-                    {/* Step 2 */}
-                    <div className={`flex flex-col gap-3 min-h-[0px] p-4 -m-4 rounded-[20px] transition-colors ${unlockType === 'custom_sponsor' ? 'border-2 border-[#6366F1]/40' : unlockType === 'email_subscribe' ? 'border-2 border-[#166534]/40' : unlockType === 'social_follow' ? 'border-2 border-[#2563EB]/40' : 'border-2 border-[#92400E]/40'}`}>
-                        <div className="flex items-center gap-3">
-                            <div className={`w-6 h-6 text-white rounded-full flex items-center justify-center font-black text-[12px] transition-transform active:scale-110 ${unlockType === 'custom_sponsor' ? 'bg-[#6366F1]' : unlockType === 'email_subscribe' ? 'bg-[#166534]' : unlockType === 'social_follow' ? 'bg-[#2563EB]' : 'bg-[#92400E]'}`}>2</div>
-                            <h3 className="font-black text-text text-[18px] tracking-tight">Configure Unlock Type</h3>
+                    {/* Section B — Mode Switch */}
+                    <div className="flex flex-col gap-2">
+                        <div className="w-full flex items-center p-1 border-[1.5px] border-[#E8E8E8] rounded-[12px] h-[52px] bg-white mx-auto shadow-sm">
+                            <button
+                                onClick={() => { if (unlockType === 'follower_pairing') setUnlockType('custom_sponsor'); }}
+                                className={`flex-1 flex items-center justify-center gap-[8px] h-[44px] rounded-[10px] transition-all duration-200 ${unlockType !== 'follower_pairing' ? 'bg-[#111] text-white shadow-[0_1px_4px_rgba(0,0,0,0.15)]' : 'bg-transparent text-[#666]'}`}
+                            >
+                                <span className="text-[16px]">🔒</span>
+                                <span className="text-[14px] font-[800]">Lock Content</span>
+                            </button>
+                            <button
+                                onClick={() => setUnlockType('follower_pairing')}
+                                className={`flex-1 flex items-center justify-center gap-[8px] h-[44px] rounded-[10px] transition-all duration-200 ${unlockType === 'follower_pairing' ? 'bg-[#111] text-white shadow-[0_1px_4px_rgba(0,0,0,0.15)]' : 'bg-transparent text-[#666]'}`}
+                            >
+                                <span className="text-[16px]">🤝</span>
+                                <span className="text-[14px] font-[800]">Follower Pairing</span>
+                            </button>
                         </div>
+                        <div className="text-[11px] font-[600] text-[#AAAAAA] text-center mt-[8px]">
+                            {unlockType !== 'follower_pairing' ? 
+                                "Upload content your followers unlock by subscribing, following, or watching a sponsor." : 
+                                "No file needed. Pair your followers as accountability partners for a set duration."}
+                        </div>
+                    </div>
 
-                        <div className="ml-9 flex flex-col gap-4">
-                            <UnlockTypeSelector value={unlockType} onChange={setUnlockType} />
+                    <div className="h-px w-full bg-border my-2" />
+
+                    {/* Section C - Config */}
+                    <div className={`flex flex-col gap-3 min-h-[0px] p-4 -m-4 rounded-[20px] transition-colors bg-transparent`}>
+                        <div className="flex flex-col gap-4">
+                            {unlockType !== 'follower_pairing' && (
+                                <UnlockTypeSelector value={unlockType} onChange={setUnlockType} />
+                            )}
                             
                             {unlockType === 'custom_sponsor' && (
                                 <CustomSponsorForm
@@ -217,11 +240,11 @@ export const Landing = () => {
                                     onErrorStateChange={setHasSocialErrors}
                                 />
                             )}
-                            {unlockType === 'accountability' && (
-                                <AccountabilityConfigForm
-                                    value={accountabilityConfig}
-                                    onChange={setAccountabilityConfig}
-                                    onErrorStateChange={setHasAccountabilityErrors}
+                            {unlockType === 'follower_pairing' && (
+                                <FollowerPairingConfigForm
+                                    value={followerPairingConfig}
+                                    onChange={setFollowerPairingConfig}
+                                    onErrorStateChange={setHasFollowerPairingErrors}
                                 />
                             )}
                         </div>
@@ -290,14 +313,34 @@ export const Landing = () => {
 
                 {/* Mobile Compact Layout */}
                 <div className="sm:hidden flex flex-col w-full">
-                    {unlockType === 'accountability' ? (
-                        <div className="w-full bg-[#FAF9F7] rounded-[14px] p-4 flex items-center gap-3 border border-[#E6E2D9] h-[64px] shadow-sm">
-                            <span className="text-[20px]">🤝</span>
-                            <span className="text-[13px] font-[600] text-[#666]">No file needed for Accountability links.</span>
+                    {/* Mobile Create Section */}
+                    {unlockType === 'follower_pairing' ? (
+                        <div className="w-full bg-[#FFFBEB] rounded-[10px] p-[12px] border border-[#FDE68A] h-auto flex flex-col justify-center animate-in slide-in-from-top-2 fade-in duration-200">
+                            <span className="text-[12px] font-[700] text-[#92400E]">🤝 No file needed for Follower Pairing. Your followers pair up and support each other.</span>
                         </div>
                     ) : (
                         <ContentBuilder value={contentData} onChange={setContentData} />
                     )}
+
+                    {/* Mode Switch Mobile */}
+                    <div className="flex flex-col gap-2 mt-4 mb-2">
+                        <div className="w-full flex items-center p-1 border-[1.5px] border-[#E8E8E8] rounded-[12px] h-[52px] bg-white mx-auto shadow-sm">
+                            <button
+                                onClick={() => { if (unlockType === 'follower_pairing') setUnlockType('custom_sponsor'); }}
+                                className={`flex-1 flex items-center justify-center gap-[8px] h-[44px] rounded-[10px] transition-all duration-200 ${unlockType !== 'follower_pairing' ? 'bg-[#111] text-white shadow-[0_1px_4px_rgba(0,0,0,0.15)]' : 'bg-transparent text-[#666]'}`}
+                            >
+                                <span className="text-[16px]">🔒</span>
+                                <span className="text-[14px] font-[800]">Lock</span>
+                            </button>
+                            <button
+                                onClick={() => setUnlockType('follower_pairing')}
+                                className={`flex-1 flex items-center justify-center gap-[8px] h-[44px] rounded-[10px] transition-all duration-200 ${unlockType === 'follower_pairing' ? 'bg-[#111] text-white shadow-[0_1px_4px_rgba(0,0,0,0.15)]' : 'bg-transparent text-[#666]'}`}
+                            >
+                                <span className="text-[16px]">🤝</span>
+                                <span className="text-[14px] font-[800]">Pairing</span>
+                            </button>
+                        </div>
+                    </div>
 
                     {/* The Settings Summary Bar */}
                     <div className="w-full h-[52px] bg-white rounded-[14px] mt-[8px] flex overflow-hidden shadow-[0_1px_3px_rgba(0,0,0,0.06)] border border-[#E6E2D9]">
@@ -309,7 +352,7 @@ export const Landing = () => {
                                         {unlockType === 'custom_sponsor' && <Star size={10} className="text-[#6366F1]" />}
                                         {unlockType === 'email_subscribe' && <span className="text-[10px]">📧</span>}
                                         {unlockType === 'social_follow' && <span className="text-[10px]">👥</span>}
-                                        {unlockType === 'accountability' && <span className="text-[10px]">🤝</span>}
+                                        {unlockType === 'follower_pairing' && <span className="text-[10px]">🤝</span>}
                                     </>
                                 ) : (
                                     <Settings size={10} className="text-[#AAA49C]" />
@@ -322,7 +365,7 @@ export const Landing = () => {
                                     {unlockType === 'custom_sponsor' ? (customAd?.brandName || 'Sponsor') :
                                      unlockType === 'email_subscribe' ? (emailConfig?.newsletterName || 'Newsletter') :
                                      unlockType === 'social_follow' ? (socialConfig?.customHeading || 'Socials') :
-                                     (accountabilityConfig?.durationDays ? `${accountabilityConfig.durationDays} Days` : 'Pairing')}
+                                     (followerPairingConfig?.durationDays ? `${followerPairingConfig.durationDays} Days` : 'Pairing')}
                                 </span>
                             ) : (
                                 <span className="text-[12px] italic text-[#BBBBBB]">Tap to set</span>
@@ -331,13 +374,13 @@ export const Landing = () => {
                         <div className="w-[1px] h-full bg-[#F0F0F0]" />
 
                         {/* Options Item */}
-                        <button disabled={unlockType === 'accountability'} className={`flex-1 flex flex-col justify-center items-center ${unlockType === 'accountability' ? 'opacity-40 bg-[#F8F8F8]' : ''}`} onClick={() => alert("Options coming soon!")}>
+                        <button disabled={unlockType === 'follower_pairing'} className={`flex-1 flex flex-col justify-center items-center ${unlockType === 'follower_pairing' ? 'opacity-40 bg-[#F8F8F8]' : ''}`} onClick={() => alert("Options coming soon!")}>
                             <div className="flex items-center gap-1">
                                 <Settings size={10} className="text-textLight" />
                                 <span className="text-[11px] text-textMid">Options</span>
                             </div>
                             <span className="text-[12px] italic text-[#BBBBBB] opacity-80">
-                                {unlockType === 'accountability' ? 'N/A' : 'Coming soon'}
+                                {unlockType === 'follower_pairing' ? 'N/A' : 'Coming soon'}
                             </span>
                         </button>
                     </div>
@@ -353,7 +396,9 @@ export const Landing = () => {
                             </div>
                             
                             <div className="w-full mb-5">
-                                <UnlockTypeSelector value={unlockType} onChange={setUnlockType} />
+                                {unlockType !== 'follower_pairing' && (
+                                    <UnlockTypeSelector value={unlockType} onChange={setUnlockType} />
+                                )}
                             </div>
 
                             <div className="flex flex-col gap-2">
@@ -378,11 +423,11 @@ export const Landing = () => {
                                         onErrorStateChange={setHasSocialErrors}
                                     />
                                 )}
-                                {unlockType === 'accountability' && (
-                                    <AccountabilityConfigForm
-                                        value={accountabilityConfig}
-                                        onChange={setAccountabilityConfig}
-                                        onErrorStateChange={setHasAccountabilityErrors}
+                                {unlockType === 'follower_pairing' && (
+                                    <FollowerPairingConfigForm
+                                        value={followerPairingConfig}
+                                        onChange={setFollowerPairingConfig}
+                                        onErrorStateChange={setHasFollowerPairingErrors}
                                     />
                                 )}
                             </div>
@@ -400,7 +445,7 @@ export const Landing = () => {
                                         (unlockType === 'custom_sponsor' && hasCustomAdErrors) ||
                                         (unlockType === 'email_subscribe' && hasEmailErrors) ||
                                         (unlockType === 'social_follow' && hasSocialErrors) ||
-                                        (unlockType === 'accountability' && hasAccountabilityErrors)
+                                        (unlockType === 'follower_pairing' && hasFollowerPairingErrors)
                                     }
                                     className="flex-1 h-[44px] bg-[#2563EB] text-white font-[800] text-[15px] rounded-[12px] shadow-sm disabled:opacity-50 transition-opacity flex items-center justify-center"
                                 >
@@ -432,7 +477,7 @@ export const Landing = () => {
                                     <Loader2 size={20} className="animate-spin" />
                                     Generating...
                                 </>
-                            ) : (unlockType !== 'accountability' && !(contentData.file || contentData.textContent.trim().length > 0 || contentData.links.length > 0)) ? (
+                            ) : (unlockType !== 'follower_pairing' && !(contentData.file || contentData.textContent.trim().length > 0 || contentData.links.length > 0)) ? (
                                 "Add content to get started"
                             ) : !hasConfiguredAdSetup ? (
                                 "Configure Unlock Type"
@@ -488,7 +533,7 @@ export const Landing = () => {
                                         {unlockType === 'custom_sponsor' ? 'Custom Sponsor' : 
                                          unlockType === 'email_subscribe' ? 'Email Subscribe' : 
                                          unlockType === 'social_follow' ? 'Social Follow' : 
-                                         'Accountability'}    
+                                         'Follower Pairing'}    
                                     </span>
                                 </div>
                             </div>

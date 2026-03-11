@@ -8,7 +8,7 @@ const FILTERS = [
     { id: 'sponsor', label: '⭐ Custom Sponsor', color: '#6366F1' },
     { id: 'email', label: '📧 Email Subscribe', color: '#166534' },
     { id: 'social', label: '👥 Social Follow', color: '#2563EB' },
-    { id: 'accountability', label: '🤝 Accountability', color: '#B45309' },
+    { id: 'follower_pairing', label: '🤝 Accountability', color: '#B45309' },
     { id: 'premium', label: '🔒 Premium Media', color: '#E8312A' }
 ];
 
@@ -95,7 +95,7 @@ const CARDS = [
         uploads: [], noFileNote: "📋 No file upload needed for this type",
         valueLabel: "Community value:",
         valueStmt: "A creator running a 14-day challenge with 60 participants forms 30 active pairs. Each pair exchanges at least one message per day for 14 days — that is 420 check-ins happening in your challenge community without you facilitating any of them. Participants who complete the challenge associate the result with your brand. They become your most vocal advocates.",
-        avatar: "M", handle: "morningmethod_", ctaText: "Create a Challenge →", ctaColor: "#B45309", types: ["accountability"]
+        avatar: "M", handle: "morningmethod_", ctaText: "Create a Challenge →", ctaColor: "#B45309", types: ["follower_pairing"]
     },
     {
         id: "card-8",
@@ -107,7 +107,7 @@ const CARDS = [
         uploads: [], noFileNote: "📋 No file upload needed for this type",
         valueLabel: "Community value:",
         valueStmt: "Accountability partnerships improve goal follow-through by documented margins — participants report higher completion rates when they have a specific named partner than when they work alone. A creator running monthly accountability challenges builds a community reputation that no amount of content production can replicate. Your audience does not just consume your advice — they live it, with each other's help.",
-        avatar: "F", handle: "freelanceforward_", ctaText: "Run an Accountability Challenge →", ctaColor: "#B45309", types: ["accountability"]
+        avatar: "F", handle: "freelanceforward_", ctaText: "Run an Accountability Challenge →", ctaColor: "#B45309", types: ["follower_pairing"]
     },
     {
         id: "card-9",
@@ -160,7 +160,7 @@ const RECOMMENDATIONS = [
     {
         id: "rec-acc", title: "Build community and help people take action", emoji: "🤝", tint: "bg-[#FFFBEB]", border: "#FEF3C7",
         iconContainer: "bg-[#FEF3C7]",
-        desc: "Accountability Pairing is unique to AdGate. No file needed — your audience pairs up and supports each other. Best for coaches and educators.",
+        desc: "Follower Pairing is unique to AdGate. No file needed — your audience pairs up and supports each other. Best for coaches and educators.",
         links: ["card-7", "card-8"]
     }
 ];

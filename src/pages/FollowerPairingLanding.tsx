@@ -3,15 +3,15 @@ import { useParams, useNavigate, Link } from 'react-router-dom';
 import { mockLinks } from '../lib/mockData';
 import { getAvatarColor } from '../lib/utils';
 
-export const AccountabilityLanding = () => {
+export const FollowerPairingLanding = () => {
   const { slug } = useParams();
   const navigate = useNavigate();
   const [commitment, setCommitment] = useState('');
   const [bioExpanded, setBioExpanded] = useState(false);
 
   // Find the accountability link
-  const link = mockLinks.find(l => l.slug === slug && l.unlockType === 'accountability');
-  const config = link?.accountabilityConfig;
+  const link = mockLinks.find(l => l.slug === slug && l.unlockType === 'follower_pairing');
+  const config = link?.followerPairingConfig;
 
   // Restore commitment from sessionStorage
   useEffect(() => {

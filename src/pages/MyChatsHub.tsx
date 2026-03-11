@@ -221,22 +221,15 @@ const FilterSheet = ({
 };
 
 // --- Section Header ---
-const SectionHeader = ({ label, count, hasNew }: { label: string; count: number; hasNew?: boolean }) => (
+const SectionHeader = ({ label, count }: { label: string; count: number }) => (
   <div
-    className="bg-[#FAFAFA] px-4 py-2 flex items-center justify-between"
+    className="bg-[#FAFAFA] px-4 py-3 flex items-center justify-between"
     style={{ borderBottom: '1px solid #F0F0F0' }}
   >
-    <div className="flex items-center gap-2">
-      <span className="text-[11px] font-[900] text-[#888] uppercase tracking-[0.05em]">
-        {label}
-      </span>
-      {hasNew && (
-        <div className="bg-[#E8312A] rounded-full px-1.5 py-0.5 animate-pulse">
-          <span className="text-[9px] font-[900] text-white">NEW</span>
-        </div>
-      )}
-    </div>
-    <span className="text-[10px] font-[700] text-[#AAAAAA]">
+    <span className="text-[12px] font-[800] text-[#999] uppercase tracking-wide">
+      {label}
+    </span>
+    <span className="text-[11px] font-[600] text-[#AAAAAA]">
       {count} {count === 1 ? 'chat' : 'chats'}
     </span>
   </div>
@@ -254,9 +247,14 @@ const SessionCard = ({
 }) => {
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isLongPress = useRef(false);
+  const touchStartPos = useRef({ x: 0, y: 0 });
+  const SCROLL_THRESHOLD = 8;
 
-  const handleTouchStart = () => {
+  const handleTouchStart = (e: React.TouchEvent | React.MouseEvent) => {
     isLongPress.current = false;
+    if ('touches' in e) {
+      touchStartPos.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+    }
     longPressTimer.current = setTimeout(() => {
       isLongPress.current = true;
       try { navigator.vibrate?.(10); } catch { /* ignore */ }
@@ -264,23 +262,27 @@ const SessionCard = ({
     }, 500);
   };
 
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (!touchStartPos.current) return;
+    const dx = Math.abs(e.touches[0].clientX - touchStartPos.current.x);
+    const dy = Math.abs(e.touches[0].clientY - touchStartPos.current.y);
+    if (dx > SCROLL_THRESHOLD || dy > SCROLL_THRESHOLD) {
+      if (longPressTimer.current) clearTimeout(longPressTimer.current);
+    }
+  };
+
   const handleTouchEnd = () => {
     if (longPressTimer.current) clearTimeout(longPressTimer.current);
-    if (!isLongPress.current) onTap();
   };
 
-  const handleTouchMove = () => {
-    if (longPressTimer.current) clearTimeout(longPressTimer.current);
+  const handleClick = () => {
+    if (!isLongPress.current) {
+      onTap();
+    }
   };
 
-  const isActive = session.status === 'active';
   const isCompleted = session.status === 'completed';
   const hasUnread = session.unreadCount > 0;
-
-  const progressPercent = (session.daysElapsed / session.daysTotal) * 100;
-
-  // Nudge logic: last message more than 48 hours ago
-  const SHOW_NUDGE = isActive && (Date.now() - new Date(session.lastMessage.timestamp).getTime()) > (48 * 60 * 60 * 1000);
 
   const lastMsgPreview = (() => {
     const lm = session.lastMessage;
@@ -295,119 +297,64 @@ const SessionCard = ({
   return (
     <div
       onTouchStart={handleTouchStart}
-      onTouchEnd={handleTouchEnd}
       onTouchMove={handleTouchMove}
+      onTouchEnd={handleTouchEnd}
       onMouseDown={handleTouchStart}
       onMouseUp={handleTouchEnd}
-      className={`relative w-full cursor-pointer select-none bg-white flex flex-col`}
+      onMouseLeave={handleTouchEnd}
+      onClick={handleClick}
+      className={`relative w-full cursor-pointer select-none flex flex-col transition-colors duration-150 active:bg-[#F3F1EC] ${isCompleted ? 'bg-[#FAFAFA]' : 'bg-white'}`}
       style={{
-        borderBottom: '1px solid #F4F4F4',
-        borderLeft: hasUnread ? '3px solid #E8312A' : 'none',
-        minHeight: '96px',
+        borderBottom: '1px solid #F0F0F0',
+        minHeight: '72px',
       }}
     >
       <div className="flex items-start gap-3 px-4 py-3.5">
-        {/* Left: Avatar + Creator Badge */}
-        <div className="flex flex-col items-center shrink-0 w-[56px]">
-          <div
-            className="w-[48px] h-[48px] rounded-full flex items-center justify-center relative"
-            style={{
-              backgroundColor: session.partner.avatarColor,
-              boxShadow: isActive
-                ? '0 0 0 2px #F59E0B, 0 0 0 4px rgba(245,158,11,0.15)'
-                : isCompleted
-                  ? '0 0 0 2px #166534, 0 0 0 4px rgba(22,101,52,0.15)'
-                  : 'none',
-            }}
-          >
-            <span className="text-[18px] font-[900] text-white">{session.partner.initial}</span>
-          </div>
-
-          {/* Part 18 Creator Badge */}
-          <div
-            className="mt-1 flex items-center gap-0.5 rounded-[20px] px-2 bg-[#F0F0F0] border border-[#E8E8E8]"
-            style={{ height: '16px', maxWidth: '56px' }}
-          >
-            <span className="text-[9px] font-[800] text-[#666]">{session.creator.initial}</span>
-            <span className="text-[9px] text-[#999]">·</span>
-            <span className="text-[9px] font-[600] text-[#666] truncate">{session.creator.username}</span>
-          </div>
+        
+        {/* Left: Indicator */}
+        <div className="flex flex-col items-center justify-center pt-1 shrink-0">
+          {isCompleted ? (
+            <div className="text-[16px]">✅</div>
+          ) : hasUnread ? (
+            <div className="w-2.5 h-2.5 rounded-full bg-[#E8312A]" />
+          ) : (
+            <div className="w-2 h-2 rounded-full border border-[#D97757]" />
+          )}
         </div>
 
         {/* Center: Content */}
         <div className="flex-1 min-w-0 flex flex-col gap-1">
           {/* Row 1: Name + Topic */}
           <div className="flex items-center gap-2 overflow-hidden">
-            <div className="flex items-center gap-1.5 min-w-0">
-              {hasUnread && (
-                <div className="w-2 h-2 rounded-full bg-[#2563EB] shrink-0" />
-              )}
-              <span className={`text-[15px] text-[#111] truncate ${hasUnread ? 'font-[900]' : 'font-[900]'}`}>
-                {session.partner.displayName}
-              </span>
-            </div>
+            <span className={`text-[15px] truncate ${hasUnread ? 'font-[800] text-[#111]' : 'font-[700] text-[#444]'} ${isCompleted ? 'text-[#888]' : ''}`}>
+              {session.partner.displayName}
+            </span>
             <span
-              className="px-2 py-0.5 bg-[#F6F6F6] text-[#555] text-[10px] font-[700] rounded-[10px] whitespace-nowrap truncate"
-              style={{ height: '18px' }}
+              className="px-2 py-0.5 bg-[#FAF9F7] text-[#6B6860] text-[10px] font-[600] rounded-md whitespace-nowrap overflow-hidden text-ellipsis"
             >
-              {truncate(session.challengeTopic, 22)}
+              {truncate(session.challengeTopic, 20)}
             </span>
           </div>
 
-          {/* Row 2: Progress Context */}
-          <div className="flex items-center gap-2">
-            <div className="flex items-center gap-1">
-              <span className="text-[12px]">📅</span>
-              <span className="text-[12px] font-[700] text-[#B45309]">Day {session.daysElapsed} of {session.daysTotal}</span>
-            </div>
-            <div className="w-1 h-1 rounded-full bg-[#DDDDDD]" />
-            <span className="text-[12px] font-[600] text-[#AAAAAA]">Check in {session.checkInFrequency}</span>
-          </div>
-
           {/* Row 3: Last Message */}
-          <div className="text-[12px] font-[600] text-[#888] truncate">
+          <div className={`text-[13px] font-[500] truncate ${hasUnread ? 'text-[#333]' : 'text-[#888]'}`}>
             {lastMsgPreview}
           </div>
-
-          {/* Nudge strip */}
-          {SHOW_NUDGE && (
-            <div className="mt-2 -mx-4 px-4 py-2 bg-[#FFFBEB]">
-               <span className="text-[11px] font-[700] text-[#92400E]">💬 No check-in in 2 days — send a message</span>
-            </div>
-          )}
         </div>
 
         {/* Right: Meta */}
-        <div className="shrink-0 flex flex-col items-end gap-1 w-[56px]">
-          <span className="text-[11px] font-[600] text-[#AAAAAA]">
+        <div className="shrink-0 flex flex-col items-end w-[48px]">
+          <span className="text-[11px] font-[600] text-[#AAA49C]">
             {formatRelativeTime(session.lastMessage.timestamp)}
           </span>
-
-          {hasUnread ? (
-            <div
-              className="flex items-center justify-center rounded-full bg-[#E8312A] min-w-[22px] h-[22px] px-1"
-            >
-              <span className="text-[10px] font-[900] text-white">
+          {hasUnread && (
+            <div className="mt-1 flex items-center justify-center rounded-full bg-[#E8312A] min-w-[20px] h-[20px] px-1">
+              <span className="text-[10px] font-[800] text-white">
                 {session.unreadCount}
               </span>
             </div>
-          ) : (
-            <span className="text-[16px] text-[#DDDDDD] mt-1">›</span>
           )}
         </div>
-      </div>
-
-      {/* Progress Bar Bottom */}
-      <div className="mt-auto h-1 w-full bg-[#F0F0F0]">
-        <div
-          className="h-full"
-          style={{
-            width: `${progressPercent}%`,
-            background: isCompleted
-              ? '#166534'
-              : 'linear-gradient(90deg, #F59E0B, #B45309)',
-          }}
-        />
       </div>
     </div>
   );
@@ -710,70 +657,21 @@ export const MyChatsHub = () => {
       <div className="flex-1 overflow-y-auto">
         {/* Summary Strip */}
         <div
-          className="bg-[#FAFAFA]"
-          style={{ borderBottom: '1px solid #F0F0F0', padding: '20px 16px' }}
+          className="bg-white px-4 py-3 flex items-center justify-between"
+          style={{ borderBottom: '1px solid #E6E2D9' }}
         >
-          <div className="flex gap-2">
-            {/* Block 1 - Active */}
-            <div
-              className="flex-1 bg-white rounded-[12px] p-3 flex flex-col items-center justify-center"
-              style={{ boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}
-            >
-              <div className="flex items-center justify-center mb-1">
-                {activeSessions.slice(0, 2).map((s, i) => (
-                  <div
-                    key={s.sessionId}
-                    className="w-5 h-5 rounded-full flex items-center justify-center text-[8px] font-[900] text-white"
-                    style={{
-                      backgroundColor: s.partner.avatarColor,
-                      marginLeft: i > 0 ? '-6px' : '0',
-                      border: '1.5px solid white',
-                      zIndex: 2 - i,
-                    }}
-                  >
-                    {s.partner.initial}
-                  </div>
-                ))}
-                {activeSessions.length === 0 && <span className="text-[18px]">🏃</span>}
-              </div>
-              <span className="text-[13px] font-[900] text-[#111]">{counts.active} Active</span>
-              <span className="text-[10px] font-[600] text-[#AAAAAA] mt-0.5">challenges running</span>
+          <div className="flex gap-4">
+            <div className="flex items-center gap-1.5">
+              <span className="text-[14px] font-[800] text-[#D97757]">{counts.active}</span>
+              <span className="text-[13px] font-[600] text-[#6B6860]">active</span>
             </div>
-
-            {/* Block 2 - Unread */}
-            <div
-              className="flex-1 bg-white rounded-[12px] p-3 flex flex-col items-center justify-center"
-              style={{ boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}
-            >
-              <div
-                className={`w-[22px] h-[22px] mb-1 flex items-center justify-center ${totalUnread > 0 ? 'animate-pulse' : ''}`}
-                style={{ color: '#E8312A' }}
-              >
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z" />
-                </svg>
-                {totalUnread > 0 && <div className="absolute top-0 right-0 w-2 h-2 bg-[#E8312A] rounded-full border border-white" />}
-              </div>
-              <span className="text-[13px] font-[900]" style={{ color: totalUnread > 0 ? '#E8312A' : '#111' }}>
-                {totalUnread} Unread
-              </span>
-              <span className="text-[10px] font-[600] whitespace-nowrap overflow-hidden text-ellipsis" style={{ color: totalUnread === 0 ? '#166534' : '#AAAAAA' }}>
-                {totalUnread === 0 ? "you're all caught up" : "messages waiting"}
-              </span>
+            <div className="flex items-center gap-1.5">
+              <span className={`text-[14px] font-[800] ${totalUnread > 0 ? 'text-[#C0392B]' : 'text-[#21201C]'}`}>{totalUnread}</span>
+              <span className="text-[13px] font-[600] text-[#6B6860]">unread</span>
             </div>
-
-            {/* Block 3 - Completed */}
-            <div
-              className="flex-1 bg-white rounded-[12px] p-3 flex flex-col items-center justify-center"
-              style={{ boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}
-            >
-              <div className="w-[22px] h-[22px] mb-1 flex items-center justify-center text-[#166534]">
-                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-                  <polyline points="20 6 9 17 4 12" />
-                </svg>
-              </div>
-              <span className="text-[13px] font-[900] text-[#111]">{counts.completed} Done</span>
-              <span className="text-[10px] font-[600] text-[#AAAAAA] mt-0.5">challenges done</span>
+            <div className="flex items-center gap-1.5">
+              <span className="text-[14px] font-[800] text-[#417A55]">{counts.completed}</span>
+              <span className="text-[13px] font-[600] text-[#6B6860]">done</span>
             </div>
           </div>
         </div>
@@ -827,7 +725,6 @@ export const MyChatsHub = () => {
                     <SectionHeader
                       label="Active"
                       count={activeSessions.length}
-                      hasNew={activeSessions.some(s => s.unreadCount > 0)}
                     />
                     {activeSessions.map(s => (
                       <SessionCard

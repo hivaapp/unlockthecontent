@@ -18,7 +18,7 @@ const MOCK_NAMES: Record<string, { name: string; initial: string; commitment: st
   any: { name: 'Jordan', initial: 'J', commitment: 'No phone for first 30 minutes after waking. Cold shower every morning.' },
 };
 
-export const useAccountabilityMatching = (slug: string, genderPreference: string) => {
+export const useFollowerPairingMatching = (slug: string, genderPreference: string) => {
   const [matchingState, setMatchingState] = useState<MatchingState>('searching');
   const [matchedParticipant, setMatchedParticipant] = useState<MatchedParticipant | null>(null);
   const [matchHoldTimer, setMatchHoldTimer] = useState(600); // 10 minutes in seconds

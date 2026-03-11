@@ -10,14 +10,14 @@ interface AnalyticsSheetProps {
 
 export const AnalyticsSheet = ({ isOpen, onClose, link }: AnalyticsSheetProps) => {
     const isSocial = link.unlockType === 'social_follow';
-    const isAccountability = link.unlockType === 'accountability';
+    const isAccountability = link.unlockType === 'follower_pairing';
     const targets = isSocial && link.socialConfig?.followTargets ? (link.socialConfig.followTargets as any[]) : [];
     
     const views = link.views || 0;
     const completions = link.unlocks || 0;
 
     // Accountability data
-    const accConfig = isAccountability ? link.accountabilityConfig : null;
+    const accConfig = isAccountability ? link.followerPairingConfig : null;
     const accFunnel = isAccountability ? {
         landingViews: views,
         commitmentFilled: Math.round(views * 0.65),
@@ -153,6 +153,23 @@ export const AnalyticsSheet = ({ isOpen, onClose, link }: AnalyticsSheetProps) =
                                 <span className="text-[10px] font-[700] text-[#888] uppercase">Total</span>
                             </div>
                         </div>
+
+                        {/* Completion Reward Status */}
+                        {accConfig.completionAsset?.enabled && (
+                            <div className="flex items-center justify-between p-3 rounded-[12px] bg-[#FFFBEB] border border-[#FDE68A] mt-3">
+                                <div className="flex items-center gap-2">
+                                    <span className="text-[20px]">🎁</span>
+                                    <div className="flex flex-col">
+                                        <span className="text-[13px] font-[800] text-[#92400E]">Reward Active</span>
+                                        <span className="text-[11px] font-[600] text-[#D97757] max-w-[150px] truncate">{accConfig.completionAsset.fileName}</span>
+                                    </div>
+                                </div>
+                                <div className="flex flex-col items-end">
+                                    <span className="text-[16px] font-[900] text-[#92400E]">{accConfig.completedPairs}</span>
+                                    <span className="text-[9px] font-[800] text-[#D97757] uppercase tracking-wider">Delivered</span>
+                                </div>
+                            </div>
+                        )}
 
                         {/* Scheduled Messages status */}
                         {accConfig.scheduledMessages && accConfig.scheduledMessages.length > 0 && (

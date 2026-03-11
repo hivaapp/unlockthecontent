@@ -209,7 +209,7 @@ export const BelowTheFold = () => {
                     <div className="btf-type-card">
                         <div className="btf-type-header" style={{ flexWrap: 'wrap', gap: '8px' }}>
                             <div className="btf-type-icon" style={{ background: '#FFFBEB' }}>🤝</div>
-                            <span className="btf-type-name" style={{ color: '#92400E' }}>Accountability Pairing</span>
+                            <span className="btf-type-name" style={{ color: '#92400E' }}>Follower Pairing</span>
                             <span className="btf-type-fee btf-type-fee--amber">No file needed</span>
                         </div>
                         <div className="btf-type-divider" />
@@ -300,12 +300,12 @@ export const BelowTheFold = () => {
 
             {/* ── SECTION 6 — ACCOUNTABILITY DETAIL ───────────────────────── */}
             <section className="btf-accountability btf-reveal">
-                <span className="btf-label btf-label--amber">Accountability Pairing — explained simply</span>
+                <span className="btf-label btf-label--amber">Follower Pairing — explained simply</span>
                 <h2 className="btf-accountability-headline">
                     Most people fail at new habits for one reason — they are doing it alone.
                 </h2>
                 <p className="btf-accountability-sub">
-                    Accountability pairing gives your followers what no piece of content can — a specific person who is expecting to hear from them today. You create the structure. They show up for each other.
+                    Follower pairing gives your followers what no piece of content can — a specific person who is expecting to hear from them today. You create the structure. They show up for each other.
                 </p>
 
                 <div className="btf-acc-cards">

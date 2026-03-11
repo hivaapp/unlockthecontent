@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useChatSessions } from '../context/ChatSessionsContext';
-import { mockChatSession, mockAccountabilityParticipants } from '../lib/mockData';
+import { mockChatSession, mockAccountabilityParticipants, mockLinks } from '../lib/mockData';
 import { getAvatarColor } from '../lib/utils';
 
 interface MediaAttachment {
@@ -25,7 +25,7 @@ interface ChatMessage {
   attachments?: MediaAttachment[];
 }
 
-export const AccountabilityChat = () => {
+export const FollowerPairingChat = () => {
   const { sessionId } = useParams();
   const navigate = useNavigate();
   const { isLoggedIn } = useAuth();
@@ -64,6 +64,9 @@ export const AccountabilityChat = () => {
   const partnerColor = '#2563EB';
   const creatorName = 'Alex Creator';
   const creatorColor = getAvatarColor('alexcreator');
+
+  const linkData = mockLinks.find(l => l.id === session.linkId);
+  const completionAsset = linkData?.followerPairingConfig?.completionAsset;
 
   // Calculate day count
   const pairedAt = new Date(session.createdAt);
@@ -450,6 +453,27 @@ const AttachmentDisplay = ({
               </p>
             </div>
           </div>
+
+          {/* Reward Reveal Card */}
+          {completionAsset?.enabled && completionAsset.fileName && (
+            <div className="w-full mt-4 rounded-[12px] p-4 flex flex-col items-center gap-3 bg-[#FFFBEB] border border-[#FDE68A] animate-in slide-in-from-bottom-2">
+              <div className="w-12 h-12 rounded-full bg-[#FEF3C7] flex items-center justify-center text-[24px]">
+                🎁
+              </div>
+              <h4 className="text-[16px] font-[800] text-[#92400E] text-center">Bonus Reward Unlocked</h4>
+              {completionAsset.unlockMessage && (
+                <p className="text-[13px] font-[600] text-[#D97757] text-center" style={{ lineHeight: '1.5' }}>
+                  "{completionAsset.unlockMessage}"
+                </p>
+              )}
+              <button
+                className="w-full h-[40px] rounded-[8px] bg-[#F59E0B] hover:bg-[#D97757] transition-colors text-white text-[13px] font-[800] flex items-center justify-center mt-1"
+                onClick={() => alert('Downloading ' + completionAsset.fileName)}
+              >
+                Download {completionAsset.fileName} ({completionAsset.fileSize || 'FILE'})
+              </button>
+            </div>
+          )}
 
           <button
             onClick={handleShare}

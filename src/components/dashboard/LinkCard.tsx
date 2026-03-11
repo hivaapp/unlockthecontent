@@ -79,7 +79,7 @@ export const LinkCard = ({ link, onEdit, onMore }: LinkCardProps) => {
                     <span className="flex-shrink-0 h-[26px] px-[10px] rounded-[50px] bg-[#2563EB] text-[11px] font-[800] text-white flex items-center justify-center gap-1.5 shadow-sm">
                         <Share2 size={10} /> Social Follow
                     </span>
-                ) : link.unlockType === 'accountability' ? (
+                ) : link.unlockType === 'follower_pairing' ? (
                     <span className="flex-shrink-0 h-[26px] px-[10px] rounded-[50px] bg-[#92400E] text-[11px] font-[800] text-white flex items-center justify-center gap-1.5 shadow-sm">
                         <Handshake size={10} /> Accountability
                     </span>

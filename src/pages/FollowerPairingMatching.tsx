@@ -1,11 +1,11 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { mockLinks } from '../lib/mockData';
-import { useAccountabilityMatching } from '../hooks/useAccountabilityMatching';
+import { useFollowerPairingMatching } from '../hooks/useFollowerPairingMatching';
 import { SignInModal } from '../components/SignInModal';
 import { useAuth } from '../context/AuthContext';
 
-export const AccountabilityMatching = () => {
+export const FollowerPairingMatching = () => {
   const { slug } = useParams();
   const navigate = useNavigate();
   const { isLoggedIn } = useAuth();
@@ -14,7 +14,7 @@ export const AccountabilityMatching = () => {
   const [showSignIn, setShowSignIn] = useState(false);
   const [statusIdx, setStatusIdx] = useState(0);
 
-  const link = mockLinks.find(l => l.slug === slug && l.unlockType === 'accountability');
+  const link = mockLinks.find(l => l.slug === slug && l.unlockType === 'follower_pairing');
 
   useEffect(() => {
     if (!slug) return;
@@ -28,7 +28,7 @@ export const AccountabilityMatching = () => {
     setCommitment(storedCommitment);
   }, [slug, navigate]);
 
-  const { matchingState, matchedParticipant, matchHoldTimer, formatHoldTimer } = useAccountabilityMatching(slug || '', gender);
+  const { matchingState, matchedParticipant, matchHoldTimer, formatHoldTimer } = useFollowerPairingMatching(slug || '', gender);
 
   // Status text rotation during searching
   const statusTexts = [
@@ -75,7 +75,7 @@ export const AccountabilityMatching = () => {
 
   if (!link) return null;
 
-  const durationDays = link.accountabilityConfig?.durationDays || 14;
+  const durationDays = link.followerPairingConfig?.durationDays || 14;
 
   return (
     <div className="min-h-screen bg-white flex flex-col items-center">

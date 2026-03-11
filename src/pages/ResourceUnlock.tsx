@@ -10,7 +10,7 @@ import { getAvatarColor } from '../lib/utils';
 import type { CustomAdData } from '../components/CustomSponsorForm';
 import { EmailUnlock } from '../components/unlock/EmailUnlock';
 import { SocialUnlock } from '../components/unlock/SocialUnlock';
-import { AccountabilityUnlock } from '../components/unlock/AccountabilityUnlock';
+import { FollowerPairingUnlock } from '../components/unlock/FollowerPairingUnlock';
 
 export const ResourceUnlock = () => {
     const { slug } = useParams();
@@ -146,7 +146,7 @@ export const ResourceUnlock = () => {
             </header>
 
             {/* Success Banner */}
-            {isComplete && resource.unlockType !== 'accountability' && (
+            {isComplete && resource.unlockType !== 'follower_pairing' && (
                 <div className="w-full bg-success flex flex-col items-center justify-center animate-slide-down shadow-md z-20 px-4 py-3">
                     <div className="flex items-center gap-2 text-white font-black text-[15px] sm:text-[16px] text-center">
                         <CheckCircle2 size={20} className="shrink-0" />
@@ -288,8 +288,8 @@ export const ResourceUnlock = () => {
                                 <SocialUnlock config={resource.socialConfig} onComplete={() => registerVideoWatch(false)} />
                             )}
                             
-                            {resource.unlockType === 'accountability' && resource.accountabilityConfig && (
-                                <AccountabilityUnlock config={resource.accountabilityConfig} onComplete={() => registerVideoWatch(false)} />
+                            {resource.unlockType === 'follower_pairing' && resource.followerPairingConfig && (
+                                <FollowerPairingUnlock config={resource.followerPairingConfig} onComplete={() => registerVideoWatch(false)} />
                             )}
                         </>
                     ) : (

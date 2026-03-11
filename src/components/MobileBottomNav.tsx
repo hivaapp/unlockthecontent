@@ -1,10 +1,10 @@
 import { Link, useLocation } from 'react-router-dom';
-import { Home, LayoutDashboard, Compass, MessageCircle } from 'lucide-react';
+import { Home, LayoutDashboard, Compass, MessageCircle, User } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useChatSessions } from '../context/ChatSessionsContext';
 
 export const MobileBottomNav = () => {
-    const { isLoggedIn } = useAuth();
+    const { isLoggedIn, currentUser } = useAuth();
     const location = useLocation();
 
     let chatUnread = 0;
@@ -17,9 +17,10 @@ export const MobileBottomNav = () => {
 
     const navItems = [
         { id: 'home', path: '/dashboard?tab=home', icon: Home, label: 'Home' },
-        { id: 'dashboard', path: '/dashboard?tab=analytics', icon: LayoutDashboard, label: 'Dashboard' },
         { id: 'explore', path: '/explore', icon: Compass, label: 'Explore' },
-        { id: 'chats', path: '/chats', icon: MessageCircle, label: 'Chats' }
+        { id: 'dashboard', path: '/dashboard?tab=analytics', icon: LayoutDashboard, label: 'Dashboard' },
+        { id: 'chats', path: '/chats', icon: MessageCircle, label: 'Chats' },
+        { id: 'account', path: currentUser?.isCreator ? '/dashboard?tab=settings' : '/account', icon: User, label: 'Account' }
     ];
 
     const getIsActive = (item: typeof navItems[0]) => {
@@ -60,7 +61,7 @@ export const MobileBottomNav = () => {
                                     </div>
                                 )}
                             </div>
-                            <span className="text-[10px] font-extrabold tracking-wide mt-[2px]">{item.label}</span>
+                            <span className="text-[10px] font-extrabold tracking-wide mt-[2px] max-[380px]:hidden">{item.label}</span>
                         </Link>
                     );
                 })}
