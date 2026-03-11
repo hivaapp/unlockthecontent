@@ -17,6 +17,9 @@ export interface User {
     stripeConnected?: boolean;
     balance?: number;
     pendingPayout?: number;
+    trustScore?: number;
+    isProUser?: boolean;
+    followerPairingLinkCount?: number;
 }
 
 export const currentUser: User = {
@@ -38,6 +41,9 @@ export const currentUser: User = {
     stripeConnected: false,
     balance: 247.50,
     pendingPayout: 85.00,
+    trustScore: 87,
+    isProUser: false,
+    followerPairingLinkCount: 1,
 };
 
 export const mockLinks = [
@@ -830,6 +836,11 @@ export interface ViewerChatSession {
         avatarColor: string;
         commitment: string;
         gender: string;
+        trustScore?: number;
+        trustScoreLabel?: string;
+        trustScoreColor?: string;
+        totalPairingsDone?: number;
+        completionRate?: number;
     };
     pairedAt: string;
     expiresAt: string;
@@ -877,6 +888,11 @@ export const mockViewerChatSessions: ViewerChatSession[] = [
             avatarColor: "#2563EB",
             commitment: "No phone for first 30 minutes after waking. Cold shower every morning.",
             gender: "female",
+            trustScore: 92,
+            trustScoreLabel: "Excellent",
+            trustScoreColor: "#166534",
+            totalPairingsDone: 4,
+            completionRate: 100,
         },
         pairedAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
         expiresAt: new Date(Date.now() + 12 * 24 * 60 * 60 * 1000).toISOString(),
@@ -921,6 +937,11 @@ export const mockViewerChatSessions: ViewerChatSession[] = [
             avatarColor: "#166534",
             commitment: "Send 10 cold outreach emails per week and land one new retainer client.",
             gender: "female",
+            trustScore: 78,
+            trustScoreLabel: "Good",
+            trustScoreColor: "#166534",
+            totalPairingsDone: 2,
+            completionRate: 80,
         },
         pairedAt: new Date(Date.now() - 8 * 24 * 60 * 60 * 1000).toISOString(),
         expiresAt: new Date(Date.now() + 22 * 24 * 60 * 60 * 1000).toISOString(),
@@ -965,6 +986,11 @@ export const mockViewerChatSessions: ViewerChatSession[] = [
             avatarColor: "#B45309",
             commitment: "Read one chapter of a non-fiction book every morning with coffee.",
             gender: "any",
+            trustScore: 95,
+            trustScoreLabel: "Excellent",
+            trustScoreColor: "#166534",
+            totalPairingsDone: 7,
+            completionRate: 100,
         },
         pairedAt: new Date(Date.now() - 25 * 24 * 60 * 60 * 1000).toISOString(),
         expiresAt: new Date(Date.now() - 4 * 24 * 60 * 60 * 1000).toISOString(),

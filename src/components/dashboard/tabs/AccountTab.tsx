@@ -101,6 +101,42 @@ export const AccountTab = () => {
                 </div>
             </div>
 
+            {/* Trust Score Section */}
+            <div className="flex flex-col gap-2">
+                <span className="text-[12px] font-extrabold text-textMid tracking-widest uppercase px-1">Trust Score</span>
+                <div className="w-full bg-white border border-border rounded-[16px] overflow-hidden shadow-sm flex flex-col">
+                    <div className="p-4 flex items-center justify-between">
+                         <div className="flex flex-col">
+                              <span className="text-[28px] font-black leading-none mb-1" style={{ color: (currentUser?.trustScore || 75) >= 90 ? '#417A55' : (currentUser?.trustScore || 75) >= 70 ? '#A0622A' : '#C0392B' }}>{currentUser?.trustScore || 75}</span>
+                              <span className="text-[13px] font-bold text-textMid">
+                                {(currentUser?.trustScore || 75) >= 90 ? '⭐ Excellent standing' : (currentUser?.trustScore || 75) >= 70 ? '✓ Good standing' : '⚠️ Action needed'}
+                              </span>
+                         </div>
+                         <div className="w-12 h-12 rounded-full flex items-center justify-center text-[20px]" style={{ backgroundColor: (currentUser?.trustScore || 75) >= 90 ? '#EBF5EE' : (currentUser?.trustScore || 75) >= 70 ? '#FDF4EC' : '#FDECEA' }}>
+                              🛡️
+                         </div>
+                    </div>
+                    
+                    <details className="group">
+                        <summary className="h-[52px] w-full bg-surfaceAlt px-4 flex items-center justify-between cursor-pointer hover:bg-[#F3F1EC] transition-colors duration-[80ms] list-none select-none border-t border-border focus:outline-none [&::-webkit-details-marker]:hidden">
+                            <span className="text-[14px] font-extrabold text-text">How is this calculated?</span>
+                            <ChevronRight className="w-5 h-5 text-textLight group-open:rotate-90 transition-transform" />
+                        </summary>
+                        <div className="p-4 bg-white text-[13px] font-semibold text-textMid leading-relaxed border-t border-border flex flex-col gap-3">
+                            <p>Your Trust Score (0-100) measures your reliability in Follower Pairing challenges. It updates automatically based on your actions.</p>
+                            <ul className="flex flex-col gap-2">
+                                <li className="flex items-center justify-between pt-1"><span className="flex items-center gap-2"><span className="text-success font-bold mt-[1px]">↑</span> Completing challenges</span> <span className="font-bold text-success">+5</span></li>
+                                <li className="flex items-center justify-between pt-1"><span className="flex items-center gap-2"><span className="text-success font-bold mt-[1px]">↑</span> Consistent daily messaging</span> <span className="font-bold text-success">+2</span></li>
+                                <li className="flex items-center justify-between pt-1"><span className="flex items-center gap-2"><span className="text-success font-bold mt-[1px]">↑</span> Positive partner ratings</span> <span className="font-bold text-success">+5</span></li>
+                                <li className="flex items-center justify-between pt-1 border-t border-border"><span className="flex items-center gap-2"><span className="text-error font-bold mt-[1px]">↓</span> Leaving a challenge early</span> <span className="font-bold text-error">-10</span></li>
+                                <li className="flex items-center justify-between pt-1"><span className="flex items-center gap-2"><span className="text-error font-bold mt-[1px]">↓</span> Ghosting (inactive 3+ days)</span> <span className="font-bold text-error">-15</span></li>
+                                <li className="flex items-center justify-between pt-1"><span className="flex items-center gap-2"><span className="text-error font-bold mt-[1px]">↓</span> Reported by partner</span> <span className="font-bold text-error">-30</span></li>
+                            </ul>
+                        </div>
+                    </details>
+                </div>
+            </div>
+
             {/* Settings Groups */}
             <div className="flex flex-col gap-6">
 

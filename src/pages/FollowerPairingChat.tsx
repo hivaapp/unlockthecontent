@@ -48,6 +48,13 @@ export const FollowerPairingChat = () => {
   const [showMediaPicker, setShowMediaPicker] = useState(false);
   const [pendingAttachments, setPendingAttachments] = useState<MediaAttachment[]>([]);
   const [lightboxAttachment, setLightboxAttachment] = useState<MediaAttachment | null>(null);
+  const [showChangePartnerConfirm, setShowChangePartnerConfirm] = useState(false);
+  const [showReportSheet, setShowReportSheet] = useState(false);
+  const [reportReason, setReportReason] = useState<string>('');
+  const [reportDetails, setReportDetails] = useState('');
+  const [isReporting, setIsReporting] = useState(false);
+  const [reportSuccess, setReportSuccess] = useState(false);
+  const [isRematching, setIsRematching] = useState(false);
 
   // Auth guard
   useEffect(() => {
@@ -56,7 +63,7 @@ export const FollowerPairingChat = () => {
     }
   }, [isLoggedIn, navigate, sessionId]);
 
-  const session = mockChatSession;
+  const session: any = mockChatSession;
   const currentUserId = 'participant_current';
   const partner = mockAccountabilityParticipants.find(p => p.id !== currentUserId);
   const partnerName = partner?.displayName || 'Jordan';
@@ -69,9 +76,10 @@ export const FollowerPairingChat = () => {
   const completionAsset = linkData?.followerPairingConfig?.completionAsset;
 
   // Calculate day count
-  const pairedAt = new Date(session.createdAt);
+  const pairedAt = new Date(session.pairedAt || session.createdAt);
   const now = new Date();
   const daysPassed = Math.max(1, Math.ceil((now.getTime() - pairedAt.getTime()) / (1000 * 60 * 60 * 24)));
+  const hoursElapsed = Math.floor((now.getTime() - pairedAt.getTime()) / (1000 * 60 * 60));
 
   // Check expiry
   useEffect(() => {
@@ -626,9 +634,25 @@ const AttachmentDisplay = ({
               </div>
             </div>
 
-            <div className="px-4 pb-8">
+            <div className="pb-8">
+              {/* Partner Trust Row */}
+              <div className="px-4 py-4" style={{ borderBottom: '1px solid #F0F0F0' }}>
+                <span className="text-[12px] font-[800] text-[#888] uppercase">{session.partner?.displayName || partnerName}'s trust</span>
+                <div className="flex items-center gap-2 mt-2">
+                  <div className="h-[24px] px-[10px] rounded-[20px] flex items-center gap-1" style={{ backgroundColor: (session.partner?.trustScoreColor || '#2563EB') + '1A' }}>
+                    <span className="text-[11px] font-[900]" style={{ color: session.partner?.trustScoreColor || '#2563EB' }}>
+                      ⭐ {session.partner?.trustScore || 75} · {session.partner?.trustScoreLabel || 'Good'}
+                    </span>
+                  </div>
+                  <span className="text-[#AAAAAA]">·</span>
+                  <span className="text-[12px] font-[600] text-[#888]">
+                    {session.partner?.totalPairingsDone ? `${session.partner.totalPairingsDone} challenges completed` : 'New member'}
+                  </span>
+                </div>
+              </div>
+
               {/* Creator */}
-              <div className="flex items-center gap-3 py-4" style={{ borderBottom: '1px solid #F0F0F0' }}>
+              <div className="flex items-center gap-3 py-4 px-4" style={{ borderBottom: '1px solid #F0F0F0' }}>
                 <div className="w-9 h-9 rounded-full flex items-center justify-center" style={{ backgroundColor: creatorColor }}>
                   <span className="text-[14px] font-[900] text-white">A</span>
                 </div>
@@ -639,53 +663,219 @@ const AttachmentDisplay = ({
               </div>
 
               {/* Challenge info */}
-              <div className="py-4" style={{ borderBottom: '1px solid #F0F0F0' }}>
-                <h4 className="text-[16px] font-[800] text-[#111]">{session.id ? 'Building a consistent morning routine' : ''}</h4>
+              <div className="py-4 px-4" style={{ borderBottom: '1px solid #F0F0F0' }}>
+                <h4 className="text-[16px] font-[800] text-[#111]">{session.challengeTopic || 'Building a consistent morning routine'}</h4>
                 <p className="text-[13px] font-[600] text-[#555] mt-2" style={{ lineHeight: '1.65' }}>
                   Pair up with a stranger who is also trying to build a morning routine. Check in daily. Support each other.
                 </p>
               </div>
 
               {/* Progress */}
-              <div className="py-4" style={{ borderBottom: '1px solid #F0F0F0' }}>
+              <div className="py-4 px-4" style={{ borderBottom: '1px solid #F0F0F0' }}>
                 <div className="w-full h-2 bg-[#F0F0F0] rounded-full overflow-hidden">
                   <div className="h-full rounded-full" style={{ width: `${progressPercent}%`, backgroundColor: '#B45309' }} />
                 </div>
                 <span className="text-[12px] font-[700] text-[#555] mt-2 block text-right">{daysPassed} of {session.daysTotal} days</span>
               </div>
 
-              {/* Your commitment */}
-              <div className="py-4 rounded-[12px] px-3 mt-3" style={{ backgroundColor: '#FFFBEB', border: '1px solid #FDE68A' }}>
-                <span className="text-[10px] font-[800] text-[#888] uppercase">Your commitment:</span>
-                <p className="text-[13px] font-[700] text-[#333] mt-1" style={{ lineHeight: '1.5' }}>
-                  {session.participantCommitments[currentUserId]}
-                </p>
-              </div>
+              <div className="px-4">
+                {/* Your commitment */}
+                <div className="py-4 rounded-[12px] px-3 mt-4" style={{ backgroundColor: '#FFFBEB', border: '1px solid #FDE68A' }}>
+                  <span className="text-[10px] font-[800] text-[#888] uppercase">Your commitment:</span>
+                  <p className="text-[13px] font-[700] text-[#333] mt-1" style={{ lineHeight: '1.5' }}>
+                    {session.viewerCommitment || session.participantCommitments?.[currentUserId]}
+                  </p>
+                </div>
 
-              {/* Partner commitment */}
-              <div className="py-4 rounded-[12px] px-3 mt-3 bg-white" style={{ border: '1px solid #F0F0F0' }}>
-                <span className="text-[10px] font-[800] text-[#888] uppercase">{partnerName}'s commitment:</span>
-                <p className="text-[13px] font-[700] text-[#333] mt-1" style={{ lineHeight: '1.5' }}>
-                  {session.participantCommitments['participant_pair']}
-                </p>
+                {/* Partner commitment */}
+                <div className="py-4 rounded-[12px] px-3 mt-3 bg-white" style={{ border: '1px solid #F0F0F0' }}>
+                  <span className="text-[10px] font-[800] text-[#888] uppercase">{partnerName}'s commitment:</span>
+                  <p className="text-[13px] font-[700] text-[#333] mt-1" style={{ lineHeight: '1.5' }}>
+                    {session.partner?.commitment || session.participantCommitments?.['participant_pair']}
+                  </p>
+                </div>
               </div>
 
               {/* Guidelines */}
-              <div className="py-4 mt-3" style={{ borderBottom: '1px solid #F0F0F0' }}>
+              <div className="py-4 mt-3 px-4" style={{ borderBottom: '1px solid #F0F0F0' }}>
                 <span className="text-[10px] font-[800] text-[#888] uppercase">📋 Guidelines:</span>
                 <p className="text-[13px] font-[600] text-[#555] mt-1" style={{ lineHeight: '1.65' }}>
                   Be honest with your partner. Check in every day. If you miss a day, say so. No judgment.
                 </p>
               </div>
 
-              {/* Leave */}
+              <div className="px-4">
+                {/* Change Partner row */}
+                <button 
+                  className="h-[52px] w-full flex items-center justify-between mt-4 transition-colors hover:bg-[#FAFAFA]" 
+                  onClick={() => {
+                    if (hoursElapsed < 24) {
+                      setShowChangePartnerConfirm(true); 
+                      setShowInfoSheet(false);
+                    }
+                  }}
+                  style={{ opacity: hoursElapsed >= 24 ? 0.4 : 1, pointerEvents: hoursElapsed >= 24 ? 'none' : 'auto' }}
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-[8px] flex items-center justify-center bg-[#F6F6F6] text-[16px]">🔄</div>
+                    <div className="flex flex-col text-left">
+                      <span className="text-[14px] font-[700] text-[#333]">Change Partner</span>
+                      <span className="text-[11px] text-[#AAAAAA]">{hoursElapsed < 24 ? 'Available within first 24 hours of pairing' : 'No longer available after 24 hours'}</span>
+                    </div>
+                  </div>
+                  <span className="text-[#DDDDDD] font-[800]">›</span>
+                </button>
+
+                {/* Report Misconduct row */}
+                <button 
+                  className="h-[52px] w-full flex items-center justify-between mt-2 transition-colors hover:bg-[#FAFAFA]" 
+                  onClick={() => { setShowReportSheet(true); setShowInfoSheet(false); }}
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-[8px] flex items-center justify-center bg-[#FFF0EF] text-[16px]">🚩</div>
+                    <div className="flex flex-col text-left">
+                      <span className="text-[14px] font-[700] text-[#E8312A]">Report a problem</span>
+                      <span className="text-[11px] text-[#AAAAAA]">Harassment, ghosting, inappropriate content</span>
+                    </div>
+                  </div>
+                  <span className="text-[#DDDDDD] font-[800]">›</span>
+                </button>
+
+                {/* Leave */}
+                <button
+                  onClick={() => { setShowLeaveConfirm(true); setShowInfoSheet(false); }}
+                  className="w-full h-[44px] rounded-[12px] text-[14px] font-[800] text-[#E8312A] flex items-center justify-center mt-6"
+                  style={{ border: '1.5px solid #E8312A' }}
+                >
+                  Leave Challenge
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Change Partner Confirm */}
+      {showChangePartnerConfirm && (
+        <div className="fixed inset-0 z-[60] flex flex-col justify-end">
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => !isRematching && setShowChangePartnerConfirm(false)} />
+          <div className="relative bg-white rounded-t-[24px] p-6 animate-slide-up">
+            <div className="w-8 h-1 bg-[#E8E8E8] rounded-full mx-auto mb-4" />
+            <h3 className="text-[16px] font-[900] text-[#111] text-center mb-2">Change your partner?</h3>
+            <p className="text-[13px] text-[#555] text-center mb-6" style={{ lineHeight: '1.65' }}>
+              Your current partner {partnerName} will be notified that you have rematched. You will be placed back in the matching pool for this challenge. You may wait a few minutes for a new match.
+            </p>
+            <div className="flex flex-col gap-3">
               <button
-                onClick={() => setShowLeaveConfirm(true)}
-                className="w-full h-[44px] rounded-[12px] text-[14px] font-[800] text-[#E8312A] flex items-center justify-center mt-6"
-                style={{ border: '1.5px solid #E8312A' }}
+                onClick={() => {
+                  setIsRematching(true);
+                  setTimeout(() => {
+                    navigate(`/r/${session.linkSlug}/matching?rematch=true`);
+                  }, 1500);
+                }}
+                disabled={isRematching}
+                className="w-full h-[48px] rounded-[12px] bg-[#B45309] text-white text-[15px] font-[900] flex justify-center items-center"
               >
-                Leave Challenge
+                {isRematching ? <span className="animate-pulse">Finding a new match...</span> : 'I understand — Rematch me'}
               </button>
+              <button
+                disabled={isRematching}
+                onClick={() => setShowChangePartnerConfirm(false)}
+                className="w-full h-[48px] rounded-[12px] bg-[#F0F0F0] text-[#555] text-[15px] font-[900]"
+              >
+                Keep current partner
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Report Misconduct Sheet */}
+      {showReportSheet && (
+        <div className="fixed inset-0 z-[60] flex flex-col justify-end">
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => !isReporting && setShowReportSheet(false)} />
+          <div className="relative bg-white rounded-t-[24px] max-h-[80vh] overflow-y-auto animate-slide-up flex flex-col">
+            <div className="sticky top-0 bg-white pt-3 pb-2 flex flex-col items-center rounded-t-[24px] z-10 px-4">
+              <div className="w-8 h-1 bg-[#E8E8E8] rounded-full mb-3" />
+              <div className="w-full flex items-center justify-between">
+                <div className="w-11" />
+                <span className="text-[16px] font-[900] text-[#111]">Report {partnerName}</span>
+                <button onClick={() => !isReporting && setShowReportSheet(false)} className="w-11 h-11 flex items-center justify-center text-[#888]">✕</button>
+              </div>
+            </div>
+
+            <div className="px-4 pb-8 flex flex-col">
+              {reportSuccess ? (
+                <div className="flex flex-col items-center justify-center text-center py-10 px-4 animate-fade-in">
+                  <div className="w-[64px] h-[64px] rounded-full bg-[#EDFAF3] text-[#166534] flex items-center justify-center mb-4 text-[32px]">✓</div>
+                  <h3 className="text-[16px] font-[900] text-[#111] mb-2">Report submitted</h3>
+                  <p className="text-[14px] font-[700] text-[#333] mb-8" style={{ lineHeight: '1.6' }}>
+                    Thank you for keeping the community safe. We will review this within 24 hours.
+                  </p>
+                  <button onClick={() => setShowReportSheet(false)} className="w-full h-[48px] rounded-[12px] bg-[#F0F0F0] text-[#555] text-[15px] font-[900]">
+                    Close
+                  </button>
+                  <button onClick={() => { setShowReportSheet(false); setShowLeaveConfirm(true); }} className="w-full h-[48px] mt-2 text-[13px] font-[700] text-[#AAAAAA]">
+                    Also leave this challenge →
+                  </button>
+                </div>
+              ) : (
+                <>
+                  <h4 className="text-[13px] font-[800] text-[#111] mb-2 mt-2">What happened?</h4>
+                  <div className="flex flex-col mb-6">
+                    {[
+                      "👻 Ghosting — stopped responding completely",
+                      "💬 Inappropriate messages",
+                      "🤥 Fake commitment — never intended to participate",
+                      "🔞 Offensive or harmful content",
+                      "📵 Sharing personal contact info without consent",
+                      "Other"
+                    ].map((reason) => (
+                      <button 
+                        key={reason}
+                        onClick={() => setReportReason(reason)}
+                        className="h-[48px] flex items-center gap-3 w-full text-left border-b border-[#F4F4F4]"
+                      >
+                        <div className={`w-5 h-5 rounded-full border-[1.5px] flex items-center justify-center shrink-0 transition-colors ${reportReason === reason ? 'border-[#E8312A] bg-[#E8312A]' : 'border-[#DDDDD] bg-white'}`}>
+                           {reportReason === reason && <div className="w-2 h-2 rounded-full bg-white" />}
+                        </div>
+                        <span className="text-[14px] font-[700] text-[#333]">{reason}</span>
+                      </button>
+                    ))}
+                  </div>
+
+                  <h4 className="text-[13px] font-[800] text-[#111] mb-2">Additional details (optional)</h4>
+                  <textarea
+                    value={reportDetails}
+                    onChange={(e) => setReportDetails(e.target.value)}
+                    placeholder="Tell us what happened..."
+                    maxLength={300}
+                    className="w-full h-[80px] rounded-[12px] border-[1.5px] border-[#E8E8E8] p-3 text-[14px] resize-none mb-1 focus:border-[#E8312A] focus:outline-none"
+                  />
+                  <div className="text-right text-[11px] font-[600] text-[#AAAAAA] mb-6">{reportDetails.length}/300</div>
+
+                  <div className="bg-[#F6F6F6] rounded-[10px] p-[12px] mb-6">
+                    <p className="text-[12px] font-[600] text-[#666]" style={{ lineHeight: '1.6' }}>
+                      🔒 Your report is private. {partnerName} will not know you reported them. Our team reviews all reports within 24 hours. Repeated violations affect Trust Score.
+                    </p>
+                  </div>
+
+                  <button
+                    onClick={() => {
+                      if (!reportReason) return;
+                      setIsReporting(true);
+                      setTimeout(() => {
+                        setIsReporting(false);
+                        setReportSuccess(true);
+                      }, 1500);
+                    }}
+                    disabled={isReporting || !reportReason}
+                    className="w-full h-[48px] rounded-[12px] bg-[#E8312A] text-white text-[15px] font-[900] flex justify-center items-center disabled:opacity-50"
+                  >
+                    {isReporting ? 'Submitting...' : 'Submit Report'}
+                  </button>
+                </>
+              )}
             </div>
           </div>
         </div>
