@@ -62,6 +62,55 @@ const Footer = () => (
   </footer>
 );
 
+/* ─── CountUpNumber ─────────────────────────────────────────────────── */
+function CountUpNumber({ end, duration = 1200, prefix = '' }: { end: number, duration?: number, prefix?: string }) {
+  const [value, setValue] = useState(0);
+  const ref = useRef<HTMLSpanElement>(null);
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+
+    let hasRun = false;
+    const prefersReduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+    const easeOutCubic = (t: number) => 1 - Math.pow(1 - t, 3);
+
+    const runCountUp = () => {
+      if (hasRun || prefersReduced) {
+        setValue(end);
+        return;
+      }
+      hasRun = true;
+      let startTime: number | null = null;
+      const step = (timestamp: number) => {
+        if (!startTime) startTime = timestamp;
+        const progress = Math.min((timestamp - startTime) / duration, 1);
+        setValue(Math.floor(easeOutCubic(progress) * end));
+        if (progress < 1) {
+          window.requestAnimationFrame(step);
+        } else {
+          setValue(end);
+        }
+      };
+      window.requestAnimationFrame(step);
+    };
+
+    const obs = new IntersectionObserver(([entry]) => {
+      if (entry.isIntersecting) {
+        runCountUp();
+        obs.disconnect();
+      }
+    }, { threshold: 0.1 });
+
+    obs.observe(el);
+
+    return () => obs.disconnect();
+  }, [end, duration]);
+
+  return <span ref={ref} className="tabular-nums">{prefix}{value.toLocaleString('en-IN')}</span>;
+}
+
 /* ═══════════════════════════════════════════════════════════════════════
    MAIN PAGE
 ═══════════════════════════════════════════════════════════════════════ */
@@ -149,73 +198,98 @@ export const HowItWorks = () => {
         </div>
       </section>
 
-      {/* ── SECTION 2 — THE CORE MECHANIC ────────────────────────────── */}
-      <section className="w-full py-20 px-6" style={{ background: '#111' }}>
+      {/* ── SECTION 2 — WHAT YOU WERE LOSING ────────────────────────────── */}
+      <section className="w-full bg-white md:py-[72px] py-[48px] px-6">
         <div ref={s2Ref} className="w-full max-w-[1140px] mx-auto flex flex-col items-center">
-          <h2 className="font-[900] text-white text-center max-w-[400px]"
-            style={{ fontSize: 'clamp(28px, 4vw, 40px)' }}>
-            The exchange is simple.
-          </h2>
-          <p className="text-center text-[16px] font-[600] mt-3 max-w-[480px] leading-[1.65]"
-            style={{ color: 'rgba(255,255,255,0.6)' }}>
-            Your followers get your content free. You get something permanent in return.
-          </p>
+          <div className="w-full flex flex-col md:flex-row items-center justify-center md:gap-8 gap-[16px]">
 
-          {/* Exchange visual */}
-          <div className="w-full max-w-[800px] mt-10 flex flex-col md:flex-row items-center gap-4 md:gap-0">
-
-            {/* Left — Creator */}
-            <div className="flex flex-col items-center md:flex-1">
-              <span className="text-[11px] font-[800] uppercase mb-3" style={{ color: 'rgba(255,255,255,0.4)', letterSpacing: '0.8px' }}>You</span>
-              <div className="bg-white rounded-[16px] p-5 w-full max-w-[220px] flex flex-col items-center">
-                <div className="w-12 h-12 rounded-[10px] flex items-center justify-center text-[24px]" style={{ background: '#F6F6F6' }}>📄</div>
-                <span className="text-[13px] font-[700] text-[#333] mt-2">Your content</span>
-                <span className="text-[10px] font-[600] text-[#AAA] mt-0.5">PDF · Video · Photos · Guide</span>
-                <div className="flex items-center gap-1 mt-4">
-                  <span className="text-[20px]">🔒</span>
-                  <span className="text-[11px] font-[700]" style={{ color: '#E8312A' }}>Locked</span>
+            {/* Left Card — Before AdGate */}
+            <div className="w-full md:flex-1 max-w-[500px] rounded-[20px] bg-[#FAFAFA]"
+                 style={{ border: '1.5px solid #F0F0F0', padding: '32px 28px' }}>
+              <div className="text-[11px] font-[900] uppercase tracking-[0.8px] text-[#AAAAAA] mb-6">Before AdGate</div>
+              
+              <div className="flex flex-col items-center mt-2">
+                <div className="font-[900] text-[#111] leading-none text-[48px] md:text-[64px]">
+                  847
                 </div>
+                <div className="text-[16px] font-[600] text-[#888] mt-2 text-center">
+                  people downloaded your free template
+                </div>
+              </div>
+
+              <div className="w-full h-px bg-[#E8E8E8] my-6"></div>
+
+              <div className="flex flex-col w-full">
+                <div className="flex items-center justify-between h-[40px] border-b border-[#F4F4F4]">
+                  <span className="text-[13px] font-[700] text-[#888]">Emails collected</span>
+                  <span className="text-[16px] font-[900] text-[#BBBBBB]">0</span>
+                </div>
+                <div className="flex items-center justify-between h-[40px] border-b border-[#F4F4F4]">
+                  <span className="text-[13px] font-[700] text-[#888]">New followers</span>
+                  <span className="text-[16px] font-[900] text-[#BBBBBB]">0</span>
+                </div>
+                <div className="flex items-center justify-between h-[40px] border-b border-[#F4F4F4]">
+                  <span className="text-[13px] font-[700] text-[#888]">Revenue earned</span>
+                  <span className="text-[16px] font-[900] text-[#BBBBBB]">₹0</span>
+                </div>
+              </div>
+
+              <div className="text-[13px] font-[700] text-[#AAAAAA] italic text-center pt-4">
+                They came. They downloaded. They left.
               </div>
             </div>
 
-            {/* Center arrow */}
-            <div className="flex flex-col items-center py-2 md:w-20">
-              <span className="hidden md:block text-[28px] font-bold" style={{ color: 'rgba(255,255,255,0.2)' }}>→</span>
-              <span className="md:hidden text-[28px] font-bold" style={{ color: 'rgba(255,255,255,0.2)' }}>↓</span>
-              <span className="text-[10px] font-[700] mt-1 text-center" style={{ color: 'rgba(255,255,255,0.4)' }}>unlocks it</span>
+            {/* Center Arrow */}
+            <div className="flex flex-col items-center justify-center shrink-0">
+              <svg className="hidden md:block w-8 h-8 text-[#E8312A]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M5 12h14M12 5l7 7-7 7" />
+              </svg>
+              <svg className="md:hidden block w-8 h-8 text-[#E8312A] my-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M12 5v14M5 12l7 7 7-7" />
+              </svg>
+              <span className="hidden md:block text-[11px] font-[800] text-[#E8312A] mt-2">AdGate</span>
             </div>
 
-            {/* Right — Follower */}
-            <div className="flex flex-col items-center md:flex-1">
-              <span className="text-[11px] font-[800] uppercase mb-3" style={{ color: 'rgba(255,255,255,0.4)', letterSpacing: '0.8px' }}>Your follower</span>
-              <div className="bg-white rounded-[16px] p-5 w-full max-w-[220px] flex flex-col items-center">
-                <div className="grid grid-cols-2 gap-2 w-full">
-                  {[
-                    { emoji: '📧', label: 'Subscribes' },
-                    { emoji: '👥', label: 'Follows' },
-                    { emoji: '⭐', label: 'Watches ad' },
-                    { emoji: '🤝', label: 'Joins challenge' },
-                  ].map(pill => (
-                    <div key={pill.label} className="h-9 rounded-[14px] flex items-center gap-1.5 px-3" style={{ background: '#F6F6F6' }}>
-                      <span className="text-[14px]">{pill.emoji}</span>
-                      <span className="text-[12px] font-[700] text-[#333]">{pill.label}</span>
-                    </div>
-                  ))}
+            {/* Right Card — With AdGate */}
+            <div className="w-full md:flex-1 max-w-[500px] rounded-[20px] bg-[#111]"
+                 style={{ padding: '32px 28px' }}>
+              <div className="text-[11px] font-[900] uppercase tracking-[0.8px] mb-6" style={{ color: 'rgba(255,255,255,0.4)' }}>With AdGate</div>
+              
+              <div className="flex flex-col items-center mt-2">
+                <div className="font-[900] text-white leading-none text-[48px] md:text-[64px]">
+                  847
                 </div>
-                <p className="text-[11px] font-[700] text-center mt-3" style={{ color: '#888' }}>
-                  Gets your content instantly. Free.
-                </p>
+                <div className="text-[16px] font-[600] mt-2 text-center" style={{ color: 'rgba(255,255,255,0.6)' }}>
+                  people downloaded your free template
+                </div>
+              </div>
+
+              <div className="w-full h-px my-6" style={{ background: 'rgba(255,255,255,0.1)' }}></div>
+
+              <div className="flex flex-col w-full">
+                <div className="flex items-center justify-between h-[40px] border-b" style={{ borderColor: 'rgba(255,255,255,0.1)' }}>
+                  <span className="text-[13px] font-[700] text-[#888]">Emails collected</span>
+                  <span className="text-[16px] font-[900] text-[#4ADE80]"><CountUpNumber end={612} /></span>
+                </div>
+                <div className="flex items-center justify-between h-[40px] border-b" style={{ borderColor: 'rgba(255,255,255,0.1)' }}>
+                  <span className="text-[13px] font-[700] text-[#888]">New followers</span>
+                  <span className="text-[16px] font-[900] text-[#60A5FA]"><CountUpNumber end={391} /></span>
+                </div>
+                <div className="flex items-center justify-between h-[40px] border-b" style={{ borderColor: 'rgba(255,255,255,0.1)' }}>
+                  <span className="text-[13px] font-[700] text-[#888]">Revenue earned</span>
+                  <span className="text-[16px] font-[900] text-[#C084FC]"><CountUpNumber prefix="₹" end={18400} /></span>
+                </div>
+              </div>
+
+              <div className="text-[13px] font-[800] text-white italic text-center pt-4">
+                Same content. Same followers. Different result.
               </div>
             </div>
+
           </div>
-
-          {/* Result card */}
-          <div className="flex flex-col md:flex-row items-center gap-4 mt-8 px-6 py-4 rounded-[14px] max-w-[480px] w-full"
-            style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)' }}>
-            <span className="text-[28px]">✅</span>
-            <p className="text-[14px] font-[600] text-white leading-[1.6] text-center md:text-left">
-              You get a subscriber, follower, sponsor revenue, or a community of people doing the work together — permanently.
-            </p>
+          
+          <div className="mt-8 text-[18px] font-[700] text-[#333] text-center max-w-[480px] leading-[1.6]">
+            The content was always good enough. What was missing was the exchange.
           </div>
         </div>
       </section>

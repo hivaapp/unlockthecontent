@@ -1,0 +1,1333 @@
+## Part 6 — Lock Content Unlock Flow: Email Subscribe
+
+---
+
+### What This Part Does
+
+Builds the complete end-to-end email subscribe unlock flow. A viewer lands on `/r/:slug`, sees the creator's content locked behind an email subscribe action, enters their email, gets confirmed as a subscriber in the `email_subscribers` table, and immediately receives the content file served from R2 via a presigned download URL. The creator sees the real subscriber count in their dashboard analytics. Duplicate email handling, session persistence across page refresh, and the complete unlock page UI all work against real data. By the end of this part the email subscribe unlock type is fully production-ready with zero mock data.
+
+---
+
+### Block 1 — Email Subscribe Service
+
+Create `src/services/emailSubscribeService.js`. All email subscribe logic lives here.
+
+```javascript
+// src/services/emailSubscribeService.js
+import { supabase } from '../lib/supabase'
+import { getDownloadUrl } from './uploadService'
+
+// ── Session key management ────────────────────────────────────────────────
+// Anonymous viewers get a session key stored in sessionStorage.
+// This tracks their unlock state without requiring an account.
+// Key format: adgate_email_[linkId]
+
+const getSessionKey = (linkId) => {
+  const storageKey = `adgate_email_${linkId}`
+  let key = sessionStorage.getItem(storageKey)
+  if (!key) {
+    key = `anon_${Date.now()}_${Math.random().toString(36).substring(2, 10)}`
+    sessionStorage.setItem(storageKey, key)
+  }
+  return key
+}
+
+// Check if this session has already completed the email subscribe unlock
+export const hasCompletedEmailUnlock = (linkId) => {
+  const sessionKey = `adgate_email_unlocked_${linkId}`
+  return sessionStorage.getItem(sessionKey) === 'true'
+}
+
+// Mark this session as having completed the unlock
+const markUnlockComplete = (linkId) => {
+  sessionStorage.setItem(`adgate_email_unlocked_${linkId}`, 'true')
+}
+
+// ── Validate email format ─────────────────────────────────────────────────
+
+export const isValidEmail = (email) => {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())
+}
+
+// ── Check if email already subscribed ────────────────────────────────────
+// Used to show "already subscribed" state if viewer returns.
+
+export const checkExistingSubscriber = async (linkId, email) => {
+  const { data } = await supabase
+    .from('email_subscribers')
+    .select('id, content_accessed')
+    .eq('link_id', linkId)
+    .eq('email', email.trim().toLowerCase())
+    .maybeSingle()
+  
+  return data || null
+}
+
+// ── Subscribe and unlock ──────────────────────────────────────────────────
+// Core function. Inserts subscriber record, returns download URL.
+
+export const subscribeAndUnlock = async ({
+  linkId,
+  creatorId,
+  email,
+  viewerId = null,      // null for anonymous viewers
+  linkSlug,
+  fileId,
+}) => {
+  const sessionKey = getSessionKey(linkId)
+  const normalizedEmail = email.trim().toLowerCase()
+
+  // ── Check for duplicate subscription ────────────────────────────────
+  const existing = await checkExistingSubscriber(linkId, normalizedEmail)
+  
+  if (existing) {
+    // Email already subscribed — still serve the content
+    // Update content_accessed if not already set
+    if (!existing.content_accessed) {
+      await supabase
+        .from('email_subscribers')
+        .update({ content_accessed: true })
+        .eq('id', existing.id)
+    }
+    
+    // Mark session as unlocked and get download URL
+    markUnlockComplete(linkId)
+    
+    // Increment unlock count only if first time accessing
+    if (!existing.content_accessed) {
+      await supabase.rpc('increment_link_unlocks', { p_link_id: linkId })
+    }
+    
+    const { downloadUrl } = await getDownloadUrl({
+      fileId,
+      linkSlug,
+      unlockType: 'email_subscribe',
+      sessionKey,
+      forceDownload: false,
+    })
+    
+    return {
+      success: true,
+      alreadySubscribed: true,
+      downloadUrl,
+      subscriberId: existing.id,
+    }
+  }
+
+  // ── Insert new subscriber ────────────────────────────────────────────
+  const { data: subscriber, error: insertError } = await supabase
+    .from('email_subscribers')
+    .insert({
+      link_id:          linkId,
+      creator_id:       creatorId,
+      email:            normalizedEmail,
+      session_key:      sessionKey,
+      viewer_id:        viewerId,
+      content_accessed: true,
+    })
+    .select('id')
+    .single()
+  
+  if (insertError) {
+    // Handle race condition — duplicate insert from double-tap
+    if (insertError.code === '23505') {
+      // Unique constraint violation — already subscribed
+      return subscribeAndUnlock({ linkId, creatorId, email, viewerId, linkSlug, fileId })
+    }
+    throw new Error('Failed to save subscription. Please try again.')
+  }
+
+  // ── Increment unlock counter ─────────────────────────────────────────
+  await supabase.rpc('increment_link_unlocks', { p_link_id: linkId })
+
+  // ── Mark session as complete ─────────────────────────────────────────
+  markUnlockComplete(linkId)
+
+  // ── Get download URL from Edge Function ─────────────────────────────
+  const { downloadUrl } = await getDownloadUrl({
+    fileId,
+    linkSlug,
+    unlockType: 'email_subscribe',
+    sessionKey,
+    forceDownload: false,
+  })
+
+  return {
+    success: true,
+    alreadySubscribed: false,
+    downloadUrl,
+    subscriberId: subscriber.id,
+  }
+}
+
+// ── Get subscriber count for a link (creator dashboard) ──────────────────
+
+export const getSubscriberCount = async (linkId) => {
+  const { count, error } = await supabase
+    .from('email_subscribers')
+    .select('*', { count: 'exact', head: true })
+    .eq('link_id', linkId)
+  
+  if (error) throw error
+  return count || 0
+}
+
+// ── Get subscriber list for creator (dashboard analytics) ────────────────
+
+export const getSubscriberList = async (linkId, { page = 0, pageSize = 50 } = {}) => {
+  const { data, error, count } = await supabase
+    .from('email_subscribers')
+    .select('id, email, content_accessed, subscribed_at', { count: 'exact' })
+    .eq('link_id', linkId)
+    .order('subscribed_at', { ascending: false })
+    .range(page * pageSize, (page + 1) * pageSize - 1)
+  
+  if (error) throw error
+  return { subscribers: data || [], total: count || 0 }
+}
+
+// ── Export subscriber emails as CSV ──────────────────────────────────────
+
+export const exportSubscribersCSV = async (linkId, linkTitle) => {
+  const { subscribers } = await getSubscriberList(linkId, { pageSize: 10000 })
+  
+  if (subscribers.length === 0) {
+    throw new Error('No subscribers to export.')
+  }
+  
+  const headers = ['Email', 'Subscribed At', 'Content Accessed']
+  const rows = subscribers.map(s => [
+    s.email,
+    new Date(s.subscribed_at).toLocaleDateString('en-IN'),
+    s.content_accessed ? 'Yes' : 'No',
+  ])
+  
+  const csvContent = [headers, ...rows]
+    .map(row => row.map(cell => `"${cell}"`).join(','))
+    .join('\n')
+  
+  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `subscribers-${linkTitle.toLowerCase().replace(/\s+/g, '-')}-${Date.now()}.csv`
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+  URL.revokeObjectURL(url)
+  
+  // Mark all as exported in DB
+  await supabase
+    .from('email_subscribers')
+    .update({ exported_at: new Date().toISOString() })
+    .eq('link_id', linkId)
+    .is('exported_at', null)
+}
+```
+
+---
+
+### Block 2 — Public Unlock Page `/r/:slug`
+
+This is the page every viewer lands on when they click a creator's share link. It needs to handle all four unlock types — this part wires up email subscribe specifically. The page structure supports all types via a switch.
+
+```javascript
+// src/pages/ResourceUnlockPage.jsx
+import { useState, useEffect, useRef } from 'react'
+import { useParams, useNavigate } from 'react-router-dom'
+import { useAuth } from '../context/AuthContext'
+import { getLinkBySlug, trackLinkView } from '../services/linksService'
+import EmailSubscribeUnlock from '../components/unlock/EmailSubscribeUnlock'
+import SocialFollowUnlock from '../components/unlock/SocialFollowUnlock'
+import SponsorUnlock from '../components/unlock/SponsorUnlock'
+import FollowerPairingUnlock from '../components/unlock/FollowerPairingUnlock'
+
+// Generate a stable anonymous session key for this browser session
+const getAnonSessionKey = () => {
+  const key = 'adgate_anon_session'
+  let id = sessionStorage.getItem(key)
+  if (!id) {
+    id = `anon_${Date.now()}_${Math.random().toString(36).substring(2, 10)}`
+    sessionStorage.setItem(key, id)
+  }
+  return id
+}
+
+const ResourceUnlockPage = () => {
+  const { slug } = useParams()
+  const navigate = useNavigate()
+  const { currentUser, isLoggedIn } = useAuth()
+
+  const [link, setLink] = useState(null)
+  const [isLoading, setIsLoading] = useState(true)
+  const [notFound, setNotFound] = useState(false)
+  const viewTracked = useRef(false)
+
+  // ── Load link data ───────────────────────────────────────────────────
+  useEffect(() => {
+    const load = async () => {
+      setIsLoading(true)
+      try {
+        const data = await getLinkBySlug(slug)
+        if (!data) {
+          setNotFound(true)
+        } else {
+          setLink(data)
+        }
+      } catch {
+        setNotFound(true)
+      } finally {
+        setIsLoading(false)
+      }
+    }
+    load()
+  }, [slug])
+
+  // ── Track view once link is loaded ───────────────────────────────────
+  useEffect(() => {
+    if (!link || viewTracked.current) return
+    viewTracked.current = true
+    const sessionKey = getAnonSessionKey()
+    trackLinkView(link.id, sessionKey, currentUser?.id || null)
+  }, [link, currentUser?.id])
+
+  // ── Loading state ────────────────────────────────────────────────────
+  if (isLoading) return <UnlockPageSkeleton />
+
+  // ── Not found ────────────────────────────────────────────────────────
+  if (notFound) {
+    return (
+      <div style={{
+        display: 'flex', flexDirection: 'column', alignItems: 'center',
+        justifyContent: 'center', minHeight: '100vh', padding: '32px',
+        fontFamily: 'Arial, sans-serif',
+      }}>
+        <div style={{ fontSize: '48px', marginBottom: '16px' }}>🔗</div>
+        <h2 style={{ fontSize: '20px', fontWeight: 900, color: '#111', margin: '0 0 8px' }}>
+          Link not found
+        </h2>
+        <p style={{ fontSize: '14px', color: '#888', textAlign: 'center', maxWidth: '280px' }}>
+          This link may have been removed or the URL is incorrect.
+        </p>
+        <button
+          onClick={() => navigate('/explore')}
+          style={{
+            marginTop: '24px', background: '#E8312A', color: 'white',
+            border: 'none', borderRadius: '12px', padding: '12px 24px',
+            fontSize: '14px', fontWeight: 900, cursor: 'pointer',
+          }}
+        >
+          Browse resources →
+        </button>
+      </div>
+    )
+  }
+
+  // ── Route to correct unlock type ─────────────────────────────────────
+  const commonProps = {
+    link,
+    currentUser,
+    isLoggedIn,
+    sessionKey: getAnonSessionKey(),
+  }
+
+  if (link.mode === 'follower_pairing') {
+    return <FollowerPairingUnlock {...commonProps} />
+  }
+
+  switch (link.unlock_type) {
+    case 'email_subscribe':
+      return <EmailSubscribeUnlock {...commonProps} />
+    case 'social_follow':
+      return <SocialFollowUnlock {...commonProps} />
+    case 'custom_sponsor':
+      return <SponsorUnlock {...commonProps} />
+    default:
+      return <div>Unknown unlock type.</div>
+  }
+}
+
+// ── Page skeleton ─────────────────────────────────────────────────────────
+
+const UnlockPageSkeleton = () => (
+  <div style={{
+    maxWidth: '560px', margin: '0 auto', padding: '32px 16px',
+    fontFamily: 'Arial, sans-serif',
+  }}>
+    {/* Creator row */}
+    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '24px' }}>
+      <div style={{ width: '36px', height: '36px', borderRadius: '50%', background: '#F0F0F0' }} />
+      <div style={{ height: '14px', width: '120px', background: '#F0F0F0', borderRadius: '6px' }} />
+    </div>
+    {/* File card */}
+    <div style={{ height: '120px', background: '#F0F0F0', borderRadius: '14px', marginBottom: '20px' }} />
+    {/* Email input */}
+    <div style={{ height: '52px', background: '#F0F0F0', borderRadius: '12px', marginBottom: '12px' }} />
+    {/* Button */}
+    <div style={{ height: '52px', background: '#F0F0F0', borderRadius: '12px' }} />
+  </div>
+)
+
+export default ResourceUnlockPage
+```
+
+---
+
+### Block 3 — EmailSubscribeUnlock Component
+
+This is the complete UI for the email subscribe unlock page. It has four internal states: default (form), submitting, unlocked (content revealed), and already-subscribed.
+
+```javascript
+// src/components/unlock/EmailSubscribeUnlock.jsx
+import { useState, useEffect, useRef } from 'react'
+import { useNavigate } from 'react-router-dom'
+import {
+  subscribeAndUnlock,
+  hasCompletedEmailUnlock,
+  isValidEmail,
+  checkExistingSubscriber,
+} from '../../services/emailSubscribeService'
+import { getFileEmoji, formatFileSize } from '../../services/uploadService'
+import CreatorRow from '../shared/CreatorRow'
+
+const EmailSubscribeUnlock = ({ link, currentUser, isLoggedIn, sessionKey }) => {
+  const navigate = useNavigate()
+  const emailInputRef = useRef(null)
+
+  // ── Internal states ──────────────────────────────────────────────────
+  // 'locked' → 'submitting' → 'unlocked'
+  // 'already_subscribed' is a variant of 'unlocked'
+  const [screen, setScreen] = useState('locked')
+  const [email, setEmail] = useState(currentUser?.email || '')
+  const [emailError, setEmailError] = useState(null)
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [downloadUrl, setDownloadUrl] = useState(null)
+  const [alreadySubscribed, setAlreadySubscribed] = useState(false)
+  const [downloadStarted, setDownloadStarted] = useState(false)
+  const [checkingExisting, setCheckingExisting] = useState(false)
+
+  const { email_config, file, creator } = link
+
+  // ── Restore unlocked state from sessionStorage ───────────────────────
+  // If viewer refreshes the page after unlocking — they should not need
+  // to re-subscribe. But we cannot serve the download URL from sessionStorage
+  // (presigned URLs expire). We show the "already subscribed" state instead.
+  useEffect(() => {
+    if (hasCompletedEmailUnlock(link.id)) {
+      setScreen('already_unlocked')
+    }
+  }, [link.id])
+
+  // ── Pre-fill email if logged in ──────────────────────────────────────
+  useEffect(() => {
+    if (currentUser?.email && !email) {
+      setEmail(currentUser.email)
+    }
+  }, [currentUser?.email])
+
+  // ── Validate email on blur ───────────────────────────────────────────
+  const handleEmailBlur = async () => {
+    if (!email) return
+    if (!isValidEmail(email)) {
+      setEmailError('Please enter a valid email address.')
+      return
+    }
+    
+    // Check if already subscribed (shows warning, not blocking)
+    setCheckingExisting(true)
+    const existing = await checkExistingSubscriber(link.id, email)
+    setCheckingExisting(false)
+    
+    if (existing) {
+      setEmailError(null) // Not an error — just informational below
+    }
+  }
+
+  // ── Submit handler ───────────────────────────────────────────────────
+  const handleSubscribe = async () => {
+    // Validate
+    if (!email.trim()) {
+      setEmailError('Please enter your email address.')
+      emailInputRef.current?.focus()
+      return
+    }
+    if (!isValidEmail(email)) {
+      setEmailError('Please enter a valid email address.')
+      emailInputRef.current?.focus()
+      return
+    }
+
+    setEmailError(null)
+    setIsSubmitting(true)
+
+    try {
+      const result = await subscribeAndUnlock({
+        linkId:    link.id,
+        creatorId: creator.id,
+        email:     email.trim(),
+        viewerId:  currentUser?.id || null,
+        linkSlug:  link.slug,
+        fileId:    file?.id,
+      })
+
+      setDownloadUrl(result.downloadUrl)
+      setAlreadySubscribed(result.alreadySubscribed)
+      setScreen('unlocked')
+
+    } catch (err) {
+      setEmailError(err.message || 'Something went wrong. Please try again.')
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  // ── Trigger download ─────────────────────────────────────────────────
+  const handleDownload = () => {
+    if (!downloadUrl) return
+    const a = document.createElement('a')
+    a.href = downloadUrl
+    a.download = file?.original_name || 'download'
+    a.target = '_blank'
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    setDownloadStarted(true)
+  }
+
+  // ── Handle Enter key ─────────────────────────────────────────────────
+  const handleKeyDown = (e) => {
+    if (e.key === 'Enter' && !isSubmitting) {
+      handleSubscribe()
+    }
+  }
+
+  // ── Render: Already unlocked (session refresh) ───────────────────────
+  if (screen === 'already_unlocked') {
+    return (
+      <PageWrapper>
+        <CreatorRow creator={creator} />
+        <ContentPreviewCard link={link} />
+        
+        <div style={{
+          background: '#EDFAF3', border: '1.5px solid #BBF7D0',
+          borderRadius: '14px', padding: '20px 16px',
+          textAlign: 'center', marginTop: '20px',
+        }}>
+          <div style={{ fontSize: '32px', marginBottom: '8px' }}>✅</div>
+          <h3 style={{ fontSize: '16px', fontWeight: 900, color: '#166534', margin: '0 0 6px' }}>
+            You're already subscribed
+          </h3>
+          <p style={{ fontSize: '13px', color: '#166534', margin: '0 0 16px', lineHeight: 1.6, opacity: 0.8 }}>
+            You subscribed to {email_config?.newsletter_name} earlier. Enter your email again to re-download.
+          </p>
+        </div>
+
+        {/* Show the email form again for re-download */}
+        <div style={{ marginTop: '20px' }}>
+          <EmailInputField
+            email={email}
+            onChange={setEmail}
+            onBlur={handleEmailBlur}
+            onKeyDown={handleKeyDown}
+            error={emailError}
+            isLoggedIn={isLoggedIn}
+            inputRef={emailInputRef}
+            disabled={isSubmitting}
+          />
+          <SubscribeButton
+            onClick={handleSubscribe}
+            isSubmitting={isSubmitting}
+            label="Re-download"
+            emailConfig={email_config}
+          />
+        </div>
+      </PageWrapper>
+    )
+  }
+
+  // ── Render: Unlocked ─────────────────────────────────────────────────
+  if (screen === 'unlocked') {
+    return (
+      <PageWrapper>
+        <CreatorRow creator={creator} />
+
+        {/* Success celebration */}
+        <div style={{
+          textAlign: 'center', padding: '24px 16px 16px',
+        }}>
+          <div style={{
+            fontSize: '52px', marginBottom: '8px',
+            animation: 'popIn 400ms cubic-bezier(0.34, 1.56, 0.64, 1)',
+          }}>
+            🎉
+          </div>
+          <h2 style={{ fontSize: '22px', fontWeight: 900, color: '#111', margin: '0 0 6px' }}>
+            {alreadySubscribed ? 'Welcome back!' : 'You\'re in!'}
+          </h2>
+          <p style={{ fontSize: '14px', color: '#666', margin: '0', lineHeight: 1.65 }}>
+            {alreadySubscribed
+              ? `Already subscribed to ${email_config?.newsletter_name}.`
+              : `Subscribed to ${email_config?.newsletter_name}.`
+            }
+          </p>
+        </div>
+
+        {/* Download card */}
+        {file && (
+          <div style={{
+            background: 'white', border: '1.5px solid #E8E8E8',
+            borderRadius: '16px', padding: '20px 16px', margin: '0 0 16px',
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '14px', marginBottom: '16px' }}>
+              <div style={{
+                width: '52px', height: '52px', borderRadius: '12px',
+                background: '#F6F6F6', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                fontSize: '28px', flexShrink: 0,
+              }}>
+                {getFileEmoji(file.original_name, file.mime_type)}
+              </div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{
+                  fontSize: '15px', fontWeight: 900, color: '#111',
+                  overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                }}>
+                  {link.title}
+                </div>
+                <div style={{ fontSize: '12px', color: '#AAAAAA', fontWeight: 600, marginTop: '3px' }}>
+                  {file.original_name} · {formatFileSize(file.size_bytes)}
+                </div>
+              </div>
+            </div>
+
+            <button
+              onClick={handleDownload}
+              style={{
+                width: '100%', height: '52px',
+                background: downloadStarted ? '#166534' : '#E8312A',
+                color: 'white', border: 'none', borderRadius: '12px',
+                fontSize: '15px', fontWeight: 900, cursor: 'pointer',
+                transition: 'background 300ms ease',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
+              }}
+            >
+              {downloadStarted ? '✅ Download started' : `⬇️ Download ${file.original_name}`}
+            </button>
+
+            {downloadStarted && (
+              <p style={{
+                fontSize: '12px', color: '#888', textAlign: 'center',
+                margin: '10px 0 0', lineHeight: 1.5,
+              }}>
+                Check your Downloads folder. Having trouble?{' '}
+                <span
+                  onClick={handleDownload}
+                  style={{ color: '#E8312A', fontWeight: 700, cursor: 'pointer' }}
+                >
+                  Download again
+                </span>
+              </p>
+            )}
+          </div>
+        )}
+
+        {/* YouTube embed if set */}
+        {link.youtube_url && (
+          <YouTubeEmbed url={link.youtube_url} />
+        )}
+
+        {/* Newsletter CTA */}
+        <div style={{
+          background: '#F6F6F6', borderRadius: '12px',
+          padding: '16px', marginBottom: '16px',
+        }}>
+          <p style={{ fontSize: '13px', color: '#555', margin: '0', lineHeight: 1.65, fontWeight: 600 }}>
+            📧 You'll receive {email_config?.newsletter_name} emails at{' '}
+            <strong style={{ color: '#111' }}>{email}</strong>.
+            {email_config?.confirmation_message && (
+              <> {email_config.confirmation_message}</>
+            )}
+          </p>
+        </div>
+
+        {/* Creator profile CTA */}
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: '12px',
+          padding: '14px 16px',
+          border: '1px solid #F0F0F0', borderRadius: '12px',
+        }}>
+          <CreatorAvatar creator={creator} size={40} />
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: '13px', fontWeight: 800, color: '#111' }}>
+              {creator.name}
+            </div>
+            <div style={{ fontSize: '12px', color: '#888', fontWeight: 600 }}>
+              See more resources →
+            </div>
+          </div>
+          <button
+            onClick={() => navigate(`/@${creator.username}`)}
+            style={{
+              background: 'white', border: '1.5px solid #E8E8E8',
+              borderRadius: '8px', padding: '8px 14px',
+              fontSize: '12px', fontWeight: 800, color: '#333', cursor: 'pointer',
+            }}
+          >
+            View profile
+          </button>
+        </div>
+
+        <style>{`
+          @keyframes popIn {
+            0%   { transform: scale(0.5); opacity: 0; }
+            100% { transform: scale(1);   opacity: 1; }
+          }
+        `}</style>
+      </PageWrapper>
+    )
+  }
+
+  // ── Render: Locked (default) ─────────────────────────────────────────
+  return (
+    <PageWrapper>
+      <CreatorRow creator={creator} />
+      <ContentPreviewCard link={link} />
+
+      {/* Newsletter info card */}
+      <div style={{
+        background: '#EDFAF3', border: '1.5px solid #BBF7D0',
+        borderRadius: '14px', padding: '16px', marginBottom: '20px',
+      }}>
+        <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
+          <span style={{ fontSize: '20px', flexShrink: 0 }}>📧</span>
+          <div>
+            <div style={{ fontSize: '14px', fontWeight: 900, color: '#166534', marginBottom: '4px' }}>
+              {email_config?.newsletter_name || 'Subscribe to unlock'}
+            </div>
+            {email_config?.newsletter_description && (
+              <div style={{ fontSize: '13px', color: '#166534', lineHeight: 1.6, opacity: 0.85 }}>
+                {email_config.newsletter_description}
+              </div>
+            )}
+            {email_config?.incentive_text && (
+              <div style={{
+                fontSize: '12px', fontWeight: 700, color: '#166534',
+                marginTop: '6px', opacity: 0.8,
+              }}>
+                ✓ {email_config.incentive_text}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Email input */}
+      <EmailInputField
+        email={email}
+        onChange={(val) => {
+          setEmail(val)
+          if (emailError) setEmailError(null)
+        }}
+        onBlur={handleEmailBlur}
+        onKeyDown={handleKeyDown}
+        error={emailError}
+        isLoading={checkingExisting}
+        isLoggedIn={isLoggedIn}
+        inputRef={emailInputRef}
+        disabled={isSubmitting}
+      />
+
+      {/* Subscribe button */}
+      <SubscribeButton
+        onClick={handleSubscribe}
+        isSubmitting={isSubmitting}
+        emailConfig={email_config}
+      />
+
+      {/* Trust line */}
+      <p style={{
+        fontSize: '11px', color: '#AAAAAA', textAlign: 'center',
+        margin: '12px 0 0', lineHeight: 1.6, fontWeight: 600,
+      }}>
+        Free forever. No payment. Unsubscribe anytime.
+      </p>
+    </PageWrapper>
+  )
+}
+
+// ── Sub-components ────────────────────────────────────────────────────────
+
+const PageWrapper = ({ children }) => (
+  <div style={{
+    maxWidth: '560px', margin: '0 auto', padding: '24px 16px 80px',
+    fontFamily: 'Arial, sans-serif', minHeight: '100vh',
+  }}>
+    {children}
+  </div>
+)
+
+const ContentPreviewCard = ({ link }) => {
+  const { file, title, description, unlock_type } = link
+  return (
+    <div style={{
+      background: 'white', border: '1px solid #F0F0F0',
+      borderRadius: '16px', overflow: 'hidden', marginBottom: '20px',
+    }}>
+      {/* Gradient top zone */}
+      <div style={{
+        height: '80px',
+        background: 'linear-gradient(135deg, #EDFAF3 0%, #D1FAE5 100%)',
+        display: 'flex', alignItems: 'center', padding: '0 16px', gap: '12px',
+      }}>
+        <span style={{ fontSize: '36px' }}>
+          {file ? getFileEmoji(file.original_name, file.mime_type) : '📄'}
+        </span>
+        <div>
+          <div style={{
+            fontSize: '10px', fontWeight: 900, color: '#166534',
+            textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '3px',
+          }}>
+            📧 Email Subscribe
+          </div>
+          <div style={{ fontSize: '11px', fontWeight: 700, color: '#166534', opacity: 0.8 }}>
+            {file ? `${file.file_type?.toUpperCase()} · ${formatFileSize(file.size_bytes)}` : 'Digital content'}
+          </div>
+        </div>
+      </div>
+
+      <div style={{ padding: '14px 16px' }}>
+        <h2 style={{ fontSize: '17px', fontWeight: 900, color: '#111', margin: '0 0 6px', lineHeight: 1.3 }}>
+          {title}
+        </h2>
+        {description && (
+          <p style={{ fontSize: '13px', color: '#666', margin: '0', lineHeight: 1.65 }}>
+            {description}
+          </p>
+        )}
+        {link.youtube_url && (
+          <div style={{
+            marginTop: '10px', display: 'flex', alignItems: 'center', gap: '6px',
+          }}>
+            <span style={{ fontSize: '14px' }}>▶️</span>
+            <span style={{ fontSize: '12px', fontWeight: 700, color: '#888' }}>
+              Includes video content
+            </span>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+const EmailInputField = ({
+  email, onChange, onBlur, onKeyDown,
+  error, isLoading, isLoggedIn, inputRef, disabled,
+}) => (
+  <div style={{ marginBottom: '12px' }}>
+    <label style={{
+      display: 'block', fontSize: '12px', fontWeight: 700, color: '#555', marginBottom: '6px',
+    }}>
+      Your email address
+    </label>
+    <div style={{ position: 'relative' }}>
+      <input
+        ref={inputRef}
+        type="email"
+        value={email}
+        onChange={(e) => onChange(e.target.value)}
+        onBlur={onBlur}
+        onKeyDown={onKeyDown}
+        placeholder="you@example.com"
+        disabled={disabled}
+        autoComplete="email"
+        inputMode="email"
+        style={{
+          width: '100%', height: '52px', boxSizing: 'border-box',
+          border: `1.5px solid ${error ? '#E8312A' : '#E8E8E8'}`,
+          borderRadius: '12px', padding: '0 44px 0 16px',
+          fontSize: '15px', color: '#111', fontFamily: 'Arial',
+          outline: 'none', transition: 'border-color 150ms ease',
+          background: disabled ? '#F9F9F9' : 'white',
+        }}
+        onFocus={(e) => {
+          if (!error) e.target.style.borderColor = '#E8312A'
+        }}
+      />
+      {isLoading && (
+        <div style={{
+          position: 'absolute', right: '14px', top: '50%', transform: 'translateY(-50%)',
+          width: '18px', height: '18px', border: '2px solid #F0F0F0',
+          borderTopColor: '#166534', borderRadius: '50%',
+          animation: 'spin 0.8s linear infinite',
+        }} />
+      )}
+      {isLoggedIn && !isLoading && (
+        <div style={{
+          position: 'absolute', right: '14px', top: '50%', transform: 'translateY(-50%)',
+          fontSize: '16px',
+        }}>
+          ✅
+        </div>
+      )}
+    </div>
+    {error && (
+      <p style={{
+        fontSize: '11px', fontWeight: 700, color: '#E8312A',
+        margin: '5px 0 0', lineHeight: 1.4,
+      }}>
+        {error}
+      </p>
+    )}
+    {isLoggedIn && !error && (
+      <p style={{ fontSize: '11px', color: '#888', margin: '5px 0 0', fontWeight: 600 }}>
+        Using your AdGate account email.
+      </p>
+    )}
+    <style>{`@keyframes spin { to { transform: rotate(360deg) translateY(-50%); } }`}</style>
+  </div>
+)
+
+const SubscribeButton = ({ onClick, isSubmitting, emailConfig, label }) => (
+  <button
+    onClick={onClick}
+    disabled={isSubmitting}
+    style={{
+      width: '100%', height: '52px',
+      background: isSubmitting ? '#F0F0F0' : '#166534',
+      color: isSubmitting ? '#AAAAAA' : 'white',
+      border: 'none', borderRadius: '12px',
+      fontSize: '15px', fontWeight: 900, cursor: isSubmitting ? 'default' : 'pointer',
+      transition: 'all 200ms ease',
+      display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
+    }}
+  >
+    {isSubmitting ? (
+      <>
+        <span style={{
+          display: 'inline-block', width: '18px', height: '18px',
+          border: '2px solid #E0E0E0', borderTopColor: '#AAAAAA',
+          borderRadius: '50%', animation: 'spin 0.8s linear infinite',
+        }} />
+        Subscribing...
+      </>
+    ) : (
+      label || `Subscribe to ${emailConfig?.newsletter_name || 'newsletter'} — Unlock free →`
+    )}
+  </button>
+)
+
+const YouTubeEmbed = ({ url }) => {
+  const getEmbedUrl = (u) => {
+    const match = u.match(/(?:v=|youtu\.be\/)([a-zA-Z0-9_-]{11})/)
+    return match ? `https://www.youtube.com/embed/${match[1]}` : null
+  }
+  const embedUrl = getEmbedUrl(url)
+  if (!embedUrl) return null
+  return (
+    <div style={{ borderRadius: '12px', overflow: 'hidden', marginBottom: '16px' }}>
+      <iframe
+        src={embedUrl}
+        width="100%"
+        height="220"
+        frameBorder="0"
+        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+        allowFullScreen
+        style={{ display: 'block' }}
+      />
+    </div>
+  )
+}
+
+const CreatorAvatar = ({ creator, size = 36 }) => (
+  <div style={{
+    width: size, height: size, borderRadius: '50%',
+    background: creator.avatar_color || '#E8312A',
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
+    fontSize: size * 0.4, fontWeight: 900, color: 'white', flexShrink: 0,
+  }}>
+    {creator.initial}
+  </div>
+)
+
+export default EmailSubscribeUnlock
+```
+
+---
+
+### Block 4 — Creator Row Component
+
+Used on all unlock pages. Shows the creator's avatar, name, handle, and a link to their profile.
+
+```javascript
+// src/components/shared/CreatorRow.jsx
+import { useNavigate } from 'react-router-dom'
+
+const CreatorRow = ({ creator }) => {
+  const navigate = useNavigate()
+  return (
+    <div
+      onClick={() => navigate(`/@${creator.username}`)}
+      style={{
+        display: 'flex', alignItems: 'center', gap: '10px',
+        marginBottom: '20px', cursor: 'pointer',
+      }}
+    >
+      <div style={{
+        width: '36px', height: '36px', borderRadius: '50%',
+        background: creator.avatar_color || '#E8312A',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        fontSize: '14px', fontWeight: 900, color: 'white', flexShrink: 0,
+      }}>
+        {creator.initial}
+      </div>
+      <div>
+        <div style={{ fontSize: '14px', fontWeight: 800, color: '#111', lineHeight: 1.2 }}>
+          {creator.name}
+          {creator.is_verified && (
+            <span style={{ marginLeft: '4px', fontSize: '13px' }}>✓</span>
+          )}
+        </div>
+        <div style={{ fontSize: '12px', color: '#AAAAAA', fontWeight: 600 }}>
+          @{creator.username}
+        </div>
+      </div>
+      <div style={{
+        marginLeft: 'auto', fontSize: '12px', fontWeight: 700, color: '#AAAAAA',
+      }}>
+        View profile →
+      </div>
+    </div>
+  )
+}
+
+export default CreatorRow
+```
+
+---
+
+### Block 5 — Dashboard Analytics: Subscriber Count
+
+The Dashboard Analytics tab and per-link analytics page both need real subscriber counts.
+
+```javascript
+// src/services/analyticsService.js
+import { supabase } from '../lib/supabase'
+
+// ── Email subscribe analytics for a specific link ─────────────────────────
+
+export const getEmailLinkAnalytics = async (linkId) => {
+  // Subscriber count
+  const { count: totalSubscribers } = await supabase
+    .from('email_subscribers')
+    .select('*', { count: 'exact', head: true })
+    .eq('link_id', linkId)
+
+  // This week's subscribers
+  const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()
+  const { count: thisWeekSubscribers } = await supabase
+    .from('email_subscribers')
+    .select('*', { count: 'exact', head: true })
+    .eq('link_id', linkId)
+    .gte('subscribed_at', weekAgo)
+
+  // This month's subscribers
+  const monthAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()
+  const { count: thisMonthSubscribers } = await supabase
+    .from('email_subscribers')
+    .select('*', { count: 'exact', head: true })
+    .eq('link_id', linkId)
+    .gte('subscribed_at', monthAgo)
+
+  // Subscribers by day for chart (last 30 days)
+  const { data: dailyData } = await supabase
+    .from('email_subscribers')
+    .select('subscribed_at')
+    .eq('link_id', linkId)
+    .gte('subscribed_at', monthAgo)
+    .order('subscribed_at', { ascending: true })
+
+  // Group by day
+  const byDay = {}
+  dailyData?.forEach(row => {
+    const day = row.subscribed_at.substring(0, 10)  // YYYY-MM-DD
+    byDay[day] = (byDay[day] || 0) + 1
+  })
+
+  // View count and unlock rate
+  const { data: linkData } = await supabase
+    .from('links')
+    .select('view_count, unlock_count')
+    .eq('id', linkId)
+    .single()
+
+  const conversionRate = linkData?.view_count > 0
+    ? ((linkData.unlock_count / linkData.view_count) * 100).toFixed(1)
+    : '0.0'
+
+  return {
+    totalSubscribers:      totalSubscribers || 0,
+    thisWeekSubscribers:   thisWeekSubscribers || 0,
+    thisMonthSubscribers:  thisMonthSubscribers || 0,
+    totalViews:            linkData?.view_count || 0,
+    totalUnlocks:          linkData?.unlock_count || 0,
+    conversionRate,
+    dailyChart:            byDay,
+  }
+}
+```
+
+---
+
+### Block 6 — Per-Link Analytics Page
+
+```javascript
+// In the per-link analytics page /dashboard/links/:id/analytics
+// Add this section for email subscribe links:
+
+import { getEmailLinkAnalytics } from '../../services/analyticsService'
+import { getSubscriberList, exportSubscribersCSV } from '../../services/emailSubscribeService'
+
+const EmailAnalyticsSection = ({ link }) => {
+  const [analytics, setAnalytics] = useState(null)
+  const [subscribers, setSubscribers] = useState([])
+  const [isLoading, setIsLoading] = useState(true)
+  const [isExporting, setIsExporting] = useState(false)
+  const { showToast } = useToast()
+
+  useEffect(() => {
+    const load = async () => {
+      setIsLoading(true)
+      try {
+        const [analyticsData, subscriberData] = await Promise.all([
+          getEmailLinkAnalytics(link.id),
+          getSubscriberList(link.id, { pageSize: 20 }),
+        ])
+        setAnalytics(analyticsData)
+        setSubscribers(subscriberData.subscribers)
+      } catch (err) {
+        console.error(err)
+      } finally {
+        setIsLoading(false)
+      }
+    }
+    load()
+  }, [link.id])
+
+  const handleExport = async () => {
+    setIsExporting(true)
+    try {
+      await exportSubscribersCSV(link.id, link.title)
+      showToast(`Exported ${analytics.totalSubscribers} subscribers.`, 'success')
+    } catch (err) {
+      showToast(err.message, 'error')
+    } finally {
+      setIsExporting(false)
+    }
+  }
+
+  if (isLoading) return <AnalyticsSkeleton />
+
+  return (
+    <div>
+      {/* Stats row */}
+      <div style={{
+        display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)',
+        gap: '12px', marginBottom: '24px',
+      }}>
+        <StatCard
+          label="Total subscribers"
+          value={analytics.totalSubscribers.toLocaleString()}
+          color="#166534"
+        />
+        <StatCard
+          label="This month"
+          value={`+${analytics.thisMonthSubscribers}`}
+          color="#166534"
+        />
+        <StatCard
+          label="Conversion rate"
+          value={`${analytics.conversionRate}%`}
+          sublabel={`${analytics.totalViews} views`}
+          color="#166534"
+        />
+      </div>
+
+      {/* Daily chart — simple bar chart */}
+      <DailyChart data={analytics.dailyChart} color="#166534" label="Subscribers/day" />
+
+      {/* Subscriber list */}
+      <div style={{ marginTop: '24px' }}>
+        <div style={{
+          display: 'flex', justifyContent: 'space-between',
+          alignItems: 'center', marginBottom: '12px',
+        }}>
+          <h3 style={{ fontSize: '15px', fontWeight: 900, color: '#111', margin: 0 }}>
+            Recent subscribers
+          </h3>
+          <button
+            onClick={handleExport}
+            disabled={isExporting || analytics.totalSubscribers === 0}
+            style={{
+              background: 'white', border: '1.5px solid #E8E8E8',
+              borderRadius: '8px', padding: '8px 14px',
+              fontSize: '12px', fontWeight: 800, color: '#333',
+              cursor: analytics.totalSubscribers === 0 ? 'default' : 'pointer',
+              opacity: analytics.totalSubscribers === 0 ? 0.5 : 1,
+            }}
+          >
+            {isExporting ? 'Exporting...' : `⬇️ Export CSV (${analytics.totalSubscribers})`}
+          </button>
+        </div>
+
+        {subscribers.length === 0 ? (
+          <div style={{
+            textAlign: 'center', padding: '32px 16px',
+            color: '#AAAAAA', fontSize: '14px', fontWeight: 600,
+          }}>
+            No subscribers yet. Share your link to start growing your list.
+          </div>
+        ) : (
+          <div>
+            {subscribers.map((sub, i) => (
+              <div
+                key={sub.id}
+                style={{
+                  display: 'flex', justifyContent: 'space-between',
+                  alignItems: 'center', padding: '12px 0',
+                  borderBottom: i < subscribers.length - 1 ? '1px solid #F4F4F4' : 'none',
+                }}
+              >
+                <div>
+                  <div style={{ fontSize: '14px', fontWeight: 700, color: '#111' }}>
+                    {sub.email}
+                  </div>
+                  <div style={{ fontSize: '11px', color: '#AAAAAA', fontWeight: 600, marginTop: '2px' }}>
+                    {new Date(sub.subscribed_at).toLocaleDateString('en-IN', {
+                      day: 'numeric', month: 'short', year: 'numeric',
+                    })}
+                  </div>
+                </div>
+                {sub.content_accessed && (
+                  <span style={{
+                    fontSize: '11px', fontWeight: 700, color: '#166534',
+                    background: '#EDFAF3', padding: '3px 8px', borderRadius: '6px',
+                  }}>
+                    Downloaded
+                  </span>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+const StatCard = ({ label, value, sublabel, color }) => (
+  <div style={{
+    background: 'white', border: '1px solid #F0F0F0',
+    borderRadius: '12px', padding: '14px',
+  }}>
+    <div style={{ fontSize: '22px', fontWeight: 900, color: color || '#111' }}>
+      {value}
+    </div>
+    <div style={{ fontSize: '11px', fontWeight: 700, color: '#888', marginTop: '3px' }}>
+      {label}
+    </div>
+    {sublabel && (
+      <div style={{ fontSize: '11px', color: '#BBBBBB', fontWeight: 600, marginTop: '2px' }}>
+        {sublabel}
+      </div>
+    )}
+  </div>
+)
+```
+
+---
+
+### Block 7 — Real-Time Subscriber Count in Dashboard
+
+When a new subscriber comes in the dashboard updates live.
+
+```javascript
+// In DashboardLinksTab.jsx — add realtime subscription for email links
+
+useEffect(() => {
+  if (!currentUser?.id) return
+
+  const channel = supabase
+    .channel('new_subscribers')
+    .on(
+      'postgres_changes',
+      {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'email_subscribers',
+        filter: `creator_id=eq.${currentUser.id}`,
+      },
+      (payload) => {
+        // Update the subscriber count on the matching link card
+        const linkId = payload.new.link_id
+        setLinks(prev => prev.map(l =>
+          l.id === linkId
+            ? { ...l, unlock_count: (l.unlock_count || 0) + 1 }
+            : l
+        ))
+        // Show a toast for the first few subscribers
+        showToast('New subscriber!', 'success')
+      }
+    )
+    .subscribe()
+
+  return () => supabase.removeChannel(channel)
+}, [currentUser?.id])
+```
+
+---
+
+### Block 8 — Verification Checklist
+
+Run through every item manually after implementation.
+
+**Viewer unlock flow:**
+- Open `/r/[slug]` for an email subscribe link → page loads with real link title, description, creator info, file details
+- Page view is recorded: `link_views` table gets a new row, `view_count` on the link increments
+- Enter a valid email → tap Subscribe → loading spinner shows on button
+- Success: 🎉 screen shows, download card appears, YouTube embed appears if set
+- `email_subscribers` table has the new row with correct `link_id`, `creator_id`, `email`, `content_accessed: true`
+- `unlock_count` on the link incremented in `links` table
+- Download button click → browser downloads the real file from R2 presigned URL
+- Presigned URL works once and expires after 5 minutes
+
+**Duplicate email handling:**
+- Subscribe with same email on same link a second time → success state shown, file served again, no duplicate row in `email_subscribers`
+- UNIQUE constraint on `(link_id, email)` prevents duplicates even on race conditions
+
+**Session persistence:**
+- Refresh the page after unlocking → "already subscribed" state shown, email form re-appears for re-download
+- Enter email again → file served without creating duplicate subscriber
+
+**Logged-in viewer:**
+- Log in → open the unlock page → email field pre-filled with account email
+- Subscribe → `viewer_id` field set in `email_subscribers` row
+
+**Creator analytics:**
+- Open Dashboard → Links tab → email subscribe link shows updated `unlock_count`
+- Open per-link analytics → total subscribers count is correct
+- Export CSV → downloads a real CSV file with all subscriber emails and dates
+- Real-time: viewer subscribes → dashboard subscriber count updates live without refresh
+
+**Invalid inputs:**
+- Empty email → "Please enter your email address." error, no API call
+- Invalid email format → "Please enter a valid email address." error, no API call
+- Network error during subscribe → error message shown, button re-enabled
+
+**RLS verification:**
+- Unauthenticated request to `email_subscribers` SELECT → returns 0 rows (creator_id policy)
+- Authenticated request as wrong user to `email_subscribers` SELECT → returns 0 rows
+- Creator SELECT on their own `email_subscribers` → returns all rows for their links
+
+**Performance:**
+- Page load to interactive under 1.5 seconds on a real mobile connection
+- Subscribe action completes in under 2 seconds including DB insert and presigned URL generation
+- View tracking fires asynchronously — does not block page render

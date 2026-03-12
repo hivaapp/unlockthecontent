@@ -6,6 +6,7 @@ import { Globe, ChevronLeft } from 'lucide-react';
 import { useMessaging } from '../context/MessagingContext';
 import { useToast } from '../context/ToastContext';
 import { BottomSheet } from '../components/ui/BottomSheet';
+import { AuthBottomSheet } from '../components/AuthBottomSheet';
 
 const getFileEmoji = (type: string) => {
     const t = type?.toUpperCase();
@@ -85,6 +86,7 @@ export const CreatorProfile = () => {
 
     const [activeTab, setActiveTab] = useState<'resources' | 'pairing'>('resources');
     const [showMessageSheet, setShowMessageSheet] = useState(false);
+    const [isAuthSheetOpen, setIsAuthSheetOpen] = useState(false);
     const [messageText, setMessageText] = useState('');
     const [isSending, setIsSending] = useState(false);
     
@@ -93,7 +95,7 @@ export const CreatorProfile = () => {
 
     const handleSendMessage = () => {
         if (!isLoggedIn) {
-            navigate('/?signIn=true');
+            setIsAuthSheetOpen(true);
             return;
         }
         if (!messageText.trim() || !currentUser || !profileCreator || !sendRequest) return;
@@ -228,7 +230,7 @@ export const CreatorProfile = () => {
                             
                             {!isOwner && (
                                 <button 
-                                    onClick={() => requestAlreadySent ? navigate('/chats') : isLoggedIn ? setShowMessageSheet(true) : navigate('/?signIn=true')}
+                                    onClick={() => requestAlreadySent ? navigate('/chats') : isLoggedIn ? setShowMessageSheet(true) : setIsAuthSheetOpen(true)}
                                     disabled={false} // don't disable, route to chats instead
                                     className={`lg:hidden h-[36px] px-[16px] rounded-[10px] text-[13px] font-bold flex items-center justify-center shrink-0 mb-1 ml-auto self-start mt-[-2px] transition-colors ${requestAlreadySent ? 'bg-surfaceAlt text-textMid border border-border' : 'bg-brand text-white'}`}
                                 >
@@ -240,7 +242,7 @@ export const CreatorProfile = () => {
                         {/* Desktop Message Button */}
                         {!isOwner && (
                             <button
-                                onClick={() => requestAlreadySent ? navigate('/chats') : isLoggedIn ? setShowMessageSheet(true) : navigate('/?signIn=true')}
+                                onClick={() => requestAlreadySent ? navigate('/chats') : isLoggedIn ? setShowMessageSheet(true) : setIsAuthSheetOpen(true)}
                                 className={`hidden lg:flex w-full mt-4 h-[44px] rounded-[12px] text-[14px] font-[900] items-center justify-center transition-colors ${requestAlreadySent ? 'bg-surfaceAlt text-textMid border border-border' : 'bg-brand text-white hover:bg-brandHover shadow-sm'}`}
                             >
                                 {requestAlreadySent ? 'Request Pending' : 'Message'}
@@ -497,6 +499,16 @@ export const CreatorProfile = () => {
                     </div>
                 </div>
             </BottomSheet>
+
+            <AuthBottomSheet
+                isOpen={isAuthSheetOpen}
+                onClose={() => setIsAuthSheetOpen(false)}
+                onSuccess={() => {
+                    setIsAuthSheetOpen(false);
+                    setShowMessageSheet(true);
+                }}
+                defaultScreen="signin"
+            />
         </div>
     );
 };

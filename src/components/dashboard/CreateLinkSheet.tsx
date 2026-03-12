@@ -2,12 +2,14 @@ import { useState } from 'react';
 import { BottomSheet } from '../ui/BottomSheet';
 import { useProgress } from '../../context/ProgressContext';
 import { useAuth } from '../../context/AuthContext';
+import { createLink } from '../../services/linksService';
 import { CustomSponsorForm, type CustomAdData } from '../CustomSponsorForm';
 import { ContentBuilder, type ContentData } from '../ContentBuilder';
 import { UnlockTypeSelector, type UnlockType } from './UnlockTypeSelector';
 import { EmailConfigForm, type EmailConfigData } from './EmailConfigForm';
 import { SocialConfigForm, type SocialConfigData } from './SocialConfigForm';
 import { FollowerPairingConfigForm, type FollowerPairingConfigData } from './FollowerPairingConfigForm';
+import { useToast } from '../../context/ToastContext';
 
 interface CreateLinkSheetProps {
     isOpen: boolean;
@@ -41,9 +43,11 @@ export const CreateLinkSheet = ({ isOpen, onClose, onSuccess }: CreateLinkSheetP
     const [isSubmitting, setIsSubmitting] = useState(false);
 
     const { startProgress, stopProgress } = useProgress();
-    const { createLink } = useAuth();
+    const { currentUser, refreshProfile } = useAuth();
+    const { showToast } = useToast();
 
     const handleSubmit = async () => {
+        if (!currentUser?.id) return;
         const hasTextContent = contentData.textContent.trim().length > 0 || contentData.links.length > 0 || !!contentData.youtubeUrl;
         const hasContent = unlockType === 'follower_pairing' ? true : (contentData.file || hasTextContent);
         if (!hasContent) return;
@@ -56,37 +60,102 @@ export const CreateLinkSheet = ({ isOpen, onClose, onSuccess }: CreateLinkSheetP
         setIsSubmitting(true);
         startProgress();
 
-        await createLink({
-            title,
-            description: desc,
-            donateEnabled: false, // Removed platform ad feature
-            unlockType,
+        try {
+            const mode = unlockType === 'follower_pairing' ? 'follower_pairing' : 'lock_content';
+
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            customAd: unlockType === 'custom_sponsor' ? customAd as any : undefined,
-            emailConfig: unlockType === 'email_subscribe' ? emailConfig : undefined,
-            socialConfig: unlockType === 'social_follow' ? socialConfig : undefined,
-            followerPairingConfig: unlockType === 'follower_pairing' ? followerPairingConfig : undefined,
-            contentMode: unlockType === 'follower_pairing' ? undefined : contentData.contentMode,
-            youtubeUrl: unlockType === 'follower_pairing' ? undefined : contentData.youtubeUrl,
-            fileType: unlockType === 'follower_pairing' ? '' : (contentData.file ? (contentData.file.name.split('.').pop()?.toUpperCase() || 'FILE') : (contentData.contentMode === 'text' ? 'TEXT' : 'BOTH')),
-            fileName: unlockType === 'follower_pairing' ? '' : (contentData.file ? contentData.file.name : (contentData.contentMode === 'text' ? 'Text Content' : 'Combined Content')),
-        });
+            const linkData: Record<string, any> = {
+                title,
+                description: desc,
+                mode,
+                unlockType: mode === 'lock_content' ? unlockType : undefined,
+                fileId: (contentData as any)?.fileId || null,
+                youtubeUrl: unlockType === 'follower_pairing' ? null : (contentData.youtubeUrl || null),
+                donateEnabled: false,
+            };
 
-        setIsSubmitting(false);
-        stopProgress();
-        onSuccess();
+            // Attach type-specific config
+            if (mode === 'lock_content') {
+                if (unlockType === 'email_subscribe' && emailConfig) {
+                    linkData.emailConfig = {
+                        newsletterName: emailConfig.newsletterName,
+                        newsletterDescription: emailConfig.newsletterDescription || null,
+                        platform: emailConfig.platform || 'direct',
+                    };
+                }
+                if (unlockType === 'social_follow' && socialConfig) {
+                    linkData.socialConfig = {
+                        customHeading: socialConfig.customHeading || null,
+                        followDescription: socialConfig.followDescription || null,
+                        followTargets: socialConfig.followTargets?.map((t: any) => ({
+                            type: t.type || 'platform',
+                            platform: t.platform,
+                            handle: t.handle,
+                            profileUrl: t.profileUrl,
+                            customLabel: t.customLabel,
+                            customUrl: t.customUrl,
+                            instructionText: t.instructionText,
+                        })) || [],
+                    };
+                }
+                if (unlockType === 'custom_sponsor' && customAd) {
+                    linkData.sponsorConfig = {
+                        brandName: customAd.brandName || '',
+                        brandWebsite: customAd.redirectUrl || null,
+                        ctaButtonLabel: customAd.ctaText || 'Visit Sponsor',
+                        videoFileId: (customAd as any).fileId || null,
+                        requiresClick: !!(customAd.redirectUrl),
+                        skipAfterSeconds: customAd.skipAfter || 5,
+                    };
+                }
+            }
 
-        // Reset state after slight delay
-        setTimeout(() => {
-            setContentData({
-                contentMode: 'both',
-                textContent: '',
-                links: [],
-                file: null
-            });
-            setTitle('');
-            setDesc('');
-        }, 300);
+            if (mode === 'follower_pairing' && followerPairingConfig) {
+                linkData.pairingConfig = {
+                    topic: followerPairingConfig.topic,
+                    description: followerPairingConfig.description || null,
+                    commitmentPrompt: followerPairingConfig.commitmentPrompt,
+                    durationDays: followerPairingConfig.durationDays,
+                    checkInFrequency: followerPairingConfig.checkInFrequency || 'daily',
+                    scheduledMessages: followerPairingConfig.scheduledMessages?.map((m: any) => ({
+                        dayNumber: m.dayNumber,
+                        sendTime: m.sendTime || '09:00:00',
+                        content: m.content,
+                    })) || [],
+                    completionAsset: (followerPairingConfig.completionAsset?.enabled && followerPairingConfig.completionAsset?.fileName) ? {
+                        fileId: (followerPairingConfig.completionAsset as any).fileId || null,
+                        unlockMessage: followerPairingConfig.completionAsset.unlockMessage || null,
+                    } : null,
+                };
+            }
+
+            await createLink(currentUser.id, linkData);
+            await refreshProfile();
+
+            stopProgress();
+            onSuccess();
+
+            // Reset state after slight delay
+            setTimeout(() => {
+                setContentData({
+                    contentMode: 'both',
+                    textContent: '',
+                    links: [],
+                    file: null
+                });
+                setTitle('');
+                setDesc('');
+            }, 300);
+        } catch (err: any) {
+            stopProgress();
+            if (err.message?.includes('Free plan') || err.message?.includes('Pro plan')) {
+                showToast({ message: err.message, type: 'error' });
+            } else {
+                showToast({ message: err.message || 'Failed to create link', type: 'error' });
+            }
+        } finally {
+            setIsSubmitting(false);
+        }
     };
 
     const generateButton = (

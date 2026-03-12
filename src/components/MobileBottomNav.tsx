@@ -1,12 +1,16 @@
+import { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { Home, LayoutDashboard, Compass, MessageCircle, User } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useChatSessions } from '../context/ChatSessionsContext';
 import { useMessaging } from '../context/MessagingContext';
+import { AuthBottomSheet } from './AuthBottomSheet';
 
 export const MobileBottomNav = () => {
     const { isLoggedIn, currentUser } = useAuth();
     const location = useLocation();
+    const [isAuthSheetOpen, setIsAuthSheetOpen] = useState(false);
+    const [authScreen, setAuthScreen] = useState<'signin' | 'signup'>('signin');
 
     let chatUnread = 0;
     try {
@@ -22,7 +26,7 @@ export const MobileBottomNav = () => {
         }
     } catch { /* ignore */ }
 
-    if (!isLoggedIn) return null;
+    // if (!isLoggedIn) return null; // Remove this to show nav for everyone
 
     const navItems = [
         { id: 'home', path: '/dashboard?tab=home', icon: Home, label: 'Home' },
@@ -47,10 +51,20 @@ export const MobileBottomNav = () => {
             <div className="flex items-center justify-around h-[64px] px-2">
                 {navItems.map(item => {
                     const isActive = getIsActive(item);
+                    
+                    const handleClick = (e: React.MouseEvent) => {
+                        if (!isLoggedIn && (item.id === 'home' || item.id === 'dashboard' || item.id === 'chats' || item.id === 'account')) {
+                            e.preventDefault();
+                            setAuthScreen(item.id === 'account' ? 'signin' : 'signin');
+                            setIsAuthSheetOpen(true);
+                        }
+                    };
+
                     return (
                         <Link
                             key={item.id}
                             to={item.path}
+                            onClick={handleClick}
                             className={`flex flex-col items-center justify-center gap-1 w-full relative h-full ${
                                 isActive ? 'text-brand' : 'text-textLight hover:text-textMid'
                             } transition-colors`}
@@ -75,6 +89,12 @@ export const MobileBottomNav = () => {
                     );
                 })}
             </div>
+
+            <AuthBottomSheet
+                isOpen={isAuthSheetOpen}
+                onClose={() => setIsAuthSheetOpen(false)}
+                defaultScreen={authScreen}
+            />
         </div>
     );
 };

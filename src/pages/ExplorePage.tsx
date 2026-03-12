@@ -3,6 +3,8 @@ import { Link, useSearchParams } from 'react-router-dom';
 import { Search, Grid, List as ListIcon, ChevronRight, Sparkles, X, Mail, Share2, Handshake } from 'lucide-react';
 import { mockExploreResources, mockSearchUsers, type ExploreResource } from '../lib/mockData';
 import { getAvatarColor } from '../lib/utils';
+import { useAuth } from '../context/AuthContext';
+import { AuthBottomSheet } from '../components/AuthBottomSheet';
 
 const CATEGORIES = ['All', 'Dev', 'Design', 'Creators'];
 const SORTS = ['Most Unlocked', 'Newest', 'Trending', 'Sponsored First'];
@@ -34,6 +36,8 @@ export const ExplorePage = () => {
 
     const [visibleCount, setVisibleCount] = useState(6);
     const [isLoadingMore, setIsLoadingMore] = useState(false);
+    const [isAuthSheetOpen, setIsAuthSheetOpen] = useState(false);
+    const { isLoggedIn } = useAuth();
 
     useLayoutEffect(() => {
         const handleScroll = () => {
@@ -214,9 +218,20 @@ export const ExplorePage = () => {
                                     </div>
                                     <div className="text-[13px] font-bold text-textMid truncate">@{user.username}</div>
                                 </div>
-                                <div className="h-[36px] px-4 rounded-full bg-brand text-white font-extrabold text-[13px] flex items-center justify-center shrink-0 transition-transform hover:scale-105 active:scale-95">
+                                <button 
+                                    onClick={(e) => {
+                                        e.preventDefault();
+                                        e.stopPropagation();
+                                        if (isLoggedIn) {
+                                            window.location.href = `/@${user.username}`;
+                                        } else {
+                                            setIsAuthSheetOpen(true);
+                                        }
+                                    }}
+                                    className="h-[36px] px-4 rounded-full bg-brand text-white font-extrabold text-[13px] flex items-center justify-center shrink-0 transition-transform hover:scale-105 active:scale-95"
+                                >
                                     Message
-                                </div>
+                                </button>
                             </Link>
                         ))}
                     </div>
@@ -424,6 +439,11 @@ export const ExplorePage = () => {
                 </div>
             </footer>
 
+            <AuthBottomSheet
+                isOpen={isAuthSheetOpen}
+                onClose={() => setIsAuthSheetOpen(false)}
+                defaultScreen="signin"
+            />
         </div>
     );
 };

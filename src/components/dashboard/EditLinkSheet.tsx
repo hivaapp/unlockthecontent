@@ -3,6 +3,8 @@ import { BottomSheet } from '../ui/BottomSheet';
 import { FileIcon, BarChart2, TrendingUp, Users } from 'lucide-react';
 import { useProgress } from '../../context/ProgressContext';
 import { useAuth } from '../../context/AuthContext';
+import { updateLink } from '../../services/linksService';
+import { useToast } from '../../context/ToastContext';
 
 interface EditLinkSheetProps {
     isOpen: boolean;
@@ -18,7 +20,8 @@ export const EditLinkSheet = ({ isOpen, onClose, onSuccess, link }: EditLinkShee
     const [prevLink, setPrevLink] = useState(link);
 
     const { startProgress, stopProgress } = useProgress();
-    const { updateLink } = useAuth();
+    const { currentUser } = useAuth();
+    const { showToast } = useToast();
 
     if (link !== prevLink) {
         setPrevLink(link);
@@ -29,18 +32,24 @@ export const EditLinkSheet = ({ isOpen, onClose, onSuccess, link }: EditLinkShee
     }
 
     const handleSubmit = async () => {
-        if (!link) return;
+        if (!link || !currentUser?.id) return;
         setIsSubmitting(true);
         startProgress();
 
-        await updateLink(link.id, {
-            title,
-            description: desc,
-        });
+        try {
+            await updateLink(link.id, currentUser.id, {
+                title,
+                description: desc,
+            });
 
-        setIsSubmitting(false);
-        stopProgress();
-        onSuccess();
+            stopProgress();
+            onSuccess();
+        } catch (err: any) {
+            stopProgress();
+            showToast({ message: err.message || 'Failed to update link', type: 'error' });
+        } finally {
+            setIsSubmitting(false);
+        }
     };
 
     // Calculate mock analytics

@@ -1,0 +1,1805 @@
+## Part 5 — Creator Profile + Links CRUD
+
+---
+
+### What This Part Does
+
+Replaces every mock data import in the Dashboard and Creator Profile with real Supabase queries. Creates the complete links CRUD service. Connects the Create Link form, Edit Link form, toggle active/inactive, and delete — all writing to the real database. Connects the Dashboard Links tab, the Creator Profile page `/@:username`, and the Explore page to live data. Adds slug generation, slug uniqueness validation, and plan limit enforcement. By the end of this part a creator can create a real link, share it, and anyone can find it on Explore or on their profile — all from the real database with zero mock data.
+
+---
+
+### Block 1 — Links Service
+
+Create `src/services/linksService.js`. Every component that reads or writes links goes through this service. No component calls `supabase` directly for links.
+
+```javascript
+// src/services/linksService.js
+import { supabase } from '../lib/supabase'
+
+// ── Slug generation ───────────────────────────────────────────────────────
+// Creates a URL-safe slug from the link title.
+// "My Figma UI Kit 2024" → "my-figma-ui-kit-2024"
+
+export const generateSlug = (title) => {
+  return title
+    .toLowerCase()
+    .trim()
+    .replace(/[^\w\s-]/g, '')     // remove special chars except hyphens
+    .replace(/[\s_]+/g, '-')      // spaces and underscores to hyphens
+    .replace(/-+/g, '-')          // collapse multiple hyphens
+    .replace(/^-|-$/g, '')        // trim leading/trailing hyphens
+    .substring(0, 60)             // max 60 chars
+}
+
+// Appends a random suffix if the base slug is taken
+export const generateUniqueSlug = async (title) => {
+  const base = generateSlug(title)
+  
+  // Check if base slug is available
+  const { data } = await supabase
+    .from('links')
+    .select('slug')
+    .eq('slug', base)
+    .maybeSingle()
+  
+  if (!data) return base  // base slug is free
+  
+  // Try up to 10 suffixes before giving up
+  for (let i = 0; i < 10; i++) {
+    const suffix = Math.random().toString(36).substring(2, 6)
+    const candidate = `${base}-${suffix}`
+    const { data: existing } = await supabase
+      .from('links')
+      .select('slug')
+      .eq('slug', candidate)
+      .maybeSingle()
+    
+    if (!existing) return candidate
+  }
+  
+  // Fallback: timestamp suffix always unique
+  return `${base}-${Date.now().toString(36)}`
+}
+
+// ── Full link query (all configs) ────────────────────────────────────────
+// Used by dashboard and edit form — fetches everything for one link.
+
+const FULL_LINK_SELECT = `
+  id,
+  slug,
+  title,
+  description,
+  mode,
+  unlock_type,
+  youtube_url,
+  donate_enabled,
+  is_active,
+  view_count,
+  unlock_count,
+  created_at,
+  updated_at,
+  file:files (
+    id,
+    original_name,
+    mime_type,
+    size_bytes,
+    file_type,
+    r2_key,
+    r2_bucket
+  ),
+  email_config:email_configs (
+    id,
+    newsletter_name,
+    newsletter_description,
+    incentive_text,
+    confirmation_message,
+    platform,
+    platform_display_name
+  ),
+  social_config:social_configs (
+    id,
+    custom_heading,
+    follow_description,
+    follow_targets (
+      id,
+      type,
+      platform,
+      handle,
+      profile_url,
+      custom_label,
+      custom_url,
+      custom_icon,
+      instruction_text,
+      sort_order
+    )
+  ),
+  sponsor_config:sponsor_configs (
+    id,
+    brand_name,
+    brand_website,
+    cta_button_label,
+    requires_click,
+    skip_after_seconds,
+    video_file:files (
+      id,
+      original_name,
+      mime_type,
+      size_bytes
+    )
+  ),
+  pairing_config:pairing_configs (
+    id,
+    topic,
+    description,
+    commitment_prompt,
+    duration_days,
+    check_in_frequency,
+    guidelines,
+    creator_resource_url,
+    creator_resource_label,
+    max_pairs,
+    is_accepting,
+    total_participants,
+    active_pairs,
+    completed_pairs,
+    completion_asset:completion_assets (
+      id,
+      unlock_message,
+      file:files (
+        id,
+        original_name,
+        mime_type,
+        size_bytes
+      )
+    ),
+    scheduled_messages (
+      id,
+      day_number,
+      send_time,
+      content,
+      is_sent,
+      sent_at,
+      delivered_count
+    )
+  )
+`
+
+// ── Fetch all links for creator dashboard ────────────────────────────────
+
+export const getCreatorLinks = async (creatorId) => {
+  const { data, error } = await supabase
+    .from('links')
+    .select(FULL_LINK_SELECT)
+    .eq('creator_id', creatorId)
+    .order('created_at', { ascending: false })
+  
+  if (error) throw error
+  return data || []
+}
+
+// ── Fetch single link by slug (public page /r/:slug) ─────────────────────
+
+export const getLinkBySlug = async (slug) => {
+  const { data, error } = await supabase
+    .from('links')
+    .select(`
+      ${FULL_LINK_SELECT},
+      creator:users (
+        id,
+        name,
+        username,
+        bio,
+        avatar_color,
+        initial,
+        is_verified,
+        trust_score,
+        social_handles (
+          platform,
+          handle,
+          profile_url
+        )
+      )
+    `)
+    .eq('slug', slug)
+    .eq('is_active', true)
+    .maybeSingle()
+  
+  if (error) throw error
+  return data
+}
+
+// ── Fetch links for creator public profile /@:username ───────────────────
+
+export const getPublicCreatorLinks = async (creatorId) => {
+  const { data, error } = await supabase
+    .from('links')
+    .select(`
+      id,
+      slug,
+      title,
+      description,
+      mode,
+      unlock_type,
+      view_count,
+      unlock_count,
+      created_at,
+      file:files (
+        id,
+        original_name,
+        mime_type,
+        file_type
+      ),
+      pairing_config:pairing_configs (
+        topic,
+        duration_days,
+        is_accepting,
+        total_participants,
+        active_pairs,
+        completed_pairs
+      )
+    `)
+    .eq('creator_id', creatorId)
+    .eq('is_active', true)
+    .order('unlock_count', { ascending: false })
+  
+  if (error) throw error
+  return data || []
+}
+
+// ── Fetch links for Explore page ─────────────────────────────────────────
+
+export const getExploreLinks = async ({
+  search = '',
+  category = '',
+  unlockType = '',
+  sortBy = 'unlock_count',
+  page = 0,
+  pageSize = 20,
+} = {}) => {
+  let query = supabase
+    .from('links')
+    .select(`
+      id,
+      slug,
+      title,
+      description,
+      mode,
+      unlock_type,
+      view_count,
+      unlock_count,
+      created_at,
+      file:files (
+        id,
+        original_name,
+        mime_type,
+        file_type
+      ),
+      creator:users (
+        id,
+        name,
+        username,
+        avatar_color,
+        initial,
+        is_verified
+      )
+    `, { count: 'exact' })
+    .eq('is_active', true)
+    .range(page * pageSize, (page + 1) * pageSize - 1)
+  
+  // Search against title + description using pg_trgm index
+  if (search) {
+    query = query.or(
+      `title.ilike.%${search}%,description.ilike.%${search}%`
+    )
+  }
+  
+  // Filter by unlock type
+  if (unlockType && unlockType !== 'all') {
+    if (unlockType === 'follower_pairing') {
+      query = query.eq('mode', 'follower_pairing')
+    } else {
+      query = query.eq('unlock_type', unlockType)
+    }
+  }
+  
+  // Sort
+  const sortMap = {
+    unlock_count: { column: 'unlock_count', ascending: false },
+    created_at:   { column: 'created_at',   ascending: false },
+    title:        { column: 'title',         ascending: true  },
+  }
+  const sort = sortMap[sortBy] || sortMap.unlock_count
+  query = query.order(sort.column, { ascending: sort.ascending })
+  
+  const { data, error, count } = await query
+  
+  if (error) throw error
+  return { links: data || [], total: count || 0, hasMore: (page + 1) * pageSize < (count || 0) }
+}
+
+// ── Search users for Explore people search ───────────────────────────────
+
+export const searchUsers = async (query, limit = 8) => {
+  const { data, error } = await supabase
+    .from('users')
+    .select(`
+      id,
+      name,
+      username,
+      bio,
+      avatar_color,
+      initial,
+      is_creator,
+      is_verified,
+      trust_score
+    `)
+    .or(`name.ilike.%${query}%,username.ilike.%${query}%,bio.ilike.%${query}%`)
+    .limit(limit)
+  
+  if (error) throw error
+  return data || []
+}
+
+// ── Create link ───────────────────────────────────────────────────────────
+
+export const createLink = async (creatorId, linkData) => {
+  const {
+    title,
+    description,
+    mode,
+    unlockType,
+    fileId,
+    youtubeUrl,
+    donateEnabled,
+    // Config objects
+    emailConfig,
+    socialConfig,    // { customHeading, followDescription, followTargets: [] }
+    sponsorConfig,
+    pairingConfig,
+  } = linkData
+  
+  // Generate unique slug from title
+  const slug = await generateUniqueSlug(title)
+  
+  // ── Insert base link record ──────────────────────────────────────────
+  const { data: link, error: linkError } = await supabase
+    .from('links')
+    .insert({
+      creator_id:    creatorId,
+      slug,
+      title,
+      description:   description || null,
+      mode,
+      unlock_type:   mode === 'follower_pairing' ? null : unlockType,
+      file_id:       fileId || null,
+      youtube_url:   youtubeUrl || null,
+      donate_enabled: donateEnabled || false,
+      is_active:     true,
+    })
+    .select('id, slug')
+    .single()
+  
+  if (linkError) throw linkError
+  
+  // ── Insert type-specific config ──────────────────────────────────────
+  if (mode === 'lock_content') {
+    
+    if (unlockType === 'email_subscribe' && emailConfig) {
+      const { error } = await supabase
+        .from('email_configs')
+        .insert({
+          link_id:                link.id,
+          newsletter_name:        emailConfig.newsletterName,
+          newsletter_description: emailConfig.newsletterDescription || null,
+          incentive_text:         emailConfig.incentiveText || null,
+          confirmation_message:   emailConfig.confirmationMessage || null,
+          platform:               emailConfig.platform || 'direct',
+          platform_display_name:  emailConfig.platformDisplayName || null,
+        })
+      if (error) throw error
+    }
+    
+    if (unlockType === 'social_follow' && socialConfig) {
+      // Insert social_config
+      const { data: sc, error: scError } = await supabase
+        .from('social_configs')
+        .insert({
+          link_id:           link.id,
+          custom_heading:    socialConfig.customHeading || null,
+          follow_description: socialConfig.followDescription || null,
+        })
+        .select('id')
+        .single()
+      
+      if (scError) throw scError
+      
+      // Insert follow targets
+      if (socialConfig.followTargets?.length > 0) {
+        const targets = socialConfig.followTargets.map((t, i) => ({
+          social_config_id: sc.id,
+          type:             t.type || 'platform',
+          platform:         t.platform || null,
+          handle:           t.handle || null,
+          profile_url:      t.profileUrl || null,
+          custom_label:     t.customLabel || null,
+          custom_url:       t.customUrl || null,
+          custom_icon:      t.customIcon || null,
+          instruction_text: t.instructionText || null,
+          sort_order:       i,
+        }))
+        const { error: targetsError } = await supabase
+          .from('follow_targets')
+          .insert(targets)
+        if (targetsError) throw targetsError
+      }
+    }
+    
+    if (unlockType === 'custom_sponsor' && sponsorConfig) {
+      const { error } = await supabase
+        .from('sponsor_configs')
+        .insert({
+          link_id:             link.id,
+          brand_name:          sponsorConfig.brandName,
+          brand_website:       sponsorConfig.brandWebsite || null,
+          cta_button_label:    sponsorConfig.ctaButtonLabel || 'Visit Sponsor',
+          video_file_id:       sponsorConfig.videoFileId || null,
+          requires_click:      sponsorConfig.requiresClick || false,
+          skip_after_seconds:  sponsorConfig.skipAfterSeconds || 5,
+        })
+      if (error) throw error
+    }
+  }
+  
+  if (mode === 'follower_pairing' && pairingConfig) {
+    // Plan limit check — Free tier max 1 active pairing link
+    const { data: planCheck } = await supabase
+      .from('users')
+      .select('is_pro, active_pairing_links_count')
+      .eq('id', creatorId)
+      .single()
+    
+    const maxAllowed = planCheck?.is_pro ? 5 : 1
+    if ((planCheck?.active_pairing_links_count || 0) >= maxAllowed) {
+      // Rollback the link insert then throw
+      await supabase.from('links').delete().eq('id', link.id)
+      throw new Error(
+        planCheck?.is_pro
+          ? 'You have reached the maximum of 5 active Follower Pairing campaigns on the Pro plan.'
+          : 'Free plan allows 1 active Follower Pairing campaign. Upgrade to Pro for up to 5.'
+      )
+    }
+    
+    // Insert pairing config
+    const { data: pc, error: pcError } = await supabase
+      .from('pairing_configs')
+      .insert({
+        link_id:               link.id,
+        topic:                 pairingConfig.topic,
+        description:           pairingConfig.description || null,
+        commitment_prompt:     pairingConfig.commitmentPrompt,
+        duration_days:         pairingConfig.durationDays,
+        check_in_frequency:    pairingConfig.checkInFrequency || 'daily',
+        guidelines:            pairingConfig.guidelines || null,
+        creator_resource_url:  pairingConfig.creatorResourceUrl || null,
+        creator_resource_label: pairingConfig.creatorResourceLabel || null,
+        max_pairs:             planCheck?.is_pro ? null : 10,
+        is_accepting:          true,
+      })
+      .select('id')
+      .single()
+    
+    if (pcError) throw pcError
+    
+    // Insert scheduled messages if any
+    if (pairingConfig.scheduledMessages?.length > 0) {
+      const messages = pairingConfig.scheduledMessages.map(m => ({
+        pairing_config_id: pc.id,
+        day_number:        m.dayNumber,
+        send_time:         m.sendTime || '09:00:00',
+        content:           m.content,
+      }))
+      const { error: msgError } = await supabase
+        .from('scheduled_messages')
+        .insert(messages)
+      if (msgError) throw msgError
+    }
+    
+    // Insert completion asset if provided
+    if (pairingConfig.completionAsset?.fileId) {
+      const { error: caError } = await supabase
+        .from('completion_assets')
+        .insert({
+          pairing_config_id: pc.id,
+          file_id:           pairingConfig.completionAsset.fileId,
+          unlock_message:    pairingConfig.completionAsset.unlockMessage || null,
+        })
+      if (caError) throw caError
+    }
+    
+    // Increment active_pairing_links_count on user
+    await supabase.rpc('increment_pairing_link_count', { p_user_id: creatorId })
+  }
+  
+  return { id: link.id, slug: link.slug }
+}
+
+// ── Update link ───────────────────────────────────────────────────────────
+
+export const updateLink = async (linkId, creatorId, updates) => {
+  const {
+    title,
+    description,
+    fileId,
+    youtubeUrl,
+    donateEnabled,
+    isActive,
+    emailConfig,
+    socialConfig,
+    sponsorConfig,
+    pairingConfig,
+  } = updates
+  
+  // Build the update object — only include fields that were passed
+  const linkUpdates = {}
+  if (title !== undefined)         linkUpdates.title = title
+  if (description !== undefined)   linkUpdates.description = description || null
+  if (fileId !== undefined)        linkUpdates.file_id = fileId || null
+  if (youtubeUrl !== undefined)    linkUpdates.youtube_url = youtubeUrl || null
+  if (donateEnabled !== undefined) linkUpdates.donate_enabled = donateEnabled
+  if (isActive !== undefined)      linkUpdates.is_active = isActive
+  
+  if (Object.keys(linkUpdates).length > 0) {
+    const { error } = await supabase
+      .from('links')
+      .update(linkUpdates)
+      .eq('id', linkId)
+      .eq('creator_id', creatorId)  // RLS + explicit check
+    if (error) throw error
+  }
+  
+  // Update email config
+  if (emailConfig) {
+    const { error } = await supabase
+      .from('email_configs')
+      .update({
+        newsletter_name:        emailConfig.newsletterName,
+        newsletter_description: emailConfig.newsletterDescription || null,
+        incentive_text:         emailConfig.incentiveText || null,
+        confirmation_message:   emailConfig.confirmationMessage || null,
+        platform:               emailConfig.platform || 'direct',
+      })
+      .eq('link_id', linkId)
+    if (error) throw error
+  }
+  
+  // Update social config + targets
+  if (socialConfig) {
+    const { data: sc } = await supabase
+      .from('social_configs')
+      .update({
+        custom_heading:     socialConfig.customHeading || null,
+        follow_description: socialConfig.followDescription || null,
+      })
+      .eq('link_id', linkId)
+      .select('id')
+      .single()
+    
+    if (sc && socialConfig.followTargets) {
+      // Replace all targets — delete and re-insert
+      await supabase.from('follow_targets').delete().eq('social_config_id', sc.id)
+      
+      if (socialConfig.followTargets.length > 0) {
+        const targets = socialConfig.followTargets.map((t, i) => ({
+          social_config_id: sc.id,
+          type:             t.type || 'platform',
+          platform:         t.platform || null,
+          handle:           t.handle || null,
+          profile_url:      t.profileUrl || null,
+          custom_label:     t.customLabel || null,
+          custom_url:       t.customUrl || null,
+          custom_icon:      t.customIcon || null,
+          instruction_text: t.instructionText || null,
+          sort_order:       i,
+        }))
+        await supabase.from('follow_targets').insert(targets)
+      }
+    }
+  }
+  
+  // Update sponsor config
+  if (sponsorConfig) {
+    const { error } = await supabase
+      .from('sponsor_configs')
+      .update({
+        brand_name:         sponsorConfig.brandName,
+        brand_website:      sponsorConfig.brandWebsite || null,
+        cta_button_label:   sponsorConfig.ctaButtonLabel || 'Visit Sponsor',
+        video_file_id:      sponsorConfig.videoFileId || null,
+        requires_click:     sponsorConfig.requiresClick || false,
+        skip_after_seconds: sponsorConfig.skipAfterSeconds || 5,
+      })
+      .eq('link_id', linkId)
+    if (error) throw error
+  }
+  
+  // Update pairing config
+  if (pairingConfig) {
+    const { data: pc } = await supabase
+      .from('pairing_configs')
+      .update({
+        topic:                  pairingConfig.topic,
+        description:            pairingConfig.description || null,
+        commitment_prompt:      pairingConfig.commitmentPrompt,
+        duration_days:          pairingConfig.durationDays,
+        check_in_frequency:     pairingConfig.checkInFrequency || 'daily',
+        guidelines:             pairingConfig.guidelines || null,
+        creator_resource_url:   pairingConfig.creatorResourceUrl || null,
+        creator_resource_label: pairingConfig.creatorResourceLabel || null,
+        is_accepting:           pairingConfig.isAccepting ?? true,
+      })
+      .eq('link_id', linkId)
+      .select('id')
+      .single()
+    
+    if (pc && pairingConfig.scheduledMessages) {
+      // Replace scheduled messages — only replace unsent ones
+      await supabase
+        .from('scheduled_messages')
+        .delete()
+        .eq('pairing_config_id', pc.id)
+        .eq('is_sent', false)
+      
+      const unsent = pairingConfig.scheduledMessages.filter(m => !m.isSent)
+      if (unsent.length > 0) {
+        await supabase.from('scheduled_messages').insert(
+          unsent.map(m => ({
+            pairing_config_id: pc.id,
+            day_number:        m.dayNumber,
+            send_time:         m.sendTime || '09:00:00',
+            content:           m.content,
+          }))
+        )
+      }
+    }
+    
+    // Update completion asset
+    if (pairingConfig.completionAsset !== undefined) {
+      if (pairingConfig.completionAsset?.fileId) {
+        await supabase
+          .from('completion_assets')
+          .upsert({
+            pairing_config_id: pc.id,
+            file_id:           pairingConfig.completionAsset.fileId,
+            unlock_message:    pairingConfig.completionAsset.unlockMessage || null,
+          }, { onConflict: 'pairing_config_id' })
+      } else {
+        // Completion asset removed
+        await supabase
+          .from('completion_assets')
+          .delete()
+          .eq('pairing_config_id', pc.id)
+      }
+    }
+  }
+  
+  return true
+}
+
+// ── Toggle link active/inactive ───────────────────────────────────────────
+
+export const toggleLinkActive = async (linkId, creatorId, isActive) => {
+  const { error } = await supabase
+    .from('links')
+    .update({ is_active: isActive })
+    .eq('id', linkId)
+    .eq('creator_id', creatorId)
+  
+  if (error) throw error
+  
+  // If this is a pairing link being deactivated, update the count
+  const { data: link } = await supabase
+    .from('links')
+    .select('mode')
+    .eq('id', linkId)
+    .single()
+  
+  if (link?.mode === 'follower_pairing') {
+    await supabase.rpc(
+      isActive ? 'increment_pairing_link_count' : 'decrement_pairing_link_count',
+      { p_user_id: creatorId }
+    )
+  }
+  
+  return true
+}
+
+// ── Delete link ───────────────────────────────────────────────────────────
+
+export const deleteLink = async (linkId, creatorId) => {
+  // Get link mode before delete
+  const { data: link } = await supabase
+    .from('links')
+    .select('mode, file_id, is_active')
+    .eq('id', linkId)
+    .single()
+  
+  const { error } = await supabase
+    .from('links')
+    .delete()
+    .eq('id', linkId)
+    .eq('creator_id', creatorId)
+  
+  if (error) throw error
+  
+  // Adjust pairing link count if was active pairing link
+  if (link?.mode === 'follower_pairing' && link?.is_active) {
+    await supabase.rpc('decrement_pairing_link_count', { p_user_id: creatorId })
+  }
+  
+  return true
+}
+
+// ── Track a link view ─────────────────────────────────────────────────────
+
+export const trackLinkView = async (linkId, sessionKey, viewerId = null) => {
+  // Deduplicate: don't count the same session_key twice within 30 minutes
+  const { data: recent } = await supabase
+    .from('link_views')
+    .select('id')
+    .eq('link_id', linkId)
+    .eq('session_key', sessionKey)
+    .gte('created_at', new Date(Date.now() - 30 * 60 * 1000).toISOString())
+    .maybeSingle()
+  
+  if (recent) return  // already counted
+  
+  await supabase.from('link_views').insert({
+    link_id:    linkId,
+    viewer_id:  viewerId,
+    session_key: sessionKey,
+    referrer:   document.referrer || null,
+  })
+  
+  // Increment denormalized counter
+  await supabase.rpc('increment_link_views', { p_link_id: linkId })
+}
+```
+
+---
+
+### Block 2 — SQL: Helper Functions for Plan Limits
+
+Run these in Supabase SQL editor. They are called by `linksService.js` via `supabase.rpc()`.
+
+```sql
+-- Increment active pairing link count
+CREATE OR REPLACE FUNCTION increment_pairing_link_count(p_user_id UUID)
+RETURNS VOID AS $$
+  UPDATE public.users
+  SET active_pairing_links_count = active_pairing_links_count + 1
+  WHERE id = p_user_id;
+$$ LANGUAGE sql SECURITY DEFINER;
+
+-- Decrement active pairing link count (floor at 0)
+CREATE OR REPLACE FUNCTION decrement_pairing_link_count(p_user_id UUID)
+RETURNS VOID AS $$
+  UPDATE public.users
+  SET active_pairing_links_count = GREATEST(0, active_pairing_links_count - 1)
+  WHERE id = p_user_id;
+$$ LANGUAGE sql SECURITY DEFINER;
+
+-- Check if user completed a pairing session (for completion asset delivery)
+CREATE OR REPLACE FUNCTION user_has_completed_session(p_user_id UUID, p_link_id UUID)
+RETURNS BOOLEAN AS $$
+  SELECT EXISTS (
+    SELECT 1
+    FROM public.pairing_sessions ps
+    JOIN public.pairing_participants pp_a ON pp_a.id = ps.participant_a_id
+    JOIN public.pairing_participants pp_b ON pp_b.id = ps.participant_b_id
+    WHERE ps.link_id = p_link_id
+      AND ps.status = 'completed'
+      AND (pp_a.user_id = p_user_id OR pp_b.user_id = p_user_id)
+  );
+$$ LANGUAGE sql SECURITY DEFINER;
+
+GRANT EXECUTE ON FUNCTION increment_pairing_link_count(UUID) TO authenticated;
+GRANT EXECUTE ON FUNCTION decrement_pairing_link_count(UUID) TO authenticated;
+GRANT EXECUTE ON FUNCTION user_has_completed_session(UUID, UUID) TO authenticated, anon;
+```
+
+---
+
+### Block 3 — Creator Profile Service
+
+Create `src/services/profileService.js`. Handles all public profile reads.
+
+```javascript
+// src/services/profileService.js
+import { supabase } from '../lib/supabase'
+import { getPublicCreatorLinks } from './linksService'
+
+// ── Get creator profile by username ──────────────────────────────────────
+
+export const getCreatorProfile = async (username) => {
+  const { data, error } = await supabase
+    .from('users')
+    .select(`
+      id,
+      name,
+      username,
+      bio,
+      location,
+      website,
+      avatar_color,
+      initial,
+      is_creator,
+      is_verified,
+      is_pro,
+      trust_score,
+      created_at,
+      social_handles (
+        platform,
+        handle,
+        profile_url,
+        sort_order
+      )
+    `)
+    .eq('username', username)
+    .maybeSingle()
+  
+  if (error) throw error
+  if (!data) return null
+  
+  // Reshape social handles
+  const socialHandles = {}
+  if (data.social_handles) {
+    data.social_handles
+      .sort((a, b) => a.sort_order - b.sort_order)
+      .forEach(h => { socialHandles[h.platform] = h.handle })
+  }
+  
+  // Fetch stats separately — aggregate queries
+  const [linksData, statsData] = await Promise.all([
+    getPublicCreatorLinks(data.id),
+    getCreatorStats(data.id),
+  ])
+  
+  return {
+    ...data,
+    socialHandles,
+    avatarColor: data.avatar_color,
+    isCreator: data.is_creator,
+    isVerified: data.is_verified,
+    isProUser: data.is_pro,
+    trustScore: data.trust_score,
+    links: linksData,
+    stats: statsData,
+  }
+}
+
+// ── Get creator stats ─────────────────────────────────────────────────────
+
+export const getCreatorStats = async (creatorId) => {
+  // Total links count
+  const { count: totalLinks } = await supabase
+    .from('links')
+    .select('*', { count: 'exact', head: true })
+    .eq('creator_id', creatorId)
+    .eq('is_active', true)
+  
+  // Total unlocks across all links
+  const { data: unlockSum } = await supabase
+    .from('links')
+    .select('unlock_count')
+    .eq('creator_id', creatorId)
+    .eq('is_active', true)
+  
+  const totalUnlocks = unlockSum?.reduce((sum, l) => sum + (l.unlock_count || 0), 0) || 0
+  
+  // Pairing stats
+  const { data: pairingStats } = await supabase
+    .from('links')
+    .select(`
+      pairing_config:pairing_configs (
+        total_participants,
+        active_pairs,
+        completed_pairs
+      )
+    `)
+    .eq('creator_id', creatorId)
+    .eq('mode', 'follower_pairing')
+    .eq('is_active', true)
+  
+  const totalCampaigns = pairingStats?.length || 0
+  const totalPairsFormed = pairingStats?.reduce((sum, l) => {
+    const pc = l.pairing_config
+    return sum + (pc?.active_pairs || 0) + (pc?.completed_pairs || 0)
+  }, 0) || 0
+  
+  return {
+    totalLinks: totalLinks || 0,
+    totalUnlocks,
+    totalFollowerPairingCampaigns: totalCampaigns,
+    totalPairsFormed,
+    treesPlanted: 0,  // Part 17 (referrals/trees) fills this in
+  }
+}
+
+// ── Search users for Explore + DM ────────────────────────────────────────
+
+export const searchPeople = async (query, currentUserId = null) => {
+  const { data, error } = await supabase
+    .from('users')
+    .select(`
+      id,
+      name,
+      username,
+      bio,
+      avatar_color,
+      initial,
+      is_creator,
+      is_verified,
+      trust_score
+    `)
+    .or(`name.ilike.%${query}%,username.ilike.%${query}%`)
+    .limit(8)
+  
+  if (error) throw error
+  
+  // Filter out the current user from results
+  return (data || []).filter(u => u.id !== currentUserId)
+}
+```
+
+---
+
+### Block 4 — Dashboard Links Tab
+
+Replace the mock data in the Dashboard Links tab with real queries. The component structure stays the same — only data sourcing changes.
+
+```javascript
+// src/pages/dashboard/DashboardLinksTab.jsx
+import { useState, useEffect, useCallback } from 'react'
+import { useAuth } from '../../context/AuthContext'
+import { getCreatorLinks, toggleLinkActive, deleteLink } from '../../services/linksService'
+import { useToast } from '../../context/ToastContext'
+
+const DashboardLinksTab = () => {
+  const { currentUser } = useAuth()
+  const { showToast } = useToast()
+  
+  const [links, setLinks] = useState([])
+  const [isLoading, setIsLoading] = useState(true)
+  const [error, setError] = useState(null)
+  const [filter, setFilter] = useState('all')
+  
+  // ── Fetch links ────────────────────────────────────────────────────
+  const fetchLinks = useCallback(async () => {
+    if (!currentUser?.id) return
+    setIsLoading(true)
+    setError(null)
+    try {
+      const data = await getCreatorLinks(currentUser.id)
+      setLinks(data)
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setIsLoading(false)
+    }
+  }, [currentUser?.id])
+  
+  useEffect(() => { fetchLinks() }, [fetchLinks])
+  
+  // ── Filter links ──────────────────────────────────────────────────
+  const filteredLinks = links.filter(link => {
+    if (filter === 'all') return true
+    if (filter === 'disabled') return !link.is_active
+    if (filter === 'follower_pairing') return link.mode === 'follower_pairing'
+    return link.unlock_type === filter && link.is_active
+  })
+  
+  // ── Toggle active ─────────────────────────────────────────────────
+  const handleToggle = async (linkId, currentIsActive) => {
+    // Optimistic update
+    setLinks(prev => prev.map(l =>
+      l.id === linkId ? { ...l, is_active: !currentIsActive } : l
+    ))
+    try {
+      await toggleLinkActive(linkId, currentUser.id, !currentIsActive)
+      showToast(
+        !currentIsActive ? 'Link enabled.' : 'Link disabled.',
+        'success'
+      )
+    } catch (err) {
+      // Revert optimistic update
+      setLinks(prev => prev.map(l =>
+        l.id === linkId ? { ...l, is_active: currentIsActive } : l
+      ))
+      showToast(err.message, 'error')
+    }
+  }
+  
+  // ── Delete link ────────────────────────────────────────────────────
+  const handleDelete = async (linkId) => {
+    // Optimistic update
+    setLinks(prev => prev.filter(l => l.id !== linkId))
+    try {
+      await deleteLink(linkId, currentUser.id)
+      showToast('Link deleted.', 'success')
+    } catch (err) {
+      // Revert — re-fetch to restore
+      fetchLinks()
+      showToast(err.message, 'error')
+    }
+  }
+  
+  // ── Loading skeleton ───────────────────────────────────────────────
+  if (isLoading) {
+    return (
+      <div style={{ padding: '16px' }}>
+        {[1, 2, 3].map(i => (
+          <LinkCardSkeleton key={i} />
+        ))}
+      </div>
+    )
+  }
+  
+  // ── Error state ────────────────────────────────────────────────────
+  if (error) {
+    return (
+      <div style={{ padding: '32px 16px', textAlign: 'center' }}>
+        <div style={{ fontSize: '32px', marginBottom: '12px' }}>⚠️</div>
+        <p style={{ fontSize: '14px', fontWeight: 700, color: '#E8312A' }}>{error}</p>
+        <button
+          onClick={fetchLinks}
+          style={{
+            marginTop: '16px', background: '#E8312A', color: 'white',
+            border: 'none', borderRadius: '10px', padding: '10px 20px',
+            fontSize: '13px', fontWeight: 800, cursor: 'pointer',
+          }}
+        >
+          Try again
+        </button>
+      </div>
+    )
+  }
+  
+  // ── Empty state ────────────────────────────────────────────────────
+  if (links.length === 0) {
+    return (
+      <div style={{ padding: '64px 16px', textAlign: 'center' }}>
+        <div style={{ fontSize: '48px', marginBottom: '16px' }}>🔗</div>
+        <h3 style={{ fontSize: '20px', fontWeight: 900, color: '#111', margin: '0 0 8px' }}>
+          No links yet
+        </h3>
+        <p style={{ fontSize: '14px', color: '#888', margin: '0 0 24px', lineHeight: 1.6 }}>
+          Create your first link to start growing your audience.
+        </p>
+        <button
+          onClick={() => {/* open create link sheet */}}
+          style={{
+            background: '#E8312A', color: 'white', border: 'none',
+            borderRadius: '12px', padding: '14px 24px',
+            fontSize: '14px', fontWeight: 900, cursor: 'pointer',
+          }}
+        >
+          Create first link →
+        </button>
+      </div>
+    )
+  }
+  
+  return (
+    <div>
+      {/* Filter pills — same as existing UI */}
+      <FilterPills filter={filter} onChange={setFilter} links={links} />
+      
+      {/* Link cards */}
+      <div style={{ padding: '0 0 80px' }}>
+        {filteredLinks.length === 0 ? (
+          <div style={{ padding: '48px 16px', textAlign: 'center' }}>
+            <p style={{ fontSize: '14px', color: '#AAAAAA', fontWeight: 600 }}>
+              No links in this category.
+            </p>
+          </div>
+        ) : (
+          filteredLinks.map(link => (
+            <LinkCard
+              key={link.id}
+              link={link}
+              onToggle={() => handleToggle(link.id, link.is_active)}
+              onDelete={() => handleDelete(link.id)}
+              onEdit={() => {/* open edit sheet with link data */}}
+            />
+          ))
+        )}
+      </div>
+    </div>
+  )
+}
+
+// ── LinkCard skeleton ──────────────────────────────────────────────────────
+
+const LinkCardSkeleton = () => (
+  <div style={{
+    padding: '16px', borderBottom: '1px solid #F4F4F4',
+    display: 'flex', gap: '12px', alignItems: 'center',
+  }}>
+    <div style={{ width: '40px', height: '40px', borderRadius: '10px', background: '#F0F0F0' }} />
+    <div style={{ flex: 1 }}>
+      <div style={{ height: '14px', background: '#F0F0F0', borderRadius: '6px', width: '60%', marginBottom: '8px' }} />
+      <div style={{ height: '11px', background: '#F0F0F0', borderRadius: '4px', width: '40%' }} />
+    </div>
+  </div>
+)
+
+export default DashboardLinksTab
+```
+
+---
+
+### Block 5 — Create Link Form — Real Submit
+
+The Create Link form already exists in the frontend with all its steps. Replace its mock submit with the real `createLink` call.
+
+```javascript
+// In CreateLinkSheet.jsx — replace handleGenerate with:
+import { createLink } from '../../services/linksService'
+import { useAuth } from '../../context/AuthContext'
+
+const { currentUser, refreshProfile } = useAuth()
+
+const handleGenerate = async () => {
+  setIsGenerating(true)
+  setGenerateError(null)
+  
+  try {
+    // Build the linkData object from all form state
+    const linkData = {
+      title,
+      description,
+      mode: selectedMode,              // 'lock_content' | 'follower_pairing'
+      unlockType: selectedUnlockType,  // 'email_subscribe' | 'social_follow' | 'custom_sponsor'
+      fileId: uploadedFileId || null,
+      youtubeUrl: youtubeUrl || null,
+      donateEnabled: false,
+    }
+    
+    // Attach type-specific config based on mode and unlock type
+    if (selectedMode === 'lock_content') {
+      if (selectedUnlockType === 'email_subscribe') {
+        linkData.emailConfig = {
+          newsletterName:        newsletterName,
+          newsletterDescription: newsletterDescription,
+          platform:              'direct',
+        }
+      }
+      
+      if (selectedUnlockType === 'social_follow') {
+        linkData.socialConfig = {
+          customHeading:    socialHeading,
+          followDescription: socialDescription,
+          followTargets:    followTargets.map(t => ({
+            type:            t.type,
+            platform:        t.platform,
+            handle:          t.handle,
+            profileUrl:      t.profileUrl,
+            customLabel:     t.customLabel,
+            customUrl:       t.customUrl,
+            customIcon:      t.customIcon,
+            instructionText: t.instructionText,
+          })),
+        }
+      }
+      
+      if (selectedUnlockType === 'custom_sponsor') {
+        linkData.sponsorConfig = {
+          brandName:         brandName,
+          brandWebsite:      brandWebsite,
+          ctaButtonLabel:    ctaButtonLabel || 'Visit Sponsor',
+          videoFileId:       sponsorVideoFileId,
+          skipAfterSeconds:  skipAfterSeconds || 5,
+        }
+      }
+    }
+    
+    if (selectedMode === 'follower_pairing') {
+      linkData.pairingConfig = {
+        topic:             challengeTopic,
+        description:       challengeDescription,
+        commitmentPrompt:  commitmentPrompt,
+        durationDays:      selectedDuration,
+        checkInFrequency:  checkInFrequency || 'daily',
+        scheduledMessages: scheduledMessages.map(m => ({
+          dayNumber: m.dayNumber,
+          sendTime:  m.sendTime,
+          content:   m.content,
+        })),
+        completionAsset: completionAssetFileId ? {
+          fileId:        completionAssetFileId,
+          unlockMessage: completionAssetMessage,
+        } : null,
+      }
+    }
+    
+    const result = await createLink(currentUser.id, linkData)
+    
+    // Refresh profile to update followerPairingLinkCount
+    await refreshProfile()
+    
+    // Show generated link
+    setGeneratedLink({
+      url: `${window.location.origin}/r/${result.slug}`,
+      slug: result.slug,
+      id: result.id,
+    })
+    setStep('generated')
+    
+  } catch (err) {
+    // Check for plan limit error
+    if (err.message.includes('Free plan') || err.message.includes('Pro plan')) {
+      setGenerateError({ type: 'plan_limit', message: err.message })
+    } else {
+      setGenerateError({ type: 'generic', message: err.message })
+    }
+  } finally {
+    setIsGenerating(false)
+  }
+}
+```
+
+**Plan limit error UI.** When `generateError.type === 'plan_limit'` show an upgrade prompt instead of a generic error strip.
+
+```javascript
+{generateError?.type === 'plan_limit' && (
+  <div style={{
+    background: '#FFFBEB', border: '1.5px solid #FDE68A',
+    borderRadius: '12px', padding: '16px', margin: '0 16px',
+  }}>
+    <div style={{ fontSize: '14px', fontWeight: 900, color: '#92400E', marginBottom: '6px' }}>
+      ⚠️ Plan limit reached
+    </div>
+    <p style={{ fontSize: '13px', color: '#B45309', margin: '0 0 14px', lineHeight: 1.6 }}>
+      {generateError.message}
+    </p>
+    <button
+      onClick={() => navigate('/pricing')}
+      style={{
+        background: '#B45309', color: 'white', border: 'none',
+        borderRadius: '10px', padding: '10px 20px',
+        fontSize: '13px', fontWeight: 900, cursor: 'pointer', width: '100%',
+      }}
+    >
+      Upgrade to Pro →
+    </button>
+  </div>
+)}
+```
+
+---
+
+### Block 6 — Edit Link Form — Real Submit
+
+```javascript
+// In EditLinkSheet.jsx — replace handleSave with:
+import { updateLink } from '../../services/linksService'
+
+const handleSave = async () => {
+  setIsSaving(true)
+  setSaveError(null)
+  try {
+    await updateLink(link.id, currentUser.id, {
+      title,
+      description,
+      fileId: uploadedFileId,
+      youtubeUrl,
+      // Only pass configs that match the link's type
+      ...(link.unlock_type === 'email_subscribe' && { emailConfig }),
+      ...(link.unlock_type === 'social_follow' && { socialConfig }),
+      ...(link.unlock_type === 'custom_sponsor' && { sponsorConfig }),
+      ...(link.mode === 'follower_pairing' && { pairingConfig }),
+    })
+    showToast('Link updated.', 'success')
+    onClose()
+    onSaved?.()  // callback to refresh parent list
+  } catch (err) {
+    setSaveError(err.message)
+  } finally {
+    setIsSaving(false)
+  }
+}
+```
+
+---
+
+### Block 7 — Creator Profile Page — Real Data
+
+Replace all mock data in `CreatorProfilePage.jsx`.
+
+```javascript
+// src/pages/CreatorProfilePage.jsx
+import { useState, useEffect } from 'react'
+import { useParams } from 'react-router-dom'
+import { useAuth } from '../context/AuthContext'
+import { getCreatorProfile } from '../services/profileService'
+
+const CreatorProfilePage = () => {
+  const { username } = useParams()
+  const { currentUser, isLoggedIn } = useAuth()
+  const [creator, setCreator] = useState(null)
+  const [isLoading, setIsLoading] = useState(true)
+  const [notFound, setNotFound] = useState(false)
+  const [activeTab, setActiveTab] = useState('resources')
+
+  useEffect(() => {
+    const load = async () => {
+      setIsLoading(true)
+      setNotFound(false)
+      try {
+        const data = await getCreatorProfile(username)
+        if (!data) {
+          setNotFound(true)
+        } else {
+          setCreator(data)
+        }
+      } catch (err) {
+        setNotFound(true)
+      } finally {
+        setIsLoading(false)
+      }
+    }
+    load()
+  }, [username])
+
+  const isOwnProfile = isLoggedIn && currentUser?.username === username
+
+  if (isLoading) return <CreatorProfileSkeleton />
+  if (notFound) return <CreatorNotFound username={username} />
+
+  // Separate lock content links from pairing campaigns
+  const contentLinks = creator.links.filter(l => l.mode === 'lock_content')
+  const pairingLinks = creator.links.filter(l => l.mode === 'follower_pairing')
+
+  return (
+    <div>
+      {/* Own profile banner */}
+      {isOwnProfile && <OwnProfileBanner />}
+      
+      {/* Hero section — uses real creator data */}
+      <CreatorHero creator={creator} isOwnProfile={isOwnProfile} />
+      
+      {/* Stats strip — real numbers from creator.stats */}
+      <StatsStrip stats={creator.stats} />
+      
+      {/* Tab bar */}
+      <TabBar
+        activeTab={activeTab}
+        onTabChange={setActiveTab}
+        pairingCount={pairingLinks.length}
+      />
+      
+      {/* Tab content */}
+      {activeTab === 'resources' && (
+        <ResourcesTab links={contentLinks} isOwnProfile={isOwnProfile} />
+      )}
+      {activeTab === 'pairing' && (
+        <PairingTab links={pairingLinks} isOwnProfile={isOwnProfile} />
+      )}
+    </div>
+  )
+}
+
+// ── Loading skeleton ──────────────────────────────────────────────────────
+
+const CreatorProfileSkeleton = () => (
+  <div style={{ padding: '32px 16px' }}>
+    <div style={{ display: 'flex', gap: '16px', marginBottom: '24px' }}>
+      <div style={{ width: '80px', height: '80px', borderRadius: '50%', background: '#F0F0F0', flexShrink: 0 }} />
+      <div style={{ flex: 1 }}>
+        <div style={{ height: '20px', background: '#F0F0F0', borderRadius: '6px', width: '50%', marginBottom: '10px' }} />
+        <div style={{ height: '14px', background: '#F0F0F0', borderRadius: '4px', width: '30%', marginBottom: '16px' }} />
+        <div style={{ height: '14px', background: '#F0F0F0', borderRadius: '4px', width: '80%' }} />
+      </div>
+    </div>
+    {[1, 2, 3].map(i => (
+      <div key={i} style={{
+        height: '120px', background: '#F0F0F0', borderRadius: '14px',
+        marginBottom: '12px',
+      }} />
+    ))}
+  </div>
+)
+
+export default CreatorProfilePage
+```
+
+---
+
+### Block 8 — Explore Page — Real Data
+
+Replace mock data in `ExplorePage.jsx` with real queries.
+
+```javascript
+// src/pages/ExplorePage.jsx — data fetching section
+import { useState, useEffect, useCallback, useRef } from 'react'
+import { useSearchParams } from 'react-router-dom'
+import { getExploreLinks, searchUsers } from '../services/linksService'
+import { useAuth } from '../context/AuthContext'
+
+const ExplorePage = () => {
+  const [searchParams, setSearchParams] = useSearchParams()
+  const { currentUser } = useAuth()
+  
+  const [links, setLinks] = useState([])
+  const [people, setPeople] = useState([])
+  const [isLoading, setIsLoading] = useState(true)
+  const [isLoadingMore, setIsLoadingMore] = useState(false)
+  const [page, setPage] = useState(0)
+  const [hasMore, setHasMore] = useState(true)
+  const [total, setTotal] = useState(0)
+  
+  const search = searchParams.get('search') || ''
+  const category = searchParams.get('category') || ''
+  const unlockType = searchParams.get('type') || 'all'
+  const sortBy = searchParams.get('sort') || 'unlock_count'
+  
+  // Debounce search
+  const searchTimeout = useRef(null)
+  const [debouncedSearch, setDebouncedSearch] = useState(search)
+  
+  useEffect(() => {
+    clearTimeout(searchTimeout.current)
+    searchTimeout.current = setTimeout(() => {
+      setDebouncedSearch(search)
+    }, 300)
+    return () => clearTimeout(searchTimeout.current)
+  }, [search])
+  
+  // Fetch links when filters change
+  const fetchLinks = useCallback(async (pageNum = 0, append = false) => {
+    if (pageNum === 0) setIsLoading(true)
+    else setIsLoadingMore(true)
+    
+    try {
+      const result = await getExploreLinks({
+        search: debouncedSearch,
+        category,
+        unlockType,
+        sortBy,
+        page: pageNum,
+        pageSize: 20,
+      })
+      
+      setLinks(prev => append ? [...prev, ...result.links] : result.links)
+      setTotal(result.total)
+      setHasMore(result.hasMore)
+      setPage(pageNum)
+    } catch (err) {
+      console.error('Explore fetch error:', err)
+    } finally {
+      setIsLoading(false)
+      setIsLoadingMore(false)
+    }
+  }, [debouncedSearch, category, unlockType, sortBy])
+  
+  // Fetch people when searching
+  useEffect(() => {
+    if (debouncedSearch.length >= 2) {
+      searchUsers(debouncedSearch, currentUser?.id)
+        .then(setPeople)
+        .catch(console.error)
+    } else {
+      setPeople([])
+    }
+  }, [debouncedSearch, currentUser?.id])
+  
+  // Reset and refetch when filters change
+  useEffect(() => {
+    fetchLinks(0, false)
+  }, [fetchLinks])
+  
+  // Infinite scroll
+  const loadMore = () => {
+    if (!isLoadingMore && hasMore) {
+      fetchLinks(page + 1, true)
+    }
+  }
+  
+  // Update URL params when filters change
+  const updateFilter = (key, value) => {
+    const next = new URLSearchParams(searchParams)
+    if (value) next.set(key, value)
+    else next.delete(key)
+    next.delete('page')
+    setSearchParams(next)
+  }
+  
+  return (
+    <div>
+      {/* Search input — updates ?search= param */}
+      {/* Category pills — updates ?category= param */}
+      {/* Type filter pills — updates ?type= param */}
+      {/* Sort selector — updates ?sort= param */}
+      
+      {/* People results (when searching) */}
+      {debouncedSearch.length >= 2 && people.length > 0 && (
+        <PeopleSection people={people} currentUserId={currentUser?.id} />
+      )}
+      
+      {/* Resources section header */}
+      {debouncedSearch.length >= 2 && (
+        <SectionLabel>RESOURCES</SectionLabel>
+      )}
+      
+      {/* Loading skeleton */}
+      {isLoading && <ExploreSkeletonGrid />}
+      
+      {/* Empty state */}
+      {!isLoading && links.length === 0 && (
+        <ExploreEmptyState search={debouncedSearch} />
+      )}
+      
+      {/* Resource grid */}
+      {!isLoading && links.length > 0 && (
+        <>
+          <ResourceGrid links={links} />
+          {hasMore && (
+            <LoadMoreButton onClick={loadMore} isLoading={isLoadingMore} />
+          )}
+        </>
+      )}
+    </div>
+  )
+}
+```
+
+---
+
+### Block 9 — Loading and Error States
+
+Every data-dependent component needs consistent loading and error handling. Apply this pattern everywhere in this part.
+
+```javascript
+// Skeleton shimmer animation — add to global CSS or index.css
+/*
+@keyframes shimmer {
+  0%   { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+.skeleton {
+  background: linear-gradient(90deg, #F0F0F0 25%, #E8E8E8 50%, #F0F0F0 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+  border-radius: 6px;
+}
+*/
+
+// Skeleton component
+const Skeleton = ({ width = '100%', height = '16px', borderRadius = '6px', style = {} }) => (
+  <div
+    className="skeleton"
+    style={{ width, height, borderRadius, ...style }}
+  />
+)
+
+// Resource card skeleton
+const ResourceCardSkeleton = () => (
+  <div style={{ border: '1px solid #F0F0F0', borderRadius: '14px', overflow: 'hidden' }}>
+    <Skeleton height="90px" borderRadius="0" />
+    <div style={{ padding: '14px' }}>
+      <Skeleton height="16px" width="80%" style={{ marginBottom: '8px' }} />
+      <Skeleton height="12px" width="50%" style={{ marginBottom: '12px' }} />
+      <Skeleton height="38px" borderRadius="8px" />
+    </div>
+  </div>
+)
+
+const ExploreSkeletonGrid = () => (
+  <div style={{
+    display: 'grid',
+    gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
+    gap: '16px', padding: '16px',
+  }}>
+    {Array.from({ length: 6 }).map((_, i) => (
+      <ResourceCardSkeleton key={i} />
+    ))}
+  </div>
+)
+```
+
+---
+
+### Block 10 — Optimistic Updates Pattern
+
+The dashboard must feel instant. Every toggle, delete, and edit uses optimistic updates — the UI changes immediately and reverts if the server rejects it.
+
+```javascript
+// Reusable optimistic update hook
+// src/hooks/useOptimisticList.js
+
+import { useState, useCallback } from 'react'
+
+export const useOptimisticList = (initialItems = []) => {
+  const [items, setItems] = useState(initialItems)
+  const [pendingIds, setPendingIds] = useState(new Set())
+
+  const updateItem = useCallback(async (id, optimisticUpdate, serverAction) => {
+    const original = items.find(item => item.id === id)
+    if (!original) return
+
+    // Apply optimistic update immediately
+    setItems(prev => prev.map(item =>
+      item.id === id ? { ...item, ...optimisticUpdate } : item
+    ))
+    setPendingIds(prev => new Set([...prev, id]))
+
+    try {
+      await serverAction()
+    } catch (err) {
+      // Revert to original on failure
+      setItems(prev => prev.map(item =>
+        item.id === id ? original : item
+      ))
+      throw err
+    } finally {
+      setPendingIds(prev => {
+        const next = new Set(prev)
+        next.delete(id)
+        return next
+      })
+    }
+  }, [items])
+
+  const removeItem = useCallback(async (id, serverAction) => {
+    const original = [...items]
+    setItems(prev => prev.filter(item => item.id !== id))
+    
+    try {
+      await serverAction()
+    } catch (err) {
+      setItems(original)
+      throw err
+    }
+  }, [items])
+
+  return { items, setItems, updateItem, removeItem, pendingIds }
+}
+```
+
+Usage in DashboardLinksTab:
+
+```javascript
+const { items: links, setItems: setLinks, updateItem, removeItem } = useOptimisticList([])
+
+// Toggle active
+const handleToggle = (linkId, currentIsActive) => {
+  updateItem(
+    linkId,
+    { is_active: !currentIsActive },
+    () => toggleLinkActive(linkId, currentUser.id, !currentIsActive)
+  ).catch(err => showToast(err.message, 'error'))
+}
+
+// Delete
+const handleDelete = (linkId) => {
+  removeItem(
+    linkId,
+    () => deleteLink(linkId, currentUser.id)
+  ).catch(err => {
+    showToast(err.message, 'error')
+    fetchLinks()  // re-fetch to restore correct state
+  })
+}
+```
+
+---
+
+### Block 11 — Real-Time Link Stats In Dashboard
+
+Subscribe to real-time view/unlock count updates so the dashboard stats update live without refreshing.
+
+```javascript
+// In DashboardLinksTab.jsx — add after initial fetch
+
+useEffect(() => {
+  if (!currentUser?.id || links.length === 0) return
+  
+  const linkIds = links.map(l => l.id)
+  
+  // Subscribe to view_count and unlock_count changes
+  const channel = supabase
+    .channel('dashboard_link_stats')
+    .on(
+      'postgres_changes',
+      {
+        event: 'UPDATE',
+        schema: 'public',
+        table: 'links',
+        filter: `creator_id=eq.${currentUser.id}`,
+      },
+      (payload) => {
+        const updated = payload.new
+        setLinks(prev => prev.map(l =>
+          l.id === updated.id
+            ? { ...l, view_count: updated.view_count, unlock_count: updated.unlock_count }
+            : l
+        ))
+      }
+    )
+    .subscribe()
+  
+  return () => supabase.removeChannel(channel)
+}, [currentUser?.id, links.length])
+```
+
+---
+
+### Block 12 — Remove All Mock Data Imports
+
+After this part is complete, remove these mock imports from every component that was using them. Replace all with real service calls.
+
+```javascript
+// DELETE these imports from every file they appear in:
+// import { mockLinks } from '../data/mockData'
+// import { mockCurrentUser } from '../data/mockData'
+// import { mockCreators } from '../data/mockData'
+// import { mockExploreResources } from '../data/mockData'
+
+// Keep temporarily until their parts arrive:
+// mockMessageRequests, mockDirectConversations → Part 13
+// mockViewerChatSessions → Part 11
+// mockSponsorImpressions → Part 8
+// mockEmailSubscribers → Part 6
+```
+
+---
+
+### Block 13 — Verification Checklist
+
+**Create link flow:**
+- Fill in Create Link form → Generate → link appears in Dashboard Links tab immediately
+- Link record exists in Supabase `links` table with correct `creator_id`, `slug`, `mode`, `unlock_type`
+- Corresponding config record exists (`email_configs`, `social_configs`, etc.)
+- Generated link URL `/r/[slug]` loads the public unlock page (even if unlock flow is still mock — the page loads with real link data)
+- Creating a second follower pairing link on Free plan → plan limit error shown, no link created
+
+**Edit link flow:**
+- Click edit on an existing link → form pre-filled with real data from DB
+- Change title → Save → Dashboard shows updated title immediately (optimistic)
+- Supabase `links` table shows updated `title` and `updated_at`
+
+**Toggle active:**
+- Toggle OFF → link disappears from public Explore page immediately (RLS: is_active = true required for public SELECT)
+- Toggle ON → link reappears on Explore
+- Optimistic update: toggle visually responds in < 50ms, server confirms in background
+
+**Delete link:**
+- Delete → link removed from Dashboard immediately (optimistic)
+- Supabase `links` table row is gone
+- Associated config rows are gone (CASCADE)
+
+**Creator Profile page:**
+- `/@:username` loads for a real user → real name, bio, social handles, stats
+- Resources tab shows real active links with real view/unlock counts
+- Pairing tab shows real pairing campaigns with real pair counts
+- Not found username → `CreatorNotFound` component renders — no 404 error
+
+**Explore page:**
+- All links shown are real active links from DB
+- Search for a title → results filter correctly
+- Filter by unlock type → only matching links shown
+- Sort by Most Unlocked → highest `unlock_count` first
+- Scroll to bottom → Load More button → next page loads and appends
+- Search for a real username in people search → user card appears
+- URL params update when filters change: `?type=email&sort=created_at`
+- Share the URL → opening it pre-fills the filters correctly
+
+**Real-time:**
+- Open `/r/[slug]` in browser → `trackLinkView` fires → `view_count` in DB increments
+- Dashboard `view_count` updates live via realtime subscription (may take up to 2s)
+
+**Mock data removed:**
+- No `import { mockLinks }` anywhere in Dashboard or Explore or Creator Profile
+- No `setTimeout` fake delays in any of these components
+- All loading states are real network states

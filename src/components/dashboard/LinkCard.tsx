@@ -6,9 +6,10 @@ interface LinkCardProps {
     link: DashboardLink;
     onEdit: () => void;
     onMore: () => void;
+    isPending?: boolean;
 }
 
-export const LinkCard = ({ link, onEdit, onMore }: LinkCardProps) => {
+export const LinkCard = ({ link, onEdit, onMore, isPending }: LinkCardProps) => {
     const { showToast } = useToast();
     const isDisabled = link.status === 'disabled';
 
@@ -34,7 +35,7 @@ export const LinkCard = ({ link, onEdit, onMore }: LinkCardProps) => {
 
     return (
         <div
-            className={`w-full bg-white rounded-[18px] p-4 flex flex-col gap-3 transition-all duration-300 relative border border-border shadow-[0_2px_12px_rgba(0,0,0,0.03)] overflow-hidden ${isDisabled ? 'opacity-60 grayscale-[20%]' : ''
+            className={`w-full bg-white rounded-[18px] p-4 flex flex-col gap-3 transition-all duration-300 relative border border-border shadow-[0_2px_12px_rgba(0,0,0,0.03)] overflow-hidden ${isDisabled ? 'opacity-60 grayscale-[20%]' : ''} ${isPending ? 'pointer-events-none opacity-70' : ''
                 }`}
         >
             {/* 1. Title Row */}

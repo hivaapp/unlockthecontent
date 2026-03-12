@@ -2,9 +2,9 @@ import { useState, useRef, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { Link as LinkIcon, Lock, Check, Loader2, Star, Settings, X } from 'lucide-react';
 
-import { SignInModal } from '../components/SignInModal';
+import { AuthBottomSheet } from '../components/AuthBottomSheet';
 import { CustomSponsorForm, type CustomAdData } from '../components/CustomSponsorForm';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, Link, useSearchParams } from 'react-router-dom';
 import { ContentBuilder, type ContentData } from '../components/ContentBuilder';
 import { UnlockTypeSelector, type UnlockType } from '../components/dashboard/UnlockTypeSelector';
 import { EmailConfigForm, type EmailConfigData } from '../components/dashboard/EmailConfigForm';
@@ -19,7 +19,16 @@ import { BelowTheFold } from '../components/landing/BelowTheFold';
 export const Landing = () => {
     const { isLoggedIn } = useAuth();
     const navigate = useNavigate();
-    const [isModalOpen, setIsModalOpen] = useState(false);
+    const [searchParams] = useSearchParams();
+    const [isAuthOpen, setIsAuthOpen] = useState(
+        searchParams.get('signIn') === 'true' || 
+        searchParams.get('signUp') === 'true' || 
+        searchParams.get('forgot') === 'true'
+    );
+    const [authDefaultScreen] = useState<'signin' | 'signup' | 'forgot'>(
+        searchParams.get('signUp') === 'true' ? 'signup' : 
+        searchParams.get('forgot') === 'true' ? 'forgot' : 'signin'
+    );
 
     // Content state
     const [contentData, setContentData] = useState<ContentData>({
@@ -300,7 +309,7 @@ export const Landing = () => {
                                             </button>
                                         </>
                                     ) : (
-                                        <button onClick={() => setIsModalOpen(true)} className="w-full h-[56px] bg-brand text-white rounded-[14px] font-black text-[15px] flex items-center justify-center gap-2 shadow-sm shrink-0 hover:bg-brand-hover transition-colors">
+                                        <button onClick={() => setIsAuthOpen(true)} className="w-full h-[56px] bg-brand text-white rounded-[14px] font-black text-[15px] flex items-center justify-center gap-2 shadow-sm shrink-0 hover:bg-brand-hover transition-colors">
                                             <Lock size={18} /> Sign In to Reveal Link
                                         </button>
                                     )}
@@ -516,7 +525,7 @@ export const Landing = () => {
                                         </button>
                                     </>
                                 ) : (
-                                    <button onClick={() => setIsModalOpen(true)} className="w-full h-[40px] bg-[#E8312A] text-white rounded-[10px] font-black text-[13px] flex items-center justify-center gap-1.5 shrink-0">
+                                    <button onClick={() => setIsAuthOpen(true)} className="w-full h-[40px] bg-[#E8312A] text-white rounded-[10px] font-black text-[13px] flex items-center justify-center gap-1.5 shrink-0">
                                         Sign In to reveal
                                     </button>
                                 )}
@@ -592,10 +601,11 @@ export const Landing = () => {
                 </div>
             </footer>
 
-            <SignInModal
-                isOpen={isModalOpen}
-                onClose={() => setIsModalOpen(false)}
+            <AuthBottomSheet
+                isOpen={isAuthOpen}
+                onClose={() => setIsAuthOpen(false)}
                 onSuccess={handleSignInSuccess}
+                defaultScreen={authDefaultScreen}
             />
         </div>
     );

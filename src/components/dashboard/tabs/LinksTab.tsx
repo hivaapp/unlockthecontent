@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { Search, Plus, X } from 'lucide-react';
 import { LinkCard } from '../LinkCard';
 import { CreateLinkSheet } from '../CreateLinkSheet';
@@ -6,6 +6,9 @@ import { EditLinkSheet } from '../EditLinkSheet';
 import { MoreActionSheet } from '../MoreActionSheet';
 import { AnalyticsSheet } from '../AnalyticsSheet';
 import { useToast } from '../../../context/ToastContext';
+import { useAuth } from '../../../context/AuthContext';
+import { getCreatorLinks, toggleLinkActive, deleteLink as deleteLinkService } from '../../../services/linksService';
+import { supabase } from '../../../lib/supabase';
 
 import type { FollowerPairingConfigData } from '../FollowerPairingConfigForm';
 
@@ -15,9 +18,11 @@ export interface DashboardLink {
     type: string;
     donate: boolean;
     url: string;
+    slug?: string;
     views: number;
     unlocks: number;
     status: string;
+    mode?: string;
     unlockType?: 'custom_sponsor' | 'email_subscribe' | 'social_follow' | 'follower_pairing';
     clicks?: number;
     customAd?: {
@@ -28,7 +33,52 @@ export interface DashboardLink {
     emailConfig?: Record<string, unknown>;
     socialConfig?: Record<string, unknown>;
     followerPairingConfig?: FollowerPairingConfigData | null;
+    file?: {
+        id: string;
+        original_name: string;
+        mime_type: string;
+        file_type: string;
+    };
+    // Raw DB fields for edit sheet
+    _raw?: Record<string, unknown>;
 }
+
+// Transform Supabase link row to DashboardLink shape
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const transformLink = (row: any): DashboardLink => {
+    const fileType = row.file?.file_type?.toUpperCase()
+        || row.file?.original_name?.split('.').pop()?.toUpperCase()
+        || (row.mode === 'follower_pairing' ? 'NONE' : 'FILE');
+
+    const unlockType: DashboardLink['unlockType'] =
+        row.mode === 'follower_pairing'
+            ? 'follower_pairing'
+            : row.unlock_type || 'custom_sponsor';
+
+    return {
+        id: row.id,
+        title: row.title,
+        type: fileType,
+        donate: row.donate_enabled || false,
+        url: `adga.te/r/${row.slug}`,
+        slug: row.slug,
+        views: row.view_count || 0,
+        unlocks: row.unlock_count || 0,
+        status: row.is_active ? 'active' : 'disabled',
+        mode: row.mode,
+        unlockType,
+        customAd: row.sponsor_config ? {
+            requiresClick: row.sponsor_config.requires_click,
+            redirectUrl: row.sponsor_config.brand_website,
+            videoWatches: row.unlock_count || 0,
+        } : undefined,
+        emailConfig: row.email_config || undefined,
+        socialConfig: row.social_config || undefined,
+        followerPairingConfig: row.pairing_config || undefined,
+        file: row.file || undefined,
+        _raw: row,
+    };
+};
 
 export const LinksTab = ({ searchQuery, setSearchQuery }: { searchQuery: string, setSearchQuery: (q: string) => void }) => {
     const [activeSort, setActiveSort] = useState('All');
@@ -36,88 +86,106 @@ export const LinksTab = ({ searchQuery, setSearchQuery }: { searchQuery: string,
     const [editLinkData, setEditLinkData] = useState<DashboardLink | null>(null);
     const [moreActionLink, setMoreActionLink] = useState<DashboardLink | null>(null);
     const [analyticsLink, setAnalyticsLink] = useState<DashboardLink | null>(null);
+    const [links, setLinks] = useState<DashboardLink[]>([]);
+    const [isLoading, setIsLoading] = useState(true);
+    const [pendingIds, setPendingIds] = useState<Set<string>>(new Set());
 
     const { showToast } = useToast();
+    const { currentUser } = useAuth();
+    const subscriptionRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
 
-    const [links, setLinks] = useState<DashboardLink[]>([
-        {
-            id: '1',
-            title: 'freeresource.pdf',
-            type: 'PDF',
-            donate: true,
-            url: 'adga.te/r/freeresource',
-            views: 1243,
-            unlocks: 842,
-            
-            status: 'active'
-        },
-        {
-            id: '2',
-            title: 'figma-ui-kit.fig',
-            type: 'FIGMA',
-            donate: false,
-            url: 'adga.te/r/figma-kit',
-            views: 450,
-            unlocks: 120,
-            
-            status: 'active'
-        },
-        {
-            id: '3',
-            title: 'old-campaign.zip',
-            type: 'ZIP',
-            donate: false,
-            url: 'adga.te/r/old-camp',
-            views: 3220,
-            unlocks: 1560,
-            
-            status: 'disabled'
-        },
-        {
-            id: '4',
-            title: 'Weekly UI Templates',
-            type: 'FILE',
-            donate: false,
-            url: 'adga.te/r/ui-templates',
-            views: 1205,
-            unlocks: 480,
-            
-            status: 'active',
-            unlockType: 'email_subscribe'
-        },
-        {
-            id: '5',
-            title: '14-Day Coding Challenge',
-            type: 'NONE',
-            donate: false,
-            url: 'adga.te/r/code-challenge',
-            views: 340,
-            unlocks: 156,
-            
-            status: 'active',
-            unlockType: 'follower_pairing'
+    // ── Fetch links from Supabase ─────────────────────────────────────────
+    const fetchLinks = useCallback(async () => {
+        if (!currentUser?.id) return;
+        try {
+            const data = await getCreatorLinks(currentUser.id);
+            setLinks(data.map(transformLink));
+        } catch (err) {
+            console.error('Failed to fetch links:', err);
+            showToast({ message: 'Could not load links', type: 'error' });
+        } finally {
+            setIsLoading(false);
         }
-    ]);
+    }, [currentUser?.id, showToast]);
+
+    useEffect(() => {
+        fetchLinks();
+    }, [fetchLinks]);
+
+    // ── Real-time stats subscription ──────────────────────────────────────
+    useEffect(() => {
+        if (!currentUser?.id) return;
+
+        const channel = supabase
+            .channel('link-stats')
+            .on(
+                'postgres_changes',
+                {
+                    event: 'UPDATE',
+                    schema: 'public',
+                    table: 'links',
+                    filter: `creator_id=eq.${currentUser.id}`,
+                },
+                (payload: { new: { id: string; view_count: number; unlock_count: number } }) => {
+                    setLinks(prev => prev.map(l =>
+                        l.id === payload.new.id
+                            ? { ...l, views: payload.new.view_count, unlocks: payload.new.unlock_count }
+                            : l
+                    ));
+                }
+            )
+            .subscribe();
+
+        subscriptionRef.current = channel;
+
+        return () => {
+            supabase.removeChannel(channel);
+        };
+    }, [currentUser?.id]);
+
+    // ── Optimistic toggle ─────────────────────────────────────────────────
+    const handleDisable = async (id: string, currentStatus: string) => {
+        const newIsActive = currentStatus === 'disabled';
+        const newStatus = newIsActive ? 'active' : 'disabled';
+
+        // Optimistic update
+        setLinks(prev => prev.map(l => l.id === id ? { ...l, status: newStatus } : l));
+        setPendingIds(prev => new Set([...prev, id]));
+
+        try {
+            await toggleLinkActive(id, currentUser!.id, newIsActive);
+            showToast({ message: `Link ${newIsActive ? 'activated' : 'paused'}` });
+        } catch {
+            // Revert
+            setLinks(prev => prev.map(l => l.id === id ? { ...l, status: currentStatus } : l));
+            showToast({ message: 'Failed to update link', type: 'error' });
+        } finally {
+            setPendingIds(prev => {
+                const next = new Set(prev);
+                next.delete(id);
+                return next;
+            });
+        }
+    };
+
+    // ── Optimistic delete ─────────────────────────────────────────────────
+    const handleDelete = async (id: string) => {
+        const original = [...links];
+        setLinks(prev => prev.filter(l => l.id !== id));
+
+        try {
+            await deleteLinkService(id, currentUser!.id);
+            showToast({ message: 'Link deleted', type: 'success' });
+        } catch {
+            setLinks(original);
+            showToast({ message: 'Failed to delete link', type: 'error' });
+        }
+    };
 
     const sorts = ['All', 'Most Viewed', 'Newest', 'Disabled'];
 
-    const handleDelete = (id: string) => {
-        setLinks(prev => prev.map(l => l.id === id ? { ...l, status: 'deleting' } : l));
-        setTimeout(() => {
-            setLinks(prev => prev.filter(l => l.id !== id));
-            showToast({ message: 'Link deleted', type: 'success' });
-        }, 300);
-    };
-
-    const handleDisable = (id: string, currentStatus: string) => {
-        const newStatus = currentStatus === 'disabled' ? 'active' : 'disabled';
-        setLinks(prev => prev.map(l => l.id === id ? { ...l, status: newStatus } : l));
-        showToast({ message: `Link ${newStatus === 'active' ? 'activated' : 'paused'}` });
-    };
-
     // Derived state
     const filteredLinks = links
-        .filter(l => l.status !== 'deleting')
         .filter(l => l.title.toLowerCase().includes(searchQuery.toLowerCase()))
         .filter(l => {
             if (activeSort === 'All') return true;
@@ -126,9 +194,43 @@ export const LinksTab = ({ searchQuery, setSearchQuery }: { searchQuery: string,
         })
         .sort((a, b) => {
             if (activeSort === 'Most Viewed') return b.views - a.views;
-            return 0; // Newest is default mock order
+            if (activeSort === 'Newest') return 0; // DB already returns newest first
+            return 0;
         });
 
+    // ── Skeleton loader ───────────────────────────────────────────────────
+    const SkeletonCard = () => (
+        <div className="w-full bg-white rounded-[18px] p-4 flex flex-col gap-3 border border-border overflow-hidden">
+            <div className="h-[18px] w-3/5 bg-surfaceAlt rounded-md relative overflow-hidden">
+                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/50 to-transparent animate-shimmer" />
+            </div>
+            <div className="flex gap-2">
+                <div className="h-[28px] w-16 bg-surfaceAlt rounded-pill relative overflow-hidden">
+                    <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/50 to-transparent animate-shimmer" />
+                </div>
+                <div className="h-[28px] w-20 bg-surfaceAlt rounded-pill relative overflow-hidden">
+                    <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/50 to-transparent animate-shimmer" />
+                </div>
+            </div>
+            <div className="h-[36px] bg-surfaceAlt rounded-lg relative overflow-hidden">
+                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/50 to-transparent animate-shimmer" />
+            </div>
+            <div className="h-[48px] bg-surfaceAlt rounded-[14px] relative overflow-hidden">
+                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/50 to-transparent animate-shimmer" />
+            </div>
+            <div className="flex gap-2">
+                <div className="flex-1 h-[36px] bg-surfaceAlt rounded-[10px] relative overflow-hidden">
+                    <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/50 to-transparent animate-shimmer" />
+                </div>
+                <div className="flex-1 h-[36px] bg-surfaceAlt rounded-[10px] relative overflow-hidden">
+                    <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/50 to-transparent animate-shimmer" />
+                </div>
+                <div className="flex-1 h-[36px] bg-surfaceAlt rounded-[10px] relative overflow-hidden">
+                    <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/50 to-transparent animate-shimmer" />
+                </div>
+            </div>
+        </div>
+    );
 
     return (
         <div className="flex flex-col w-full relative min-h-full">
@@ -184,11 +286,19 @@ export const LinksTab = ({ searchQuery, setSearchQuery }: { searchQuery: string,
 
                 {/* Links List */}
                 <div className="flex flex-col gap-3 pb-4">
-                    {filteredLinks.length === 0 ? (
+                    {isLoading ? (
+                        <>
+                            <SkeletonCard />
+                            <SkeletonCard />
+                            <SkeletonCard />
+                        </>
+                    ) : filteredLinks.length === 0 ? (
                         <div className="w-full py-16 flex flex-col items-center justify-center bg-white rounded-[18px] border border-border border-dashed">
                             <span className="text-4xl opacity-50 mb-3">👻</span>
                             <span className="text-[16px] font-black text-text">No links found</span>
-                            <span className="text-[14px] font-semibold text-textMid mt-1">Try a different search or filter.</span>
+                            <span className="text-[14px] font-semibold text-textMid mt-1">
+                                {links.length === 0 ? 'Create your first link to get started.' : 'Try a different search or filter.'}
+                            </span>
                         </div>
                     ) : (
                         filteredLinks.map(link => (
@@ -197,6 +307,7 @@ export const LinksTab = ({ searchQuery, setSearchQuery }: { searchQuery: string,
                                 link={link}
                                 onEdit={() => setEditLinkData(link)}
                                 onMore={() => setMoreActionLink(link)}
+                                isPending={pendingIds.has(link.id)}
                             />
                         ))
                     )}
@@ -209,17 +320,7 @@ export const LinksTab = ({ searchQuery, setSearchQuery }: { searchQuery: string,
                 onSuccess={() => {
                     setIsCreateOpen(false);
                     showToast({ message: 'Link generated successfully!', type: 'success' });
-                    setLinks([{
-                        id: Date.now().toString(),
-                        title: 'New Link ' + Math.floor(Math.random() * 100),
-                        type: 'FILE',
-                        donate: true,
-                        url: 'adga.te/r/new-link',
-                        views: 0,
-                        unlocks: 0,
-                        
-                        status: 'active'
-                    }, ...links]);
+                    fetchLinks(); // Refetch real data
                 }}
             />
 
@@ -231,6 +332,7 @@ export const LinksTab = ({ searchQuery, setSearchQuery }: { searchQuery: string,
                     onSuccess={() => {
                         setEditLinkData(null);
                         showToast({ message: 'Changes saved successfully!', type: 'success' });
+                        fetchLinks(); // Refetch real data
                     }}
                 />
             )}

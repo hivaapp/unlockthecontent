@@ -1,0 +1,1223 @@
+## Part 2 — Row Level Security Policies
+
+---
+
+### What This Part Does
+
+Enables RLS on all 27 tables. Writes explicit policies for every table — who can SELECT, INSERT, UPDATE, DELETE. No table is left with implicit access. Every policy is named clearly so it can be audited, modified, or dropped individually. All policies run as `SECURITY DEFINER` where elevation is needed, `SECURITY INVOKER` everywhere else.
+
+The guiding rules before writing a single policy:
+
+- **Public data** — explore resources, creator profiles, link pages. Anyone can read. Only owners can write.
+- **Private data** — chat messages, earnings, subscribers, analytics. Only the directly involved parties can read or write.
+- **Pairing chat** — the strictest policy in the system. Only the two matched participants can read their session's messages. Not even the creator whose campaign it is.
+- **Admin data** — reports, trust events. Users can insert and read their own. No user can modify after submission.
+- **Service role** — Supabase Edge Functions and backend operations use the service role key which bypasses RLS entirely. All automated operations (scheduled messages, session expiry, trust score events) run as service role.
+
+---
+
+### Block 1 — Enable RLS On All Tables
+
+```sql
+-- Enable RLS on every table before writing policies.
+-- A table with RLS enabled but no policies = zero access for all authenticated users.
+-- Service role always bypasses RLS regardless.
+
+ALTER TABLE public.users                ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.social_handles       ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.blocked_users        ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.files                ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.links                ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.email_configs        ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.social_configs       ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.follow_targets       ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.sponsor_configs      ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.pairing_configs      ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.completion_assets    ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.scheduled_messages   ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.pairing_participants ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.pairing_sessions     ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.pairing_messages     ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.link_views           ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.email_subscribers    ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.social_unlocks       ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.sponsor_impressions  ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.earnings             ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.payouts              ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.referrals            ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.message_requests     ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.direct_conversations ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.direct_messages      ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.trust_events         ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.reports              ENABLE ROW LEVEL SECURITY;
+```
+
+---
+
+### Block 2 — Helper Functions Used By Policies
+
+```sql
+-- Returns true if the current user is blocked by OR has blocked the given user.
+-- Used to prevent blocked users from seeing each other's content.
+CREATE OR REPLACE FUNCTION is_blocked_relationship(other_user_id UUID)
+RETURNS BOOLEAN AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM public.blocked_users
+    WHERE (blocker_id = auth.uid() AND blocked_id = other_user_id)
+       OR (blocker_id = other_user_id AND blocked_id = auth.uid())
+  );
+$$ LANGUAGE sql SECURITY DEFINER STABLE;
+
+-- Returns true if the current user is a participant in the given pairing session.
+CREATE OR REPLACE FUNCTION is_session_participant(p_session_id UUID)
+RETURNS BOOLEAN AS $$
+  SELECT EXISTS (
+    SELECT 1
+    FROM public.pairing_sessions ps
+    JOIN public.pairing_participants pp_a ON pp_a.id = ps.participant_a_id
+    JOIN public.pairing_participants pp_b ON pp_b.id = ps.participant_b_id
+    WHERE ps.id = p_session_id
+      AND (pp_a.user_id = auth.uid() OR pp_b.user_id = auth.uid())
+  );
+$$ LANGUAGE sql SECURITY DEFINER STABLE;
+
+-- Returns true if the current user is a participant in the given pairing session
+-- identified by participant record.
+CREATE OR REPLACE FUNCTION is_participant_in_session(p_participant_id UUID)
+RETURNS BOOLEAN AS $$
+  SELECT EXISTS (
+    SELECT 1
+    FROM public.pairing_participants pp
+    WHERE pp.id = p_participant_id
+      AND pp.user_id = auth.uid()
+  );
+$$ LANGUAGE sql SECURITY DEFINER STABLE;
+
+-- Returns true if the current user is a participant in a direct conversation.
+CREATE OR REPLACE FUNCTION is_conversation_participant(p_conversation_id UUID)
+RETURNS BOOLEAN AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM public.direct_conversations
+    WHERE id = p_conversation_id
+      AND (participant_a_id = auth.uid() OR participant_b_id = auth.uid())
+  );
+$$ LANGUAGE sql SECURITY DEFINER STABLE;
+
+-- Returns the creator_id for a given link.
+CREATE OR REPLACE FUNCTION get_link_creator(p_link_id UUID)
+RETURNS UUID AS $$
+  SELECT creator_id FROM public.links WHERE id = p_link_id;
+$$ LANGUAGE sql SECURITY DEFINER STABLE;
+```
+
+---
+
+### Block 3 — Users Table Policies
+
+```sql
+-- READ: Any authenticated user can read public profile fields.
+-- Blocked relationships are handled at the application query level, not here,
+-- because the profile page itself still needs to load for the blocker to manage the block.
+CREATE POLICY "users_select_public"
+  ON public.users FOR SELECT
+  USING (true);
+-- Note: sensitive fields (stripe_account_id, referred_by) are excluded
+-- at the query level in the frontend — never SELECT * from users in client code.
+
+-- INSERT: Handled entirely by the handle_new_user() trigger.
+-- No direct INSERT allowed from client.
+CREATE POLICY "users_insert_trigger_only"
+  ON public.users FOR INSERT
+  WITH CHECK (false);
+-- The trigger runs as SECURITY DEFINER so it bypasses this policy.
+
+-- UPDATE: Users can only update their own row.
+-- Sensitive fields (is_pro, is_verified, trust_score, stripe_account_id)
+-- are updated only via Edge Functions running as service role — never directly from client.
+CREATE POLICY "users_update_own"
+  ON public.users FOR UPDATE
+  USING (auth.uid() = id)
+  WITH CHECK (
+    auth.uid() = id
+    -- Prevent client from elevating their own privileges.
+    -- These fields can only be changed by service role (Edge Functions / webhooks).
+    -- Enforced here as an extra layer even though service role bypasses RLS.
+    AND is_pro = (SELECT is_pro FROM public.users WHERE id = auth.uid())
+    AND is_verified = (SELECT is_verified FROM public.users WHERE id = auth.uid())
+    AND trust_score = (SELECT trust_score FROM public.users WHERE id = auth.uid())
+    AND stripe_connected = (SELECT stripe_connected FROM public.users WHERE id = auth.uid())
+  );
+
+-- DELETE: Not allowed from client. Account deletion is an Edge Function operation.
+CREATE POLICY "users_delete_never_client"
+  ON public.users FOR DELETE
+  USING (false);
+```
+
+---
+
+### Block 4 — Social Handles Policies
+
+```sql
+-- READ: Public. Anyone can see anyone's social handles.
+CREATE POLICY "social_handles_select_public"
+  ON public.social_handles FOR SELECT
+  USING (true);
+
+-- INSERT: Users can only add handles to their own profile.
+CREATE POLICY "social_handles_insert_own"
+  ON public.social_handles FOR INSERT
+  WITH CHECK (auth.uid() = user_id);
+
+-- UPDATE: Users can only update their own handles.
+CREATE POLICY "social_handles_update_own"
+  ON public.social_handles FOR UPDATE
+  USING (auth.uid() = user_id)
+  WITH CHECK (auth.uid() = user_id);
+
+-- DELETE: Users can only delete their own handles.
+CREATE POLICY "social_handles_delete_own"
+  ON public.social_handles FOR DELETE
+  USING (auth.uid() = user_id);
+```
+
+---
+
+### Block 5 — Blocked Users Policies
+
+```sql
+-- READ: A user can only see their own block relationships.
+-- They cannot see who has blocked them — only who they have blocked.
+CREATE POLICY "blocked_users_select_own"
+  ON public.blocked_users FOR SELECT
+  USING (auth.uid() = blocker_id);
+
+-- INSERT: A user can only create blocks where they are the blocker.
+CREATE POLICY "blocked_users_insert_own"
+  ON public.blocked_users FOR INSERT
+  WITH CHECK (auth.uid() = blocker_id AND auth.uid() != blocked_id);
+
+-- DELETE: A user can only remove blocks they created.
+CREATE POLICY "blocked_users_delete_own"
+  ON public.blocked_users FOR DELETE
+  USING (auth.uid() = blocker_id);
+
+-- No UPDATE policy — blocks are created or deleted, never edited.
+```
+
+---
+
+### Block 6 — Files Policies
+
+```sql
+-- READ: File metadata is readable by:
+-- 1. The file owner always.
+-- 2. Any authenticated user IF the file is attached to an active public link.
+--    (Checked via the links table — if the link is active and the file is its content file.)
+-- 3. Pairing participants can read files attached to their session's messages.
+-- Completion asset files are only readable after session completion — enforced at Edge Function level,
+-- not RLS, because RLS cannot efficiently check session completion state per-request.
+CREATE POLICY "files_select_owner"
+  ON public.files FOR SELECT
+  USING (
+    auth.uid() = owner_id
+    OR EXISTS (
+      SELECT 1 FROM public.links
+      WHERE file_id = files.id AND is_active = true
+    )
+    OR EXISTS (
+      SELECT 1 FROM public.pairing_messages pm
+      WHERE pm.file_id = files.id
+        AND is_session_participant(pm.session_id)
+    )
+    OR EXISTS (
+      SELECT 1 FROM public.direct_messages dm
+      WHERE dm.file_id = files.id
+        AND is_conversation_participant(dm.conversation_id)
+    )
+  );
+
+-- INSERT: Users can only upload files they own.
+CREATE POLICY "files_insert_own"
+  ON public.files FOR INSERT
+  WITH CHECK (auth.uid() = owner_id);
+
+-- UPDATE: File owners can update metadata (e.g. renaming).
+-- R2 key cannot be changed after creation — enforced at application level.
+CREATE POLICY "files_update_own"
+  ON public.files FOR UPDATE
+  USING (auth.uid() = owner_id)
+  WITH CHECK (auth.uid() = owner_id);
+
+-- DELETE: File owners can delete file records.
+-- Actual R2 object deletion is handled by an Edge Function after this.
+CREATE POLICY "files_delete_own"
+  ON public.files FOR DELETE
+  USING (auth.uid() = owner_id);
+```
+
+---
+
+### Block 7 — Links and Config Policies
+
+```sql
+-- ── LINKS ──────────────────────────────────────────────────────────────
+
+-- READ: Active links are public. Inactive links only visible to their creator.
+CREATE POLICY "links_select_active_or_own"
+  ON public.links FOR SELECT
+  USING (
+    is_active = true
+    OR auth.uid() = creator_id
+  );
+
+-- INSERT: Only authenticated users can create links.
+CREATE POLICY "links_insert_own"
+  ON public.links FOR INSERT
+  WITH CHECK (auth.uid() = creator_id);
+
+-- UPDATE: Only the creator can update their own links.
+-- view_count and unlock_count are incremented via SECURITY DEFINER functions only.
+CREATE POLICY "links_update_own"
+  ON public.links FOR UPDATE
+  USING (auth.uid() = creator_id)
+  WITH CHECK (auth.uid() = creator_id);
+
+-- DELETE: Only the creator can delete their links.
+CREATE POLICY "links_delete_own"
+  ON public.links FOR DELETE
+  USING (auth.uid() = creator_id);
+
+
+-- ── EMAIL CONFIGS ───────────────────────────────────────────────────────
+
+-- READ: Anyone who can read the link can read its email config.
+CREATE POLICY "email_configs_select_via_link"
+  ON public.email_configs FOR SELECT
+  USING (
+    EXISTS (
+      SELECT 1 FROM public.links
+      WHERE id = email_configs.link_id
+        AND (is_active = true OR creator_id = auth.uid())
+    )
+  );
+
+CREATE POLICY "email_configs_insert_own"
+  ON public.email_configs FOR INSERT
+  WITH CHECK (
+    get_link_creator(link_id) = auth.uid()
+  );
+
+CREATE POLICY "email_configs_update_own"
+  ON public.email_configs FOR UPDATE
+  USING (get_link_creator(link_id) = auth.uid())
+  WITH CHECK (get_link_creator(link_id) = auth.uid());
+
+CREATE POLICY "email_configs_delete_own"
+  ON public.email_configs FOR DELETE
+  USING (get_link_creator(link_id) = auth.uid());
+
+
+-- ── SOCIAL CONFIGS ──────────────────────────────────────────────────────
+
+CREATE POLICY "social_configs_select_via_link"
+  ON public.social_configs FOR SELECT
+  USING (
+    EXISTS (
+      SELECT 1 FROM public.links
+      WHERE id = social_configs.link_id
+        AND (is_active = true OR creator_id = auth.uid())
+    )
+  );
+
+CREATE POLICY "social_configs_insert_own"
+  ON public.social_configs FOR INSERT
+  WITH CHECK (get_link_creator(link_id) = auth.uid());
+
+CREATE POLICY "social_configs_update_own"
+  ON public.social_configs FOR UPDATE
+  USING (get_link_creator(link_id) = auth.uid())
+  WITH CHECK (get_link_creator(link_id) = auth.uid());
+
+CREATE POLICY "social_configs_delete_own"
+  ON public.social_configs FOR DELETE
+  USING (get_link_creator(link_id) = auth.uid());
+
+
+-- ── FOLLOW TARGETS ──────────────────────────────────────────────────────
+
+CREATE POLICY "follow_targets_select_via_social_config"
+  ON public.follow_targets FOR SELECT
+  USING (
+    EXISTS (
+      SELECT 1
+      FROM public.social_configs sc
+      JOIN public.links l ON l.id = sc.link_id
+      WHERE sc.id = follow_targets.social_config_id
+        AND (l.is_active = true OR l.creator_id = auth.uid())
+    )
+  );
+
+CREATE POLICY "follow_targets_insert_own"
+  ON public.follow_targets FOR INSERT
+  WITH CHECK (
+    EXISTS (
+      SELECT 1
+      FROM public.social_configs sc
+      JOIN public.links l ON l.id = sc.link_id
+      WHERE sc.id = follow_targets.social_config_id
+        AND l.creator_id = auth.uid()
+    )
+  );
+
+CREATE POLICY "follow_targets_update_own"
+  ON public.follow_targets FOR UPDATE
+  USING (
+    EXISTS (
+      SELECT 1
+      FROM public.social_configs sc
+      JOIN public.links l ON l.id = sc.link_id
+      WHERE sc.id = follow_targets.social_config_id
+        AND l.creator_id = auth.uid()
+    )
+  );
+
+CREATE POLICY "follow_targets_delete_own"
+  ON public.follow_targets FOR DELETE
+  USING (
+    EXISTS (
+      SELECT 1
+      FROM public.social_configs sc
+      JOIN public.links l ON l.id = sc.link_id
+      WHERE sc.id = follow_targets.social_config_id
+        AND l.creator_id = auth.uid()
+    )
+  );
+
+
+-- ── SPONSOR CONFIGS ─────────────────────────────────────────────────────
+
+CREATE POLICY "sponsor_configs_select_via_link"
+  ON public.sponsor_configs FOR SELECT
+  USING (
+    EXISTS (
+      SELECT 1 FROM public.links
+      WHERE id = sponsor_configs.link_id
+        AND (is_active = true OR creator_id = auth.uid())
+    )
+  );
+
+CREATE POLICY "sponsor_configs_insert_own"
+  ON public.sponsor_configs FOR INSERT
+  WITH CHECK (get_link_creator(link_id) = auth.uid());
+
+CREATE POLICY "sponsor_configs_update_own"
+  ON public.sponsor_configs FOR UPDATE
+  USING (get_link_creator(link_id) = auth.uid())
+  WITH CHECK (get_link_creator(link_id) = auth.uid());
+
+CREATE POLICY "sponsor_configs_delete_own"
+  ON public.sponsor_configs FOR DELETE
+  USING (get_link_creator(link_id) = auth.uid());
+```
+
+---
+
+### Block 8 — Follower Pairing Policies
+
+```sql
+-- ── PAIRING CONFIGS ─────────────────────────────────────────────────────
+
+-- READ: Anyone can read pairing configs for active links.
+CREATE POLICY "pairing_configs_select_active"
+  ON public.pairing_configs FOR SELECT
+  USING (
+    EXISTS (
+      SELECT 1 FROM public.links
+      WHERE id = pairing_configs.link_id
+        AND (is_active = true OR creator_id = auth.uid())
+    )
+  );
+
+CREATE POLICY "pairing_configs_insert_own"
+  ON public.pairing_configs FOR INSERT
+  WITH CHECK (get_link_creator(link_id) = auth.uid());
+
+CREATE POLICY "pairing_configs_update_own"
+  ON public.pairing_configs FOR UPDATE
+  USING (get_link_creator(link_id) = auth.uid())
+  WITH CHECK (get_link_creator(link_id) = auth.uid());
+
+CREATE POLICY "pairing_configs_delete_own"
+  ON public.pairing_configs FOR DELETE
+  USING (get_link_creator(link_id) = auth.uid());
+
+
+-- ── COMPLETION ASSETS ───────────────────────────────────────────────────
+
+-- READ: The creator can always read. Participants can read ONLY after
+-- their session status = 'completed'. Enforced additionally at Edge Function
+-- level when serving the actual file from R2.
+CREATE POLICY "completion_assets_select"
+  ON public.completion_assets FOR SELECT
+  USING (
+    -- Creator of the campaign
+    EXISTS (
+      SELECT 1
+      FROM public.pairing_configs pc
+      JOIN public.links l ON l.id = pc.link_id
+      WHERE pc.id = completion_assets.pairing_config_id
+        AND l.creator_id = auth.uid()
+    )
+    OR
+    -- Participant with a completed session
+    EXISTS (
+      SELECT 1
+      FROM public.pairing_sessions ps
+      JOIN public.pairing_participants pp_a ON pp_a.id = ps.participant_a_id
+      JOIN public.pairing_participants pp_b ON pp_b.id = ps.participant_b_id
+      JOIN public.pairing_configs pc ON pc.id = ps.pairing_config_id
+      WHERE pc.id = completion_assets.pairing_config_id
+        AND ps.status = 'completed'
+        AND (pp_a.user_id = auth.uid() OR pp_b.user_id = auth.uid())
+    )
+  );
+
+CREATE POLICY "completion_assets_insert_own"
+  ON public.completion_assets FOR INSERT
+  WITH CHECK (
+    EXISTS (
+      SELECT 1
+      FROM public.pairing_configs pc
+      JOIN public.links l ON l.id = pc.link_id
+      WHERE pc.id = completion_assets.pairing_config_id
+        AND l.creator_id = auth.uid()
+    )
+  );
+
+CREATE POLICY "completion_assets_update_own"
+  ON public.completion_assets FOR UPDATE
+  USING (
+    EXISTS (
+      SELECT 1
+      FROM public.pairing_configs pc
+      JOIN public.links l ON l.id = pc.link_id
+      WHERE pc.id = completion_assets.pairing_config_id
+        AND l.creator_id = auth.uid()
+    )
+  );
+
+CREATE POLICY "completion_assets_delete_own"
+  ON public.completion_assets FOR DELETE
+  USING (
+    EXISTS (
+      SELECT 1
+      FROM public.pairing_configs pc
+      JOIN public.links l ON l.id = pc.link_id
+      WHERE pc.id = completion_assets.pairing_config_id
+        AND l.creator_id = auth.uid()
+    )
+  );
+
+
+-- ── SCHEDULED MESSAGES ──────────────────────────────────────────────────
+
+-- READ: Creator sees all their scheduled messages and delivery stats.
+-- Participants see a scheduled message only AFTER it has been sent (is_sent = true)
+-- and only for campaigns they are part of.
+CREATE POLICY "scheduled_messages_select"
+  ON public.scheduled_messages FOR SELECT
+  USING (
+    -- Creator
+    EXISTS (
+      SELECT 1
+      FROM public.pairing_configs pc
+      JOIN public.links l ON l.id = pc.link_id
+      WHERE pc.id = scheduled_messages.pairing_config_id
+        AND l.creator_id = auth.uid()
+    )
+    OR
+    -- Participant (only after delivery)
+    (
+      is_sent = true
+      AND EXISTS (
+        SELECT 1
+        FROM public.pairing_participants pp
+        WHERE pp.link_id = (
+          SELECT l.id FROM public.pairing_configs pc
+          JOIN public.links l ON l.id = pc.link_id
+          WHERE pc.id = scheduled_messages.pairing_config_id
+        )
+        AND pp.user_id = auth.uid()
+      )
+    )
+  );
+
+CREATE POLICY "scheduled_messages_insert_own"
+  ON public.scheduled_messages FOR INSERT
+  WITH CHECK (
+    EXISTS (
+      SELECT 1
+      FROM public.pairing_configs pc
+      JOIN public.links l ON l.id = pc.link_id
+      WHERE pc.id = scheduled_messages.pairing_config_id
+        AND l.creator_id = auth.uid()
+    )
+  );
+
+CREATE POLICY "scheduled_messages_update_own"
+  ON public.scheduled_messages FOR UPDATE
+  USING (
+    EXISTS (
+      SELECT 1
+      FROM public.pairing_configs pc
+      JOIN public.links l ON l.id = pc.link_id
+      WHERE pc.id = scheduled_messages.pairing_config_id
+        AND l.creator_id = auth.uid()
+    )
+  );
+
+CREATE POLICY "scheduled_messages_delete_own"
+  ON public.scheduled_messages FOR DELETE
+  USING (
+    is_sent = false -- cannot delete already-sent messages
+    AND EXISTS (
+      SELECT 1
+      FROM public.pairing_configs pc
+      JOIN public.links l ON l.id = pc.link_id
+      WHERE pc.id = scheduled_messages.pairing_config_id
+        AND l.creator_id = auth.uid()
+    )
+  );
+
+
+-- ── PAIRING PARTICIPANTS ─────────────────────────────────────────────────
+
+-- READ: 
+-- The creator sees all participants in their campaigns (for analytics).
+-- A participant sees their own record.
+-- A participant sees their matched partner's record (after matching).
+-- Nobody else.
+CREATE POLICY "pairing_participants_select"
+  ON public.pairing_participants FOR SELECT
+  USING (
+    -- Own record
+    auth.uid() = user_id
+    OR
+    -- Creator of the campaign
+    auth.uid() = get_link_creator(link_id)
+    OR
+    -- Matched partner (after session created)
+    EXISTS (
+      SELECT 1 FROM public.pairing_sessions ps
+      WHERE (
+        (ps.participant_a_id = pairing_participants.id AND is_participant_in_session(ps.participant_b_id))
+        OR
+        (ps.participant_b_id = pairing_participants.id AND is_participant_in_session(ps.participant_a_id))
+      )
+    )
+  );
+
+-- INSERT: Any authenticated user can join a campaign as a participant.
+-- Application layer validates: campaign is_accepting = true, user not already joined.
+CREATE POLICY "pairing_participants_insert_auth"
+  ON public.pairing_participants FOR INSERT
+  WITH CHECK (
+    auth.uid() = user_id
+    AND EXISTS (
+      SELECT 1
+      FROM public.pairing_configs pc
+      WHERE pc.link_id = pairing_participants.link_id
+        AND pc.is_accepting = true
+    )
+  );
+
+-- UPDATE: Participants can update their own record (last_active_at, etc.).
+-- session_id and matching fields updated by Edge Function (service role).
+CREATE POLICY "pairing_participants_update_own"
+  ON public.pairing_participants FOR UPDATE
+  USING (auth.uid() = user_id)
+  WITH CHECK (auth.uid() = user_id);
+
+-- DELETE: Participants can leave (soft delete handled at app level, hard delete here).
+CREATE POLICY "pairing_participants_delete_own"
+  ON public.pairing_participants FOR DELETE
+  USING (auth.uid() = user_id);
+
+
+-- ── PAIRING SESSIONS ────────────────────────────────────────────────────
+
+-- READ: 
+-- Participants in the session can read it.
+-- Creator can read all sessions for their campaigns (aggregate analytics only).
+CREATE POLICY "pairing_sessions_select"
+  ON public.pairing_sessions FOR SELECT
+  USING (
+    is_session_participant(id)
+    OR auth.uid() = get_link_creator(link_id)
+  );
+
+-- INSERT: Only service role (matching Edge Function). No direct client insert.
+CREATE POLICY "pairing_sessions_insert_service_only"
+  ON public.pairing_sessions FOR INSERT
+  WITH CHECK (false);
+
+-- UPDATE: Only service role. Participants cannot modify session metadata.
+CREATE POLICY "pairing_sessions_update_service_only"
+  ON public.pairing_sessions FOR UPDATE
+  USING (false);
+
+-- DELETE: Never deleted — historical record.
+CREATE POLICY "pairing_sessions_delete_never"
+  ON public.pairing_sessions FOR DELETE
+  USING (false);
+
+
+-- ── PAIRING MESSAGES ────────────────────────────────────────────────────
+-- THE MOST CRITICAL POLICY IN THE SYSTEM.
+-- Pairing messages are strictly private to the two participants.
+-- The creator of the campaign CANNOT read private messages.
+-- Only broadcast messages (is_broadcast = true) are readable by the creator.
+
+-- READ:
+-- Private messages: only the two session participants.
+-- Broadcast messages: session participants AND the campaign creator.
+CREATE POLICY "pairing_messages_select"
+  ON public.pairing_messages FOR SELECT
+  USING (
+    -- Always: session participants can read all messages in their session.
+    is_session_participant(session_id)
+    OR
+    -- Broadcast messages only: creator can see what they sent (for broadcast history).
+    (
+      is_broadcast = true
+      AND auth.uid() = (
+        SELECT l.creator_id
+        FROM public.pairing_sessions ps
+        JOIN public.links l ON l.id = ps.link_id
+        WHERE ps.id = pairing_messages.session_id
+      )
+    )
+  );
+
+-- INSERT: Session participants can send messages in their session.
+-- Broadcast messages are inserted by Edge Function (service role) — client sends
+-- to a separate broadcast endpoint, not directly to this table.
+CREATE POLICY "pairing_messages_insert_participant"
+  ON public.pairing_messages FOR INSERT
+  WITH CHECK (
+    auth.uid() = sender_id
+    AND is_broadcast = false  -- broadcasts only via service role
+    AND is_session_participant(session_id)
+    AND EXISTS (
+      SELECT 1 FROM public.pairing_sessions
+      WHERE id = pairing_messages.session_id
+        AND status = 'active'  -- cannot message in expired/completed sessions
+    )
+  );
+
+-- UPDATE: Only the sender can update their own messages (for reactions, edit, soft delete).
+CREATE POLICY "pairing_messages_update_own"
+  ON public.pairing_messages FOR UPDATE
+  USING (
+    auth.uid() = sender_id
+    AND is_session_participant(session_id)
+  )
+  WITH CHECK (
+    auth.uid() = sender_id
+    AND is_broadcast = false  -- sender cannot change a broadcast to private or vice versa
+  );
+
+-- DELETE: No hard deletes — soft delete via is_deleted = true flag.
+CREATE POLICY "pairing_messages_delete_never"
+  ON public.pairing_messages FOR DELETE
+  USING (false);
+```
+
+---
+
+### Block 9 — Unlock Record Policies
+
+```sql
+-- ── LINK VIEWS ──────────────────────────────────────────────────────────
+
+-- READ: Only the creator can read view records for their links (analytics).
+CREATE POLICY "link_views_select_creator"
+  ON public.link_views FOR SELECT
+  USING (
+    auth.uid() = (
+      SELECT creator_id FROM public.links WHERE id = link_views.link_id
+    )
+  );
+
+-- INSERT: Anyone (including anonymous via session_key) can record a view.
+-- Authenticated users have viewer_id set. Anonymous users have only session_key.
+CREATE POLICY "link_views_insert_any"
+  ON public.link_views FOR INSERT
+  WITH CHECK (true);
+-- Note: rate limiting on views is handled at the Edge Function layer,
+-- not RLS, to avoid performance overhead on every page load.
+
+-- No UPDATE or DELETE on view records — immutable analytics log.
+
+
+-- ── EMAIL SUBSCRIBERS ───────────────────────────────────────────────────
+
+-- READ: Only the creator of the link can see their subscriber list.
+-- Viewers cannot see who else subscribed — privacy.
+CREATE POLICY "email_subscribers_select_creator"
+  ON public.email_subscribers FOR SELECT
+  USING (auth.uid() = creator_id);
+
+-- INSERT: Anyone can subscribe (no auth required for email gate).
+-- Application layer validates email format and deduplication (UNIQUE constraint handles it).
+CREATE POLICY "email_subscribers_insert_any"
+  ON public.email_subscribers FOR INSERT
+  WITH CHECK (true);
+
+-- UPDATE: Creator can mark content_accessed. Service role updates exported_at.
+CREATE POLICY "email_subscribers_update_creator"
+  ON public.email_subscribers FOR UPDATE
+  USING (auth.uid() = creator_id)
+  WITH CHECK (auth.uid() = creator_id);
+
+-- DELETE: Creator can remove individual subscribers (GDPR requests etc).
+CREATE POLICY "email_subscribers_delete_creator"
+  ON public.email_subscribers FOR DELETE
+  USING (auth.uid() = creator_id);
+
+
+-- ── SOCIAL UNLOCKS ──────────────────────────────────────────────────────
+
+-- READ: Creator sees all unlock records for their links. Viewers see only their own.
+CREATE POLICY "social_unlocks_select"
+  ON public.social_unlocks FOR SELECT
+  USING (
+    auth.uid() = get_link_creator(link_id)
+    OR auth.uid() = viewer_id
+  );
+
+-- INSERT: Anyone can record a social unlock attempt.
+CREATE POLICY "social_unlocks_insert_any"
+  ON public.social_unlocks FOR INSERT
+  WITH CHECK (true);
+
+-- UPDATE: The viewer (or anonymous via session_key) can update their progress
+-- as they complete individual follow targets.
+CREATE POLICY "social_unlocks_update_own"
+  ON public.social_unlocks FOR UPDATE
+  USING (
+    auth.uid() = viewer_id
+    OR viewer_id IS NULL  -- anonymous session, session_key validated at app level
+  );
+
+-- No DELETE.
+
+
+-- ── SPONSOR IMPRESSIONS ─────────────────────────────────────────────────
+
+-- READ: Creator only — for analytics and sponsor reports.
+CREATE POLICY "sponsor_impressions_select_creator"
+  ON public.sponsor_impressions FOR SELECT
+  USING (
+    auth.uid() = get_link_creator(link_id)
+  );
+
+-- INSERT: Anyone — anonymous viewers can generate impressions.
+CREATE POLICY "sponsor_impressions_insert_any"
+  ON public.sponsor_impressions FOR INSERT
+  WITH CHECK (true);
+
+-- UPDATE: The viewer updates their own record as they watch and click.
+-- Authenticated viewer updates by viewer_id. Anonymous updates by session_key
+-- validated at Edge Function level.
+CREATE POLICY "sponsor_impressions_update_own"
+  ON public.sponsor_impressions FOR UPDATE
+  USING (
+    auth.uid() = viewer_id
+    OR viewer_id IS NULL
+  );
+
+-- No DELETE.
+```
+
+---
+
+### Block 10 — Earnings, Payouts, and Referrals
+
+```sql
+-- ── EARNINGS ────────────────────────────────────────────────────────────
+
+-- READ: Users see only their own earnings.
+CREATE POLICY "earnings_select_own"
+  ON public.earnings FOR SELECT
+  USING (auth.uid() = user_id);
+
+-- INSERT: Only service role (Stripe webhooks, referral triggers).
+-- No client can insert earnings directly.
+CREATE POLICY "earnings_insert_service_only"
+  ON public.earnings FOR INSERT
+  WITH CHECK (false);
+
+-- No UPDATE or DELETE from client.
+
+
+-- ── PAYOUTS ─────────────────────────────────────────────────────────────
+
+-- READ: Users see only their own payout records.
+CREATE POLICY "payouts_select_own"
+  ON public.payouts FOR SELECT
+  USING (auth.uid() = user_id);
+
+-- INSERT: Users can create their own payout requests.
+-- Application layer validates minimum amount (₹1000 / $10) and Stripe connection.
+CREATE POLICY "payouts_insert_own"
+  ON public.payouts FOR INSERT
+  WITH CHECK (
+    auth.uid() = user_id
+    AND status = 'pending'  -- must start as pending; service role advances status
+  );
+
+-- UPDATE: Only service role (Stripe webhook processor). Client cannot change payout status.
+CREATE POLICY "payouts_update_service_only"
+  ON public.payouts FOR UPDATE
+  USING (false);
+
+-- No DELETE.
+
+
+-- ── REFERRALS ───────────────────────────────────────────────────────────
+
+-- READ: Referrers see who they referred. Referred users see their own referral record.
+CREATE POLICY "referrals_select_own"
+  ON public.referrals FOR SELECT
+  USING (
+    auth.uid() = referrer_id
+    OR auth.uid() = referred_id
+  );
+
+-- INSERT: Only service role (signup trigger handles attribution).
+CREATE POLICY "referrals_insert_service_only"
+  ON public.referrals FOR INSERT
+  WITH CHECK (false);
+
+-- UPDATE: Only service role (marks is_attributed when first link is created).
+CREATE POLICY "referrals_update_service_only"
+  ON public.referrals FOR UPDATE
+  USING (false);
+
+-- No DELETE.
+```
+
+---
+
+### Block 11 — Direct Messaging Policies
+
+```sql
+-- ── MESSAGE REQUESTS ────────────────────────────────────────────────────
+
+-- READ: Sender sees their sent requests. Recipient sees incoming requests.
+CREATE POLICY "message_requests_select"
+  ON public.message_requests FOR SELECT
+  USING (
+    auth.uid() = sender_id
+    OR auth.uid() = recipient_id
+  );
+
+-- INSERT: Any authenticated user can send a request.
+-- UNIQUE(sender_id, recipient_id) constraint prevents duplicates.
+-- Application validates: not blocked, not self, recipient exists.
+CREATE POLICY "message_requests_insert_auth"
+  ON public.message_requests FOR INSERT
+  WITH CHECK (
+    auth.uid() = sender_id
+    AND auth.uid() != recipient_id
+    -- Sender is not blocked by recipient
+    AND NOT EXISTS (
+      SELECT 1 FROM public.blocked_users
+      WHERE blocker_id = recipient_id AND blocked_id = auth.uid()
+    )
+    -- Sender has not blocked recipient
+    AND NOT EXISTS (
+      SELECT 1 FROM public.blocked_users
+      WHERE blocker_id = auth.uid() AND blocked_id = recipient_id
+    )
+  );
+
+-- UPDATE: Only the recipient can update status (approve/decline).
+-- Sender cannot retract after sending — they can only wait.
+CREATE POLICY "message_requests_update_recipient"
+  ON public.message_requests FOR UPDATE
+  USING (auth.uid() = recipient_id)
+  WITH CHECK (
+    auth.uid() = recipient_id
+    -- Status can only move forward: pending → approved OR pending → declined.
+    -- Cannot un-decline or un-approve.
+    AND status IN ('approved', 'declined')
+  );
+
+-- No DELETE. Historical record of all requests.
+
+
+-- ── DIRECT CONVERSATIONS ─────────────────────────────────────────────────
+
+-- READ: Only the two participants can see the conversation.
+CREATE POLICY "direct_conversations_select"
+  ON public.direct_conversations FOR SELECT
+  USING (
+    auth.uid() = participant_a_id
+    OR auth.uid() = participant_b_id
+  );
+
+-- INSERT: Only service role (created by the request approval Edge Function).
+-- Client approves a request; the Edge Function creates the conversation.
+CREATE POLICY "direct_conversations_insert_service_only"
+  ON public.direct_conversations FOR INSERT
+  WITH CHECK (false);
+
+-- UPDATE: Participants can update their own unread count (mark as read).
+-- last_message fields updated by trigger (service role function context).
+CREATE POLICY "direct_conversations_update_participant"
+  ON public.direct_conversations FOR UPDATE
+  USING (
+    auth.uid() = participant_a_id
+    OR auth.uid() = participant_b_id
+  )
+  WITH CHECK (
+    -- Participants can only update unread counts, not change participants.
+    participant_a_id = (SELECT participant_a_id FROM public.direct_conversations WHERE id = direct_conversations.id)
+    AND participant_b_id = (SELECT participant_b_id FROM public.direct_conversations WHERE id = direct_conversations.id)
+  );
+
+-- No DELETE. Blocking a user hides conversation at app layer, not DB layer.
+
+
+-- ── DIRECT MESSAGES ─────────────────────────────────────────────────────
+
+-- READ: Only participants in the conversation.
+CREATE POLICY "direct_messages_select"
+  ON public.direct_messages FOR SELECT
+  USING (is_conversation_participant(conversation_id));
+
+-- INSERT: Participants can send messages. Soft-deleted messages cannot be replied to
+-- (application layer validation). Blocked users cannot message (enforced at request
+-- approval stage — if conversation exists, block cannot be active).
+CREATE POLICY "direct_messages_insert_participant"
+  ON public.direct_messages FOR INSERT
+  WITH CHECK (
+    auth.uid() = sender_id
+    AND is_conversation_participant(conversation_id)
+  );
+
+-- UPDATE: Sender can soft-delete or add reactions to their own messages.
+-- Recipients can mark as read and add reactions.
+CREATE POLICY "direct_messages_update"
+  ON public.direct_messages FOR UPDATE
+  USING (is_conversation_participant(conversation_id))
+  WITH CHECK (
+    -- Only the sender can change content-level fields.
+    -- Both participants can update is_read and reactions.
+    is_conversation_participant(conversation_id)
+  );
+
+-- No hard DELETE.
+```
+
+---
+
+### Block 12 — Trust Events and Reports
+
+```sql
+-- ── TRUST EVENTS ────────────────────────────────────────────────────────
+
+-- READ: Users can see their own trust event history.
+-- This gives transparency — they can see why their score changed.
+CREATE POLICY "trust_events_select_own"
+  ON public.trust_events FOR SELECT
+  USING (auth.uid() = user_id);
+
+-- INSERT: Only service role. Clients cannot manufacture trust events.
+CREATE POLICY "trust_events_insert_service_only"
+  ON public.trust_events FOR INSERT
+  WITH CHECK (false);
+
+-- No UPDATE or DELETE. Trust event log is immutable.
+
+
+-- ── REPORTS ─────────────────────────────────────────────────────────────
+
+-- READ: Reporters see their own submitted reports and their status.
+-- Reported users do NOT see reports against them — prevents retaliation.
+CREATE POLICY "reports_select_reporter"
+  ON public.reports FOR SELECT
+  USING (auth.uid() = reporter_id);
+
+-- INSERT: Any authenticated user can file a report.
+-- Application validates: not reporting themselves, context (session_id or conversation_id)
+-- belongs to a real interaction between the reporter and reported user.
+CREATE POLICY "reports_insert_auth"
+  ON public.reports FOR INSERT
+  WITH CHECK (
+    auth.uid() = reporter_id
+    AND auth.uid() != reported_user_id
+  );
+
+-- UPDATE: Only service role (admin/moderation system updates status and resolution).
+CREATE POLICY "reports_update_service_only"
+  ON public.reports FOR UPDATE
+  USING (false);
+
+-- No DELETE.
+```
+
+---
+
+### Block 13 — Policy Verification Queries
+
+Run these after all policies are applied to confirm nothing is accidentally open or accidentally locked.
+
+```sql
+-- List all tables with RLS enabled
+SELECT tablename, rowsecurity
+FROM pg_tables
+WHERE schemaname = 'public'
+ORDER BY tablename;
+-- Every row should show rowsecurity = true.
+
+-- List all policies by table
+SELECT
+  schemaname,
+  tablename,
+  policyname,
+  permissive,
+  roles,
+  cmd,
+  qual,
+  with_check
+FROM pg_policies
+WHERE schemaname = 'public'
+ORDER BY tablename, cmd;
+-- Verify every table has at least one SELECT policy.
+-- Verify INSERT policies all have WITH CHECK clauses.
+
+-- Test: anonymous user (no auth.uid()) should see zero rows from sensitive tables.
+-- Run as anon role in Supabase SQL editor:
+SET ROLE anon;
+SELECT COUNT(*) FROM public.earnings;         -- Should be 0
+SELECT COUNT(*) FROM public.email_subscribers; -- Should be 0
+SELECT COUNT(*) FROM public.pairing_messages;  -- Should be 0
+SELECT COUNT(*) FROM public.direct_messages;   -- Should be 0
+SELECT COUNT(*) FROM public.trust_events;      -- Should be 0
+RESET ROLE;
+
+-- Test: public tables accessible to anon.
+SET ROLE anon;
+SELECT COUNT(*) FROM public.users;   -- Should return rows (public profiles)
+SELECT COUNT(*) FROM public.links;   -- Should return active links only
+RESET ROLE;
+```
+
+---
+
+### Block 14 — Grant Permissions To Roles
+
+```sql
+-- Supabase has three roles: anon (unauthenticated), authenticated, service_role.
+-- RLS handles row-level access. These grants handle table-level access.
+
+-- anon role: only needs SELECT on public-facing tables.
+GRANT SELECT ON public.users TO anon;
+GRANT SELECT ON public.social_handles TO anon;
+GRANT SELECT ON public.links TO anon;
+GRANT SELECT ON public.email_configs TO anon;
+GRANT SELECT ON public.social_configs TO anon;
+GRANT SELECT ON public.follow_targets TO anon;
+GRANT SELECT ON public.sponsor_configs TO anon;
+GRANT SELECT ON public.pairing_configs TO anon;
+GRANT INSERT ON public.link_views TO anon;
+GRANT INSERT ON public.email_subscribers TO anon;
+GRANT INSERT ON public.social_unlocks TO anon;
+GRANT INSERT ON public.sponsor_impressions TO anon;
+GRANT UPDATE ON public.social_unlocks TO anon;
+GRANT UPDATE ON public.sponsor_impressions TO anon;
+
+-- authenticated role: full CRUD on tables they interact with (RLS restricts rows).
+GRANT SELECT, INSERT, UPDATE ON public.users TO authenticated;
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.social_handles TO authenticated;
+GRANT SELECT, INSERT, DELETE ON public.blocked_users TO authenticated;
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.files TO authenticated;
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.links TO authenticated;
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.email_configs TO authenticated;
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.social_configs TO authenticated;
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.follow_targets TO authenticated;
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.sponsor_configs TO authenticated;
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.pairing_configs TO authenticated;
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.completion_assets TO authenticated;
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.scheduled_messages TO authenticated;
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.pairing_participants TO authenticated;
+GRANT SELECT ON public.pairing_sessions TO authenticated;
+GRANT SELECT, INSERT, UPDATE ON public.pairing_messages TO authenticated;
+GRANT SELECT, INSERT ON public.link_views TO authenticated;
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.email_subscribers TO authenticated;
+GRANT SELECT, INSERT, UPDATE ON public.social_unlocks TO authenticated;
+GRANT SELECT, INSERT, UPDATE ON public.sponsor_impressions TO authenticated;
+GRANT SELECT ON public.earnings TO authenticated;
+GRANT SELECT, INSERT ON public.payouts TO authenticated;
+GRANT SELECT ON public.referrals TO authenticated;
+GRANT SELECT, INSERT, UPDATE ON public.message_requests TO authenticated;
+GRANT SELECT, UPDATE ON public.direct_conversations TO authenticated;
+GRANT SELECT, INSERT, UPDATE ON public.direct_messages TO authenticated;
+GRANT SELECT ON public.trust_events TO authenticated;
+GRANT SELECT, INSERT ON public.reports TO authenticated;
+
+-- service_role: already has full access bypassing RLS.
+-- No explicit grants needed.
+
+-- Grant EXECUTE on helper functions to authenticated and anon.
+GRANT EXECUTE ON FUNCTION is_blocked_relationship(UUID) TO authenticated;
+GRANT EXECUTE ON FUNCTION is_session_participant(UUID) TO authenticated;
+GRANT EXECUTE ON FUNCTION is_participant_in_session(UUID) TO authenticated;
+GRANT EXECUTE ON FUNCTION is_conversation_participant(UUID) TO authenticated;
+GRANT EXECUTE ON FUNCTION get_link_creator(UUID) TO authenticated;
+GRANT EXECUTE ON FUNCTION get_user_balance(UUID) TO authenticated;
+GRANT EXECUTE ON FUNCTION user_has_active_session(UUID, UUID) TO authenticated;
+GRANT EXECUTE ON FUNCTION increment_link_views(UUID) TO anon, authenticated;
+GRANT EXECUTE ON FUNCTION increment_link_unlocks(UUID) TO anon, authenticated;
+```
+
+---
+
+### Policy Summary Table
+
+| Table | SELECT | INSERT | UPDATE | DELETE |
+|-------|--------|--------|--------|--------|
+| `users` | Public | Trigger only | Own row (protected fields) | Never |
+| `social_handles` | Public | Own | Own | Own |
+| `blocked_users` | Own blocks only | Own | Never | Own |
+| `files` | Owner + linked content | Own | Own | Own |
+| `links` | Active = public, inactive = owner | Own | Own | Own |
+| `email_configs` | Via active link | Own | Own | Own |
+| `social_configs` | Via active link | Own | Own | Own |
+| `follow_targets` | Via active link | Own | Own | Own |
+| `sponsor_configs` | Via active link | Own | Own | Own |
+| `pairing_configs` | Via active link | Own | Own | Own |
+| `completion_assets` | Creator + completed participants | Own | Own | Own |
+| `scheduled_messages` | Creator + participants (post-send) | Own | Own | Unsent only |
+| `pairing_participants` | Own + creator + matched partner | Auth (joining) | Own | Own |
+| `pairing_sessions` | Participants + creator | Service only | Service only | Never |
+| `pairing_messages` | **Participants only** (creator sees broadcasts only) | Participants (non-broadcast) | Own sender | Never |
+| `link_views` | Creator only | Anyone | Never | Never |
+| `email_subscribers` | Creator only | Anyone | Creator | Creator |
+| `social_unlocks` | Creator + own viewer | Anyone | Own viewer | Never |
+| `sponsor_impressions` | Creator only | Anyone | Own viewer | Never |
+| `earnings` | Own | Service only | Never | Never |
+| `payouts` | Own | Own (pending only) | Service only | Never |
+| `referrals` | Referrer + referred | Service only | Service only | Never |
+| `message_requests` | Sender + recipient | Auth (not blocked) | Recipient (approve/decline) | Never |
+| `direct_conversations` | Participants only | Service only | Participants (unread) | Never |
+| `direct_messages` | Participants only | Participants | Participants | Never |
+| `trust_events` | Own | Service only | Never | Never |
+| `reports` | Reporter only | Auth | Service only | Never |
+
+---
+

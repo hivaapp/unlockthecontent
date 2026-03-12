@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { mockLinks } from '../lib/mockData';
 import { useFollowerPairingMatching } from '../hooks/useFollowerPairingMatching';
-import { SignInModal } from '../components/SignInModal';
+import { AuthBottomSheet } from '../components/AuthBottomSheet';
 import { useAuth } from '../context/AuthContext';
 
 export const FollowerPairingMatching = () => {
@@ -12,6 +12,7 @@ export const FollowerPairingMatching = () => {
   const [gender, setGender] = useState('any');
   const [commitment, setCommitment] = useState('');
   const [showSignIn, setShowSignIn] = useState(false);
+  const [authScreen, setAuthScreen] = useState<'signin' | 'signup'>('signin');
   const [statusIdx, setStatusIdx] = useState(0);
 
   const link = mockLinks.find(l => l.slug === slug && l.unlockType === 'follower_pairing');
@@ -207,14 +208,14 @@ export const FollowerPairingMatching = () => {
 
             <div className="w-full flex flex-col gap-[10px] mt-5">
               <button
-                onClick={() => setShowSignIn(true)}
+                onClick={() => { setAuthScreen('signup'); setShowSignIn(true); }}
                 className="w-full h-[52px] rounded-[14px] text-white text-[15px] font-[900] flex items-center justify-center"
                 style={{ backgroundColor: '#E8312A' }}
               >
                 Create Account →
               </button>
               <button
-                onClick={() => setShowSignIn(true)}
+                onClick={() => { setAuthScreen('signin'); setShowSignIn(true); }}
                 className="w-full h-[52px] rounded-[14px] text-[#333] text-[15px] font-[800] flex items-center justify-center"
                 style={{ border: '1.5px solid #333', backgroundColor: 'white' }}
               >
@@ -230,7 +231,12 @@ export const FollowerPairingMatching = () => {
         </div>
       )}
 
-      <SignInModal isOpen={showSignIn} onClose={() => setShowSignIn(false)} onSuccess={handleAuthSuccess} />
+      <AuthBottomSheet 
+        isOpen={showSignIn} 
+        onClose={() => setShowSignIn(false)} 
+        onSuccess={handleAuthSuccess}
+        defaultScreen={authScreen}
+      />
 
       <style>{`
         @keyframes dotPulse {

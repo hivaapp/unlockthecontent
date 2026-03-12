@@ -1,0 +1,1364 @@
+## Part 3 — Supabase Auth Setup + Real AuthContext
+
+---
+
+### What This Part Does
+
+Installs the Supabase JS client. Configures auth providers in the Supabase dashboard. Replaces the mock `AuthContext` entirely with real Supabase auth — every `login()`, `logout()`, `signUp()` call becomes a real Supabase operation. Connects the `handle_new_user()` trigger from Part 1 to the real auth flow. Wires the auth bottom sheet from the pre-Part-3 work to real calls. Sets up session persistence, token refresh, and protected route handling. By the end of this part a real user can sign up, verify their email, sign in, stay logged in across page refreshes, and sign out — all hitting the real Supabase project.
+
+---
+
+### Block 1 — Install Dependencies
+
+```bash
+npm install @supabase/supabase-js
+```
+
+No other auth library needed. Supabase JS handles everything — session management, token refresh, OAuth redirects, password reset emails.
+
+---
+
+### Block 2 — Environment Variables
+
+Create `.env` in the project root. Never commit this file — it must be in `.gitignore` already.
+
+```bash
+# .env
+VITE_SUPABASE_URL=https://your-project-ref.supabase.co
+VITE_SUPABASE_ANON_KEY=your-anon-key-here
+
+# These are safe to expose in the frontend bundle.
+# The anon key is designed to be public — RLS (Part 2) controls what it can access.
+# NEVER put the service_role key in frontend code.
+```
+
+Both values come from your Supabase dashboard → Project Settings → API.
+
+Create `.env.example` for the repo — safe to commit:
+
+```bash
+# .env.example
+VITE_SUPABASE_URL=https://your-project-ref.supabase.co
+VITE_SUPABASE_ANON_KEY=your-anon-key-here
+```
+
+Add `.env` to `.gitignore` if not already there:
+
+```bash
+echo ".env" >> .gitignore
+```
+
+---
+
+### Block 3 — Supabase Client
+
+Create `src/lib/supabase.js`. This is the single shared client instance used everywhere in the app.
+
+```javascript
+// src/lib/supabase.js
+import { createClient } from '@supabase/supabase-js'
+
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
+
+if (!supabaseUrl || !supabaseAnonKey) {
+  throw new Error(
+    'Missing Supabase environment variables. ' +
+    'Check that VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY are set in your .env file.'
+  )
+}
+
+export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+  auth: {
+    // Persist session in localStorage across page refreshes.
+    persistSession: true,
+    
+    // Auto-refresh the JWT before it expires (every ~55 minutes).
+    autoRefreshToken: true,
+    
+    // Detect session from URL hash on OAuth callback and email confirmation links.
+    detectSessionInUrl: true,
+    
+    // Storage key prefix — keeps AdGate sessions separate if user has other
+    // Supabase apps open in the same browser.
+    storageKey: 'adgate_auth',
+  },
+  
+  realtime: {
+    params: {
+      eventsPerSecond: 10,
+    },
+  },
+  
+  global: {
+    headers: {
+      'x-application-name': 'adgate',
+    },
+  },
+})
+
+export default supabase
+```
+
+---
+
+### Block 4 — Supabase Dashboard Configuration
+
+These settings must be configured in the Supabase dashboard before any auth calls will work. Do each one in order.
+
+---
+
+**4a — Site URL and Redirect URLs**
+
+Dashboard → Authentication → URL Configuration.
+
+Site URL: `http://localhost:5173` for development. Change to your production domain before deploying.
+
+Redirect URLs — add all of these:
+```
+http://localhost:5173/**
+http://localhost:5173/auth/callback
+http://localhost:5173/auth/confirm
+https://yourdomain.com/**
+https://yourdomain.com/auth/callback
+https://yourdomain.com/auth/confirm
+```
+
+The `/**` wildcard covers all paths. The specific `/auth/callback` and `/auth/confirm` are explicit for clarity.
+
+---
+
+**4b — Email Auth Settings**
+
+Dashboard → Authentication → Providers → Email.
+
+Enable: ✅ Email provider enabled.
+
+Confirm email: ✅ Enable email confirmations.
+
+This means after sign up the user gets a confirmation email. They must click the link before they can sign in. This is required for a production app — prevents fake email signups.
+
+Secure email change: ✅ Enabled. When a user changes their email both old and new addresses receive a confirmation link.
+
+Double confirm email changes: ✅ Enabled.
+
+Minimum password length: 8.
+
+---
+
+**4c — Google OAuth Provider**
+
+Dashboard → Authentication → Providers → Google.
+
+Enable: ✅ Google provider enabled.
+
+You need a Google Cloud OAuth app:
+
+1. Go to console.cloud.google.com → Create Project → APIs & Services → Credentials.
+2. Create OAuth 2.0 Client ID. Application type: Web application.
+3. Authorized redirect URIs: `https://your-project-ref.supabase.co/auth/v1/callback`
+4. Copy the Client ID and Client Secret into the Supabase Google provider fields.
+
+The Supabase dashboard shows the exact redirect URI to paste into Google Console.
+
+---
+
+**4d — Email Templates**
+
+Dashboard → Authentication → Email Templates.
+
+Customize each template to match AdGate branding. Below are the complete templates.
+
+**Confirm signup template:**
+
+Subject: `Confirm your AdGate account`
+
+```html
+<div style="font-family: Arial, sans-serif; max-width: 560px; margin: 0 auto; padding: 40px 24px; background: #ffffff;">
+  <div style="text-align: center; margin-bottom: 32px;">
+    <span style="font-size: 28px; font-weight: 900; color: #111111;">AdGate</span>
+  </div>
+  
+  <h1 style="font-size: 22px; font-weight: 900; color: #111111; margin: 0 0 8px;">
+    Confirm your email address
+  </h1>
+  <p style="font-size: 14px; color: #666666; line-height: 1.6; margin: 0 0 32px;">
+    You're almost there. Click the button below to confirm your email and activate your AdGate account.
+  </p>
+  
+  <a href="{{ .ConfirmationURL }}"
+     style="display: inline-block; background: #E8312A; color: #ffffff; text-decoration: none;
+            font-size: 15px; font-weight: 900; padding: 14px 32px; border-radius: 12px;">
+    Confirm my account →
+  </a>
+  
+  <p style="font-size: 12px; color: #AAAAAA; margin-top: 32px; line-height: 1.6;">
+    If you didn't create an AdGate account, you can safely ignore this email.
+    This link expires in 24 hours.
+  </p>
+  
+  <hr style="border: none; border-top: 1px solid #F0F0F0; margin: 32px 0;">
+  <p style="font-size: 11px; color: #BBBBBB; text-align: center;">
+    AdGate · Creator monetization platform
+  </p>
+</div>
+```
+
+**Reset password template:**
+
+Subject: `Reset your AdGate password`
+
+```html
+<div style="font-family: Arial, sans-serif; max-width: 560px; margin: 0 auto; padding: 40px 24px; background: #ffffff;">
+  <div style="text-align: center; margin-bottom: 32px;">
+    <span style="font-size: 28px; font-weight: 900; color: #111111;">AdGate</span>
+  </div>
+  
+  <h1 style="font-size: 22px; font-weight: 900; color: #111111; margin: 0 0 8px;">
+    Reset your password
+  </h1>
+  <p style="font-size: 14px; color: #666666; line-height: 1.6; margin: 0 0 32px;">
+    We received a request to reset the password for your AdGate account.
+    Click the button below to choose a new password.
+  </p>
+  
+  <a href="{{ .ConfirmationURL }}"
+     style="display: inline-block; background: #E8312A; color: #ffffff; text-decoration: none;
+            font-size: 15px; font-weight: 900; padding: 14px 32px; border-radius: 12px;">
+    Reset my password →
+  </a>
+  
+  <p style="font-size: 12px; color: #AAAAAA; margin-top: 32px; line-height: 1.6;">
+    This link expires in 1 hour. If you didn't request a password reset,
+    you can safely ignore this email — your password will not change.
+  </p>
+  
+  <hr style="border: none; border-top: 1px solid #F0F0F0; margin: 32px 0;">
+  <p style="font-size: 11px; color: #BBBBBB; text-align: center;">
+    AdGate · Creator monetization platform
+  </p>
+</div>
+```
+
+**Magic link template** (used internally by Supabase, keep it clean):
+
+Subject: `Your AdGate sign-in link`
+
+Same structure as confirm signup but with different copy: "Here is your sign-in link. It expires in 10 minutes."
+
+---
+
+### Block 5 — Auth Callback Route
+
+Create `src/pages/AuthCallbackPage.jsx`. This page handles three cases:
+
+1. Email confirmation link clicked from inbox → activates account → redirects to dashboard.
+2. Password reset link clicked → redirects to `/reset-password` with the token in the URL.
+3. OAuth callback (Google) → Supabase exchanges the code → session created → redirects.
+
+Supabase's `detectSessionInUrl: true` handles the actual token exchange. This page just waits for it and then redirects.
+
+```javascript
+// src/pages/AuthCallbackPage.jsx
+import { useEffect, useState } from 'react'
+import { useNavigate, useSearchParams } from 'react-router-dom'
+import { supabase } from '../lib/supabase'
+
+const AuthCallbackPage = () => {
+  const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
+  const [error, setError] = useState(null)
+
+  useEffect(() => {
+    const handleCallback = async () => {
+      // Supabase puts the type in the URL hash or as a search param.
+      // detectSessionInUrl handles the session automatically.
+      // We just need to check what type of callback this is.
+      
+      const hashParams = new URLSearchParams(window.location.hash.replace('#', ''))
+      const type = hashParams.get('type') || searchParams.get('type')
+      const errorParam = hashParams.get('error_description') || searchParams.get('error_description')
+      
+      if (errorParam) {
+        setError(decodeURIComponent(errorParam))
+        return
+      }
+
+      // Wait for Supabase to process the session from the URL
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession()
+
+      if (sessionError) {
+        setError(sessionError.message)
+        return
+      }
+
+      if (type === 'recovery') {
+        // Password reset flow — redirect to the reset password page
+        navigate('/reset-password', { replace: true })
+        return
+      }
+
+      if (type === 'signup' || type === 'email_change') {
+        // Email confirmed — go to dashboard
+        navigate('/dashboard', { replace: true })
+        return
+      }
+
+      if (session) {
+        // OAuth or magic link — session exists, go to dashboard
+        // Check if this is a new user (no username set yet) → onboarding
+        const { data: userProfile } = await supabase
+          .from('users')
+          .select('username, is_creator')
+          .eq('id', session.user.id)
+          .single()
+
+        if (userProfile?.is_creator) {
+          navigate('/dashboard', { replace: true })
+        } else {
+          navigate('/', { replace: true })
+        }
+        return
+      }
+
+      // Fallback
+      navigate('/', { replace: true })
+    }
+
+    handleCallback()
+  }, [])
+
+  if (error) {
+    return (
+      <div style={{
+        display: 'flex', flexDirection: 'column', alignItems: 'center',
+        justifyContent: 'center', height: '100vh', padding: '32px',
+        fontFamily: 'Arial, sans-serif'
+      }}>
+        <div style={{ fontSize: '48px', marginBottom: '16px' }}>⚠️</div>
+        <h2 style={{ fontSize: '20px', fontWeight: 900, color: '#111', margin: '0 0 8px' }}>
+          Link expired or invalid
+        </h2>
+        <p style={{ fontSize: '14px', color: '#888', textAlign: 'center', maxWidth: '320px', margin: '0 0 24px' }}>
+          {error}
+        </p>
+        <button
+          onClick={() => navigate('/')}
+          style={{
+            background: '#E8312A', color: 'white', border: 'none',
+            padding: '12px 24px', borderRadius: '10px',
+            fontSize: '14px', fontWeight: 800, cursor: 'pointer'
+          }}
+        >
+          Go to AdGate →
+        </button>
+      </div>
+    )
+  }
+
+  return (
+    <div style={{
+      display: 'flex', flexDirection: 'column', alignItems: 'center',
+      justifyContent: 'center', height: '100vh',
+      fontFamily: 'Arial, sans-serif'
+    }}>
+      <div style={{
+        width: '40px', height: '40px', border: '3px solid #F0F0F0',
+        borderTopColor: '#E8312A', borderRadius: '50%',
+        animation: 'spin 0.8s linear infinite'
+      }} />
+      <p style={{ marginTop: '16px', fontSize: '14px', color: '#888', fontWeight: 600 }}>
+        Signing you in...
+      </p>
+      <style>{`
+        @keyframes spin { to { transform: rotate(360deg); } }
+      `}</style>
+    </div>
+  )
+}
+
+export default AuthCallbackPage
+```
+
+Add to `App.jsx` routes:
+
+```javascript
+<Route path="/auth/callback" element={<AuthCallbackPage />} />
+<Route path="/auth/confirm" element={<AuthCallbackPage />} />
+```
+
+---
+
+### Block 6 — Reset Password Page
+
+Create `src/pages/ResetPasswordPage.jsx`. This is the page the user lands on after clicking the reset link in their email. It shows a new password form.
+
+```javascript
+// src/pages/ResetPasswordPage.jsx
+import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { supabase } from '../lib/supabase'
+
+const ResetPasswordPage = () => {
+  const navigate = useNavigate()
+  const [password, setPassword] = useState('')
+  const [confirm, setConfirm] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
+  const [isLoading, setIsLoading] = useState(false)
+  const [error, setError] = useState(null)
+  const [success, setSuccess] = useState(false)
+
+  const getStrength = (pwd) => {
+    let score = 0
+    if (pwd.length >= 8) score++
+    if (pwd.length >= 12) score++
+    if (/[A-Z]/.test(pwd)) score++
+    if (/[0-9]/.test(pwd)) score++
+    if (/[^A-Za-z0-9]/.test(pwd)) score++
+    if (score <= 1) return { width: '25%', color: '#EF4444', label: 'Weak' }
+    if (score <= 2) return { width: '50%', color: '#F59E0B', label: 'Fair' }
+    if (score <= 3) return { width: '75%', color: '#3B82F6', label: 'Good' }
+    return { width: '100%', color: '#16A34A', label: 'Strong' }
+  }
+
+  const handleReset = async () => {
+    if (password.length < 8) {
+      setError('Password must be at least 8 characters.')
+      return
+    }
+    if (password !== confirm) {
+      setError('Passwords do not match.')
+      return
+    }
+
+    setIsLoading(true)
+    setError(null)
+
+    const { error: updateError } = await supabase.auth.updateUser({ password })
+
+    if (updateError) {
+      setError(updateError.message)
+      setIsLoading(false)
+      return
+    }
+
+    setSuccess(true)
+    setIsLoading(false)
+
+    // Redirect to dashboard after 2 seconds
+    setTimeout(() => navigate('/dashboard', { replace: true }), 2000)
+  }
+
+  const strength = getStrength(password)
+
+  if (success) {
+    return (
+      <div style={{
+        display: 'flex', flexDirection: 'column', alignItems: 'center',
+        justifyContent: 'center', height: '100vh', padding: '32px',
+        fontFamily: 'Arial, sans-serif'
+      }}>
+        <div style={{ fontSize: '48px', marginBottom: '16px' }}>✅</div>
+        <h2 style={{ fontSize: '22px', fontWeight: 900, color: '#111', margin: '0 0 8px', textAlign: 'center' }}>
+          Password updated
+        </h2>
+        <p style={{ fontSize: '14px', color: '#888', textAlign: 'center' }}>
+          Redirecting you to your dashboard...
+        </p>
+      </div>
+    )
+  }
+
+  return (
+    <div style={{
+      display: 'flex', flexDirection: 'column', alignItems: 'center',
+      justifyContent: 'center', minHeight: '100vh', padding: '32px',
+      fontFamily: 'Arial, sans-serif', background: '#F6F6F6'
+    }}>
+      <div style={{
+        background: 'white', borderRadius: '20px', padding: '32px',
+        width: '100%', maxWidth: '400px',
+        boxShadow: '0 4px 24px rgba(0,0,0,0.06)'
+      }}>
+        <div style={{ textAlign: 'center', marginBottom: '24px' }}>
+          <span style={{ fontSize: '24px', fontWeight: 900, color: '#111' }}>AdGate</span>
+        </div>
+
+        <h1 style={{ fontSize: '22px', fontWeight: 900, color: '#111', margin: '0 0 8px' }}>
+          Set new password
+        </h1>
+        <p style={{ fontSize: '13px', color: '#888', margin: '0 0 24px', lineHeight: 1.6 }}>
+          Choose a strong password for your account.
+        </p>
+
+        {error && (
+          <div style={{
+            background: '#FFF0EF', border: '1px solid #FECACA',
+            borderRadius: '8px', padding: '10px 14px', marginBottom: '16px'
+          }}>
+            <span style={{ fontSize: '13px', fontWeight: 700, color: '#C0392B' }}>
+              ⚠️ {error}
+            </span>
+          </div>
+        )}
+
+        <div style={{ marginBottom: '16px' }}>
+          <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#555', marginBottom: '6px' }}>
+            New password
+          </label>
+          <div style={{ position: 'relative' }}>
+            <input
+              type={showPassword ? 'text' : 'password'}
+              value={password}
+              onChange={e => setPassword(e.target.value)}
+              placeholder="Minimum 8 characters"
+              style={{
+                width: '100%', height: '52px', border: '1.5px solid #E8E8E8',
+                borderRadius: '12px', padding: '0 44px 0 16px',
+                fontSize: '15px', color: '#111', boxSizing: 'border-box',
+                outline: 'none', fontFamily: 'Arial'
+              }}
+            />
+            <button
+              onClick={() => setShowPassword(s => !s)}
+              style={{
+                position: 'absolute', right: '0', top: '0',
+                width: '44px', height: '52px', border: 'none',
+                background: 'transparent', cursor: 'pointer',
+                color: '#AAAAAA', fontSize: '16px'
+              }}
+            >
+              {showPassword ? '🙈' : '👁'}
+            </button>
+          </div>
+
+          {password && (
+            <div style={{ marginTop: '8px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                <div style={{ flex: 1, height: '4px', background: '#F0F0F0', borderRadius: '2px', marginRight: '8px' }}>
+                  <div style={{ height: '100%', width: strength.width, background: strength.color, borderRadius: '2px', transition: 'width 300ms ease' }} />
+                </div>
+                <span style={{ fontSize: '11px', fontWeight: 700, color: strength.color }}>{strength.label}</span>
+              </div>
+            </div>
+          )}
+        </div>
+
+        <div style={{ marginBottom: '24px' }}>
+          <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#555', marginBottom: '6px' }}>
+            Confirm password
+          </label>
+          <input
+            type="password"
+            value={confirm}
+            onChange={e => setConfirm(e.target.value)}
+            placeholder="Repeat your new password"
+            style={{
+              width: '100%', height: '52px', border: `1.5px solid ${confirm && confirm !== password ? '#E8312A' : '#E8E8E8'}`,
+              borderRadius: '12px', padding: '0 16px',
+              fontSize: '15px', color: '#111', boxSizing: 'border-box',
+              outline: 'none', fontFamily: 'Arial'
+            }}
+          />
+          {confirm && confirm !== password && (
+            <p style={{ fontSize: '11px', color: '#E8312A', fontWeight: 700, margin: '4px 0 0' }}>
+              Passwords do not match
+            </p>
+          )}
+        </div>
+
+        <button
+          onClick={handleReset}
+          disabled={isLoading || !password || !confirm || password !== confirm}
+          style={{
+            width: '100%', height: '52px', background: '#E8312A',
+            color: 'white', border: 'none', borderRadius: '12px',
+            fontSize: '15px', fontWeight: 900, cursor: 'pointer',
+            opacity: isLoading || !password || !confirm || password !== confirm ? 0.6 : 1
+          }}
+        >
+          {isLoading ? 'Updating...' : 'Update Password →'}
+        </button>
+      </div>
+    </div>
+  )
+}
+
+export default ResetPasswordPage
+```
+
+Add to routes:
+
+```javascript
+<Route path="/reset-password" element={<ResetPasswordPage />} />
+```
+
+---
+
+### Block 7 — Real AuthContext
+
+This completely replaces the mock `AuthContext`. The interface is identical to what every component already uses — `isLoggedIn`, `currentUser`, `login`, `logout`, `updateUser` — so no component other than `AuthContext.jsx` itself needs to change. Parts 4 through 22 will extend this further but the core contract stays the same.
+
+```javascript
+// src/context/AuthContext.jsx
+import { createContext, useContext, useEffect, useState, useCallback } from 'react'
+import { supabase } from '../lib/supabase'
+
+const AuthContext = createContext(null)
+
+export const AuthProvider = ({ children }) => {
+  const [session, setSession] = useState(null)
+  const [currentUser, setCurrentUser] = useState(null)
+  const [isLoggedIn, setIsLoggedIn] = useState(false)
+  const [isLoading, setIsLoading] = useState(true) // true until first session check completes
+
+  // ── Fetch full user profile from public.users ──────────────────────────
+  const fetchUserProfile = useCallback(async (userId) => {
+    const { data, error } = await supabase
+      .from('users')
+      .select(`
+        id,
+        email,
+        name,
+        username,
+        bio,
+        location,
+        website,
+        avatar_color,
+        initial,
+        is_creator,
+        is_verified,
+        is_pro,
+        stripe_connected,
+        referral_code,
+        active_pairing_links_count,
+        trust_score,
+        created_at,
+        social_handles (
+          platform,
+          handle,
+          profile_url,
+          sort_order
+        )
+      `)
+      .eq('id', userId)
+      .single()
+
+    if (error) {
+      console.error('Error fetching user profile:', error.message)
+      return null
+    }
+
+    // Reshape social handles into the object format the frontend expects
+    const socialHandles = {}
+    if (data.social_handles) {
+      data.social_handles
+        .sort((a, b) => a.sort_order - b.sort_order)
+        .forEach(h => { socialHandles[h.platform] = h.handle })
+    }
+
+    return {
+      ...data,
+      socialHandles,
+      // Map snake_case DB fields to camelCase for frontend consistency
+      avatarColor: data.avatar_color,
+      isCreator: data.is_creator,
+      isVerified: data.is_verified,
+      isProUser: data.is_pro,
+      stripeConnected: data.stripe_connected,
+      referralCode: data.referral_code,
+      trustScore: data.trust_score,
+      followerPairingLinkCount: data.active_pairing_links_count,
+    }
+  }, [])
+
+  // ── Initialize session on mount ────────────────────────────────────────
+  useEffect(() => {
+    let mounted = true
+
+    const initializeAuth = async () => {
+      // Get current session (reads from localStorage automatically)
+      const { data: { session: initialSession } } = await supabase.auth.getSession()
+
+      if (!mounted) return
+
+      if (initialSession?.user) {
+        const profile = await fetchUserProfile(initialSession.user.id)
+        if (mounted) {
+          setSession(initialSession)
+          setCurrentUser(profile)
+          setIsLoggedIn(true)
+        }
+      }
+
+      if (mounted) setIsLoading(false)
+    }
+
+    initializeAuth()
+
+    // ── Listen to auth state changes ────────────────────────────────────
+    // This fires on: sign in, sign out, token refresh, password recovery.
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      async (event, newSession) => {
+        if (!mounted) return
+
+        if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+          if (newSession?.user) {
+            const profile = await fetchUserProfile(newSession.user.id)
+            setSession(newSession)
+            setCurrentUser(profile)
+            setIsLoggedIn(true)
+          }
+        }
+
+        if (event === 'SIGNED_OUT') {
+          setSession(null)
+          setCurrentUser(null)
+          setIsLoggedIn(false)
+        }
+
+        if (event === 'USER_UPDATED') {
+          // Email change confirmed, password changed, etc.
+          if (newSession?.user) {
+            const profile = await fetchUserProfile(newSession.user.id)
+            setCurrentUser(profile)
+          }
+        }
+
+        if (event === 'PASSWORD_RECOVERY') {
+          // User clicked the reset link — session is now active.
+          // AuthCallbackPage handles the redirect to /reset-password.
+        }
+      }
+    )
+
+    return () => {
+      mounted = false
+      subscription.unsubscribe()
+    }
+  }, [fetchUserProfile])
+
+  // ── Sign Up ────────────────────────────────────────────────────────────
+  const signUp = async ({ name, email, password, referralCode }) => {
+    const { data, error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        data: {
+          name,
+          // Passed to handle_new_user() trigger via raw_user_meta_data
+        },
+        emailRedirectTo: `${window.location.origin}/auth/callback?type=signup`,
+      },
+    })
+
+    if (error) throw error
+
+    // If a referral code was provided, store it temporarily in localStorage.
+    // The referral is attributed when the user confirms their email and logs in.
+    // Part 17 (Referral System) handles the actual attribution.
+    if (referralCode) {
+      localStorage.setItem('adgate_referral_code', referralCode)
+    }
+
+    // data.user exists but session is null until email confirmed.
+    // Return a flag so the UI can show "check your email".
+    return {
+      user: data.user,
+      requiresConfirmation: !data.session,
+    }
+  }
+
+  // ── Sign In With Email ─────────────────────────────────────────────────
+  const signIn = async ({ email, password }) => {
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    })
+
+    if (error) {
+      // Map Supabase error messages to user-friendly versions
+      if (error.message.includes('Invalid login credentials')) {
+        throw new Error('Incorrect email or password.')
+      }
+      if (error.message.includes('Email not confirmed')) {
+        throw new Error(
+          'Please confirm your email before signing in. ' +
+          'Check your inbox for the confirmation link.'
+        )
+      }
+      throw error
+    }
+
+    // onAuthStateChange SIGNED_IN fires automatically and sets state.
+    return data
+  }
+
+  // ── Sign In With Google ────────────────────────────────────────────────
+  const signInWithGoogle = async () => {
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        redirectTo: `${window.location.origin}/auth/callback`,
+        queryParams: {
+          access_type: 'offline',
+          prompt: 'consent',
+        },
+      },
+    })
+
+    if (error) throw error
+    // Browser redirects to Google — no further action needed here.
+  }
+
+  // ── Sign Out ───────────────────────────────────────────────────────────
+  const logout = async () => {
+    const { error } = await supabase.auth.signOut()
+    if (error) throw error
+    // onAuthStateChange SIGNED_OUT fires and clears state.
+  }
+
+  // ── Send Password Reset Email ──────────────────────────────────────────
+  const sendPasswordReset = async (email) => {
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: `${window.location.origin}/auth/callback?type=recovery`,
+    })
+    if (error) throw error
+  }
+
+  // ── Update User Profile ────────────────────────────────────────────────
+  // Used by Edit Profile page. Updates public.users table.
+  // Does NOT update auth.users — that is separate (email/password changes).
+  const updateUser = async (updates) => {
+    const { error } = await supabase
+      .from('users')
+      .update({
+        name: updates.name,
+        username: updates.username,
+        bio: updates.bio,
+        location: updates.location,
+        website: updates.website,
+        avatar_color: updates.avatarColor,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', currentUser.id)
+
+    if (error) throw error
+
+    // Handle social handles separately — upsert each one
+    if (updates.socialHandles) {
+      const platforms = Object.entries(updates.socialHandles)
+        .filter(([, handle]) => handle)
+        .map(([platform, handle], index) => ({
+          user_id: currentUser.id,
+          platform,
+          handle,
+          sort_order: index,
+        }))
+
+      // Delete existing and re-insert to handle removals cleanly
+      await supabase
+        .from('social_handles')
+        .delete()
+        .eq('user_id', currentUser.id)
+
+      if (platforms.length > 0) {
+        await supabase.from('social_handles').insert(platforms)
+      }
+    }
+
+    // Refresh local state
+    const updatedProfile = await fetchUserProfile(currentUser.id)
+    setCurrentUser(updatedProfile)
+  }
+
+  // ── Update Auth Email ──────────────────────────────────────────────────
+  // Separate from profile update — changes the login email.
+  // Requires re-confirmation from both old and new email addresses.
+  const updateEmail = async (newEmail) => {
+    const { error } = await supabase.auth.updateUser({ email: newEmail })
+    if (error) throw error
+  }
+
+  // ── Update Password ────────────────────────────────────────────────────
+  const updatePassword = async (newPassword) => {
+    const { error } = await supabase.auth.updateUser({ password: newPassword })
+    if (error) throw error
+  }
+
+  // ── Resend Confirmation Email ──────────────────────────────────────────
+  const resendConfirmation = async (email) => {
+    const { error } = await supabase.auth.resend({
+      type: 'signup',
+      email,
+      options: {
+        emailRedirectTo: `${window.location.origin}/auth/callback?type=signup`,
+      },
+    })
+    if (error) throw error
+  }
+
+  // ── Refresh Profile ────────────────────────────────────────────────────
+  // Called after operations that change DB fields outside of this context —
+  // e.g. after a pairing campaign is created and active_pairing_links_count increments.
+  const refreshProfile = async () => {
+    if (!session?.user?.id) return
+    const profile = await fetchUserProfile(session.user.id)
+    setCurrentUser(profile)
+  }
+
+  const value = {
+    // State
+    session,
+    currentUser,
+    isLoggedIn,
+    isLoading,
+
+    // Auth actions
+    signUp,
+    signIn,
+    signInWithGoogle,
+    logout,
+    sendPasswordReset,
+
+    // Profile actions
+    updateUser,
+    updateEmail,
+    updatePassword,
+    resendConfirmation,
+    refreshProfile,
+
+    // Legacy alias — some components call login() from the old mock context.
+    // Keep it working so nothing breaks before components are updated in later parts.
+    login: signIn,
+  }
+
+  return (
+    <AuthContext.Provider value={value}>
+      {children}
+    </AuthContext.Provider>
+  )
+}
+
+export const useAuth = () => {
+  const context = useContext(AuthContext)
+  if (!context) throw new Error('useAuth must be used inside AuthProvider')
+  return context
+}
+
+export default AuthContext
+```
+
+---
+
+### Block 8 — Update AuthBottomSheet To Use Real Auth
+
+Replace every mock call in `AuthBottomSheet` with real context calls. The sheet structure from the pre-Part-3 work stays exactly the same — only the handler functions change.
+
+```javascript
+// In AuthBottomSheet.jsx — replace mock handlers with these
+
+const { signIn, signUp, signInWithGoogle, sendPasswordReset } = useAuth()
+
+// ── Sign In Handler ──────────────────────────────────────────────────────
+const handleSignIn = async () => {
+  if (!signInEmail || !signInPassword) return
+  setIsLoading(true)
+  setError(null)
+  try {
+    await signIn({ email: signInEmail, password: signInPassword })
+    onClose()
+    if (redirectAfter) navigate(redirectAfter)
+  } catch (err) {
+    setError(err.message)
+  } finally {
+    setIsLoading(false)
+  }
+}
+
+// ── Sign Up Handler ──────────────────────────────────────────────────────
+const handleSignUp = async () => {
+  // Validate all four fields first
+  const errors = {}
+  if (!name.trim()) errors.name = 'Name is required.'
+  if (!signUpEmail) errors.signUpEmail = 'Email is required.'
+  if (signUpPassword.length < 8) errors.signUpPassword = 'Password must be at least 8 characters.'
+  if (signUpPassword !== confirmPassword) errors.confirmPassword = 'Passwords do not match.'
+
+  if (Object.keys(errors).length > 0) {
+    setFieldErrors(errors)
+    return
+  }
+
+  setIsLoading(true)
+  setError(null)
+  setFieldErrors({})
+
+  try {
+    const result = await signUp({
+      name: name.trim(),
+      email: signUpEmail,
+      password: signUpPassword,
+    })
+
+    if (result.requiresConfirmation) {
+      // Show "check your email" state inside the sheet
+      // Replace form content with confirmation message
+      setScreen('confirm-email')
+      setConfirmEmail(signUpEmail)
+    } else {
+      // Email confirmations disabled (dev mode) — user is signed in immediately
+      onClose()
+      if (redirectAfter) navigate(redirectAfter)
+    }
+  } catch (err) {
+    if (err.message.includes('already registered')) {
+      setError('already_exists') // triggers "Sign in instead →" UI
+    } else {
+      setError(err.message)
+    }
+  } finally {
+    setIsLoading(false)
+  }
+}
+
+// ── Google Handler ───────────────────────────────────────────────────────
+const handleGoogle = async () => {
+  try {
+    await signInWithGoogle()
+    // Browser redirects — nothing else to do here
+  } catch (err) {
+    setError(err.message)
+  }
+}
+
+// ── Forgot Password Handler ──────────────────────────────────────────────
+const handleResetPassword = async () => {
+  if (!resetEmail) return
+  setIsLoading(true)
+  setError(null)
+  try {
+    await sendPasswordReset(resetEmail)
+    setResetSent(true)
+    setResendCountdown(30)
+  } catch (err) {
+    setError(err.message)
+  } finally {
+    setIsLoading(false)
+  }
+}
+
+// ── Resend Confirmation Handler ──────────────────────────────────────────
+const handleResendConfirmation = async () => {
+  try {
+    await resendConfirmation(confirmEmail)
+    setResendCountdown(30)
+  } catch (err) {
+    setError(err.message)
+  }
+}
+```
+
+Add Screen 4 — Confirm Email — to the sheet. This appears after a successful sign up when email confirmation is required.
+
+```
+Screen 4 — Confirm Email
+
+   ✉️  (48px centered)
+
+   Check your inbox
+
+   We sent a confirmation link to
+   rahul@example.com
+
+   Open your email app and click
+   the link to activate your account.
+
+   [ Open Gmail →  ]   (white, outlined)
+   [ Open Outlook → ]  (white, outlined)
+
+   Resend in 28s  →  (countdown then tappable)
+
+   ← Back to Sign In
+```
+
+"Open Gmail" link: `https://mail.google.com`. "Open Outlook" link: `https://outlook.live.com`. Both open in new tab. Only show these two — most users in India use Gmail.
+
+---
+
+### Block 9 — Protected Route Component
+
+Create `src/components/ProtectedRoute.jsx`. Wraps any route that requires authentication.
+
+```javascript
+// src/components/ProtectedRoute.jsx
+import { useEffect } from 'react'
+import { useNavigate, useLocation } from 'react-router-dom'
+import { useAuth } from '../context/AuthContext'
+
+const ProtectedRoute = ({ children, requireCreator = false }) => {
+  const { isLoggedIn, isLoading, currentUser } = useAuth()
+  const navigate = useNavigate()
+  const location = useLocation()
+
+  useEffect(() => {
+    if (isLoading) return // wait for session check to complete
+
+    if (!isLoggedIn) {
+      // Save the attempted URL so we can redirect back after auth
+      navigate(`/sign-in?redirect=${encodeURIComponent(location.pathname)}`, {
+        replace: true
+      })
+      return
+    }
+
+    if (requireCreator && !currentUser?.isCreator) {
+      // Viewer trying to access creator-only route
+      navigate('/', { replace: true })
+    }
+  }, [isLoggedIn, isLoading, currentUser, requireCreator])
+
+  // Show nothing while the initial session check is in progress
+  // This prevents a flash of the sign-in redirect for logged-in users
+  if (isLoading) {
+    return (
+      <div style={{
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        height: '100vh', fontFamily: 'Arial, sans-serif'
+      }}>
+        <div style={{
+          width: '36px', height: '36px',
+          border: '3px solid #F0F0F0',
+          borderTopColor: '#E8312A',
+          borderRadius: '50%',
+          animation: 'spin 0.8s linear infinite'
+        }} />
+        <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+      </div>
+    )
+  }
+
+  if (!isLoggedIn) return null
+  if (requireCreator && !currentUser?.isCreator) return null
+
+  return children
+}
+
+export default ProtectedRoute
+```
+
+Update `App.jsx` to use it on all protected routes:
+
+```javascript
+import ProtectedRoute from './components/ProtectedRoute'
+
+// In the routes JSX:
+
+// Auth-required routes
+<Route path="/dashboard/*" element={
+  <ProtectedRoute requireCreator={false}>
+    <DashboardPage />
+  </ProtectedRoute>
+} />
+
+<Route path="/chats" element={
+  <ProtectedRoute>
+    <MyChatsPage />
+  </ProtectedRoute>
+} />
+
+<Route path="/messages/:conversationId" element={
+  <ProtectedRoute>
+    <DMConversationPage />
+  </ProtectedRoute>
+} />
+
+<Route path="/accountability/chat/:sessionId" element={
+  <ProtectedRoute>
+    <PairingChatPage />
+  </ProtectedRoute>
+} />
+
+<Route path="/account" element={
+  <ProtectedRoute>
+    <AccountPage />
+  </ProtectedRoute>
+} />
+```
+
+---
+
+### Block 10 — Handle `?redirect` Param On Auth Pages
+
+The `/sign-in` and `/sign-up` static pages (not the bottom sheet) must also handle the redirect param. Update them:
+
+```javascript
+// In SignInPage.jsx and SignUpPage.jsx
+import { useSearchParams, useNavigate } from 'react-router-dom'
+import { useAuth } from '../context/AuthContext'
+
+const SignInPage = () => {
+  const [searchParams] = useSearchParams()
+  const navigate = useNavigate()
+  const { signIn } = useAuth()
+  
+  const redirectPath = searchParams.get('redirect') || '/dashboard'
+
+  const handleSignIn = async () => {
+    try {
+      await signIn({ email, password })
+      navigate(redirectPath, { replace: true })
+    } catch (err) {
+      setError(err.message)
+    }
+  }
+  // ...
+}
+```
+
+---
+
+### Block 11 — Global Loading State
+
+The app must not flash the wrong content while the session check is running. Wrap the entire app output in an `isLoading` gate.
+
+```javascript
+// In App.jsx
+import { useAuth } from './context/AuthContext'
+
+const AppRoutes = () => {
+  const { isLoading } = useAuth()
+
+  if (isLoading) {
+    return (
+      <div style={{
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        height: '100vh', background: '#F6F6F6'
+      }}>
+        <div style={{ textAlign: 'center' }}>
+          <div style={{ fontSize: '28px', fontWeight: 900, color: '#111', marginBottom: '16px' }}>
+            AdGate
+          </div>
+          <div style={{
+            width: '36px', height: '36px', margin: '0 auto',
+            border: '3px solid #F0F0F0', borderTopColor: '#E8312A',
+            borderRadius: '50%', animation: 'spin 0.8s linear infinite'
+          }} />
+        </div>
+        <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+      </div>
+    )
+  }
+
+  return (
+    <Routes>
+      {/* All existing routes */}
+    </Routes>
+  )
+}
+
+const App = () => (
+  <AuthProvider>
+    <MessagingProvider>
+      <ChatSessionsProvider>
+        <ToastProvider>
+          <BrowserRouter>
+            <ScrollToTop />
+            <RouteProgressBar />
+            <AppRoutes />
+          </BrowserRouter>
+        </ToastProvider>
+      </ChatSessionsProvider>
+    </MessagingProvider>
+  </AuthProvider>
+)
+```
+
+---
+
+### Block 12 — Nav Bar Auth State
+
+The nav bar currently reads from the mock `currentUser`. Update it to read from the real context. No structural changes — just the import and hook.
+
+```javascript
+// In NavBar.jsx — replace mock import with:
+import { useAuth } from '../context/AuthContext'
+
+const NavBar = () => {
+  const { isLoggedIn, currentUser, logout } = useAuth()
+
+  const handleLogout = async () => {
+    try {
+      await logout()
+      navigate('/')
+      showToast('Signed out successfully.', 'success')
+    } catch (err) {
+      showToast('Error signing out. Try again.', 'error')
+    }
+  }
+
+  // Rest of NavBar JSX unchanged — it already reads isLoggedIn and currentUser.
+}
+```
+
+---
+
+### Block 13 — Verification Checklist
+
+Run through every item manually after implementation before calling Part 3 complete.
+
+**Sign Up flow:**
+- Fill in name, email, password, confirm → Create Account → "Check your inbox" screen appears in sheet
+- Open email inbox → confirmation email arrives with AdGate branding → click "Confirm my account →"
+- Browser opens `/auth/callback` → spinner → redirects to `/dashboard`
+- Dashboard shows real user's name and initial
+
+**Sign In flow:**
+- Enter wrong password → "Incorrect email or password." error strip appears
+- Enter correct credentials → sheet closes → nav shows user avatar
+- Close browser tab → reopen → user is still signed in (session persisted)
+
+**Google OAuth flow:**
+- Tap "Continue with Google" → browser redirects to Google → select account → returns to `/auth/callback` → redirects to correct page
+
+**Forgot password flow:**
+- Enter email → Send Reset Link → success state with countdown
+- Open email → click link → `/auth/callback` → `/reset-password` → enter new password → "Password updated" → redirects to dashboard
+
+**Protected routes:**
+- Open `/dashboard` while logged out → redirects to `/sign-in?redirect=/dashboard`
+- Sign in → redirects back to `/dashboard`
+- Open `/chats` while logged out → redirects to sign in
+
+**Session persistence:**
+- Sign in → close browser → reopen → still signed in
+- `isLoading` spinner shows briefly on page load then resolves correctly
+- No flash of wrong content (sign-in page briefly showing for logged-in users)
+
+**Profile data:**
+- `currentUser.name`, `currentUser.username`, `currentUser.trustScore` all come from `public.users` table
+- Edit profile updates both `public.users` and `social_handles` tables
+- `refreshProfile()` call after pairing link creation updates `followerPairingLinkCount`
+
+---
+
+### What Parts 4–22 Will Connect To
+
+Every subsequent part uses `supabase` from `src/lib/supabase.js` directly for data operations, and `useAuth()` for the current user's identity. The pattern is consistent across all parts:
+
+```javascript
+import { supabase } from '../lib/supabase'
+import { useAuth } from '../context/AuthContext'
+
+const { currentUser } = useAuth()
+
+// Query — RLS automatically filters to what this user can see
+const { data, error } = await supabase
+  .from('links')
+  .select('*')
+  .eq('creator_id', currentUser.id)
+  .order('created_at', { ascending: false })
+```
+
+No mock data imported. No `setTimeout` fake delays. Real data from the real database with RLS enforcing exactly what Part 2 defined.
+

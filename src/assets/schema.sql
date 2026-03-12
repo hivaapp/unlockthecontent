@@ -1,0 +1,916 @@
+-- Extensions
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+CREATE EXTENSION IF NOT EXISTS "pgcrypto";
+CREATE EXTENSION IF NOT EXISTS "pg_trgm"; -- for full-text search on explore
+
+-- Enums
+CREATE TYPE unlock_type AS ENUM (
+  'email_subscribe',
+  'social_follow', 
+  'custom_sponsor',
+  'follower_pairing'
+);
+
+CREATE TYPE link_mode AS ENUM (
+  'lock_content',
+  'follower_pairing'
+);
+
+CREATE TYPE social_platform AS ENUM (
+  'instagram',
+  'youtube',
+  'twitter',
+  'linkedin',
+  'tiktok',
+  'discord',
+  'custom'
+);
+
+CREATE TYPE check_in_frequency AS ENUM (
+  'daily',
+  'every_other_day',
+  'weekly'
+);
+
+CREATE TYPE pairing_gender_preference AS ENUM (
+  'male',
+  'female',
+  'any'
+);
+
+CREATE TYPE session_status AS ENUM (
+  'active',
+  'completed',
+  'expired',
+  'partner_left'
+);
+
+CREATE TYPE request_status AS ENUM (
+  'pending',
+  'approved',
+  'declined'
+);
+
+CREATE TYPE report_reason AS ENUM (
+  'ghosting',
+  'inappropriate_messages',
+  'fake_commitment',
+  'offensive_content',
+  'sharing_contact_info',
+  'other'
+);
+
+CREATE TYPE report_status AS ENUM (
+  'submitted',
+  'under_review',
+  'resolved',
+  'dismissed'
+);
+
+CREATE TYPE payout_status AS ENUM (
+  'pending',
+  'processing',
+  'completed',
+  'failed'
+);
+
+CREATE TYPE file_type AS ENUM (
+  'pdf',
+  'image',
+  'video',
+  'document',
+  'spreadsheet',
+  'archive',
+  'other'
+);
+
+CREATE TYPE trust_event_type AS ENUM (
+  'challenge_completed',
+  'consistent_checkins',
+  'positive_rating',
+  'long_pairing',
+  'ghosting_confirmed',
+  'misconduct_confirmed',
+  'left_challenge_early',
+  'missed_checkins'
+);
+
+
+-- Core users table — extends Supabase auth.users
+CREATE TABLE public.users (
+  id                  UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+  email               TEXT UNIQUE NOT NULL,
+  name                TEXT NOT NULL,
+  username            TEXT UNIQUE NOT NULL,
+  bio                 TEXT,
+  location            TEXT,
+  website             TEXT,
+  avatar_color        TEXT NOT NULL DEFAULT '#E8312A',
+  initial             TEXT GENERATED ALWAYS AS (UPPER(SUBSTR(name, 1, 1))) STORED,
+  
+  is_creator          BOOLEAN NOT NULL DEFAULT false,
+  is_verified         BOOLEAN NOT NULL DEFAULT false,
+  is_pro              BOOLEAN NOT NULL DEFAULT false,
+  is_blocked          BOOLEAN NOT NULL DEFAULT false,
+  
+  -- Stripe
+  stripe_account_id   TEXT,
+  stripe_connected    BOOLEAN NOT NULL DEFAULT false,
+  
+  -- Referral
+  referral_code       TEXT UNIQUE NOT NULL DEFAULT 'ADGATE-' || UPPER(SUBSTR(gen_random_uuid()::TEXT, 1, 8)),
+  referred_by         UUID REFERENCES public.users(id),
+  
+  -- Follower pairing plan limits
+  active_pairing_links_count  INTEGER NOT NULL DEFAULT 0,
+  
+  -- Trust
+  trust_score         INTEGER NOT NULL DEFAULT 75 CHECK (trust_score >= 0 AND trust_score <= 100),
+  
+  -- Timestamps
+  created_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at          TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- Username validation — lowercase letters, numbers, underscores only
+ALTER TABLE public.users 
+  ADD CONSTRAINT username_format 
+  CHECK (username ~ '^[a-z0-9_]{3,30}$');
+
+-- Social handles — one row per user per platform
+CREATE TABLE public.social_handles (
+  id          UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  user_id     UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+  platform    social_platform NOT NULL,
+  handle      TEXT NOT NULL,
+  profile_url TEXT,
+  sort_order  INTEGER NOT NULL DEFAULT 0,
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  
+  UNIQUE(user_id, platform)
+);
+
+-- Blocked users
+CREATE TABLE public.blocked_users (
+  id          UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  blocker_id  UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+  blocked_id  UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  
+  UNIQUE(blocker_id, blocked_id),
+  CHECK(blocker_id != blocked_id)
+);
+
+-- Trigger: auto-update updated_at on users
+CREATE OR REPLACE FUNCTION update_updated_at()
+RETURNS TRIGGER AS $$
+BEGIN
+  NEW.updated_at = NOW();
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER users_updated_at
+  BEFORE UPDATE ON public.users
+  FOR EACH ROW EXECUTE FUNCTION update_updated_at();
+
+-- Trigger: auto-create user profile on auth.users insert
+CREATE OR REPLACE FUNCTION handle_new_user()
+RETURNS TRIGGER AS $$
+BEGIN
+  INSERT INTO public.users (id, email, name, username)
+  VALUES (
+    NEW.id,
+    NEW.email,
+    COALESCE(NEW.raw_user_meta_data->>'name', SPLIT_PART(NEW.email, '@', 1)),
+    LOWER(REPLACE(
+      COALESCE(
+        NEW.raw_user_meta_data->>'username',
+        SPLIT_PART(NEW.email, '@', 1)
+      ),
+      '.', '_'
+    ))
+  )
+  ON CONFLICT (username) DO UPDATE SET
+    username = EXCLUDED.username || '_' || FLOOR(RANDOM() * 9999)::TEXT;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+CREATE TRIGGER on_auth_user_created
+  AFTER INSERT ON auth.users
+  FOR EACH ROW EXECUTE FUNCTION handle_new_user();
+
+
+-- Files stored in Cloudflare R2
+CREATE TABLE public.files (
+  id              UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  owner_id        UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+  
+  -- R2 storage
+  r2_key          TEXT NOT NULL UNIQUE,   -- the object key in R2
+  r2_bucket       TEXT NOT NULL,          -- which bucket
+  
+  -- Metadata
+  original_name   TEXT NOT NULL,
+  file_type       file_type NOT NULL DEFAULT 'other',
+  mime_type       TEXT NOT NULL,
+  size_bytes      BIGINT NOT NULL,
+  
+  -- For videos
+  duration_seconds INTEGER,
+  
+  -- For images
+  width_px        INTEGER,
+  height_px       INTEGER,
+  
+  is_placeholder  BOOLEAN NOT NULL DEFAULT false,
+  
+  created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- Creator links
+CREATE TABLE public.links (
+  id              UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  creator_id      UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+  
+  slug            TEXT UNIQUE NOT NULL,
+  title           TEXT NOT NULL,
+  description     TEXT,
+  
+  mode            link_mode NOT NULL DEFAULT 'lock_content',
+  unlock_type     unlock_type,  -- null when mode = follower_pairing
+  
+  -- Content file (optional for sponsor, required for email/follow)
+  file_id         UUID REFERENCES public.files(id) ON DELETE SET NULL,
+  
+  -- YouTube embed
+  youtube_url     TEXT,
+  
+  -- Trees donation
+  donate_enabled  BOOLEAN NOT NULL DEFAULT false,
+  
+  is_active       BOOLEAN NOT NULL DEFAULT true,
+  
+  -- Stats (denormalized for performance)
+  view_count      INTEGER NOT NULL DEFAULT 0,
+  unlock_count    INTEGER NOT NULL DEFAULT 0,
+  
+  created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  
+  -- Slug format validation
+  CONSTRAINT slug_format CHECK (slug ~ '^[a-z0-9-]{3,80}$'),
+  -- Lock content links must have an unlock type
+  CONSTRAINT lock_content_needs_type 
+    CHECK (mode != 'lock_content' OR unlock_type IS NOT NULL)
+);
+
+CREATE TRIGGER links_updated_at
+  BEFORE UPDATE ON public.links
+  FOR EACH ROW EXECUTE FUNCTION update_updated_at();
+
+-- Email subscribe configuration
+CREATE TABLE public.email_configs (
+  id                    UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  link_id               UUID UNIQUE NOT NULL REFERENCES public.links(id) ON DELETE CASCADE,
+  
+  newsletter_name       TEXT NOT NULL,
+  newsletter_description TEXT,
+  incentive_text        TEXT,
+  confirmation_message  TEXT,
+  archive_url           TEXT,
+  
+  -- Integration platform
+  platform              TEXT NOT NULL DEFAULT 'direct',
+  -- 'direct' | 'mailchimp' | 'convertkit' | 'beehiiv' | 'substack' | 'klaviyo' | 'other'
+  platform_display_name TEXT,
+  
+  created_at            TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- Social follow configuration
+CREATE TABLE public.social_configs (
+  id                UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  link_id           UUID UNIQUE NOT NULL REFERENCES public.links(id) ON DELETE CASCADE,
+  
+  custom_heading    TEXT,
+  follow_description TEXT,
+  
+  created_at        TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- Individual follow targets within a social config
+CREATE TABLE public.follow_targets (
+  id              UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  social_config_id UUID NOT NULL REFERENCES public.social_configs(id) ON DELETE CASCADE,
+  
+  type            TEXT NOT NULL DEFAULT 'platform', -- 'platform' | 'custom'
+  platform        social_platform,
+  handle          TEXT,
+  profile_url     TEXT,
+  
+  -- Custom link type
+  custom_label    TEXT,
+  custom_url      TEXT,
+  custom_icon     TEXT,  -- emoji
+  
+  instruction_text TEXT,
+  sort_order      INTEGER NOT NULL DEFAULT 0,
+  
+  created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- Custom sponsor configuration
+CREATE TABLE public.sponsor_configs (
+  id                  UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  link_id             UUID UNIQUE NOT NULL REFERENCES public.links(id) ON DELETE CASCADE,
+  
+  brand_name          TEXT NOT NULL,
+  brand_website       TEXT,
+  cta_button_label    TEXT NOT NULL DEFAULT 'Visit Sponsor',
+  
+  -- Sponsor video file
+  video_file_id       UUID REFERENCES public.files(id) ON DELETE SET NULL,
+  
+  -- Two-step flow: watch then click, or watch only
+  requires_click      BOOLEAN NOT NULL DEFAULT false,
+  
+  -- Minimum watch time before skip allowed (seconds)
+  skip_after_seconds  INTEGER NOT NULL DEFAULT 5,
+  
+  created_at          TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+
+-- Follower pairing campaign configuration
+CREATE TABLE public.pairing_configs (
+  id                    UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  link_id               UUID UNIQUE NOT NULL REFERENCES public.links(id) ON DELETE CASCADE,
+  
+  topic                 TEXT NOT NULL,
+  description           TEXT,
+  commitment_prompt     TEXT NOT NULL,
+  duration_days         INTEGER NOT NULL CHECK (duration_days IN (7, 14, 21, 30)),
+  check_in_frequency    check_in_frequency NOT NULL DEFAULT 'daily',
+  guidelines            TEXT,
+  
+  -- Creator resource shared with participants
+  creator_resource_url  TEXT,
+  creator_resource_label TEXT,
+  
+  -- Plan enforcement
+  max_pairs             INTEGER,  -- NULL = unlimited (Pro), 10 = Free tier
+  is_accepting          BOOLEAN NOT NULL DEFAULT true,
+  
+  -- Stats (denormalized)
+  total_participants    INTEGER NOT NULL DEFAULT 0,
+  active_pairs          INTEGER NOT NULL DEFAULT 0,
+  completed_pairs       INTEGER NOT NULL DEFAULT 0,
+  
+  created_at            TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- Completion asset — reward delivered on challenge completion
+CREATE TABLE public.completion_assets (
+  id              UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  pairing_config_id UUID UNIQUE NOT NULL REFERENCES public.pairing_configs(id) ON DELETE CASCADE,
+  
+  file_id         UUID NOT NULL REFERENCES public.files(id) ON DELETE CASCADE,
+  unlock_message  TEXT,
+  
+  created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- Scheduled broadcast messages from creator
+CREATE TABLE public.scheduled_messages (
+  id                UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  pairing_config_id UUID NOT NULL REFERENCES public.pairing_configs(id) ON DELETE CASCADE,
+  
+  day_number        INTEGER NOT NULL CHECK (day_number >= 1),
+  send_time         TIME NOT NULL DEFAULT '09:00:00',
+  content           TEXT NOT NULL,
+  
+  -- Optional image attachment
+  image_file_id     UUID REFERENCES public.files(id) ON DELETE SET NULL,
+  
+  is_sent           BOOLEAN NOT NULL DEFAULT false,
+  sent_at           TIMESTAMPTZ,
+  delivered_count   INTEGER NOT NULL DEFAULT 0,
+  
+  created_at        TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  
+  UNIQUE(pairing_config_id, day_number)
+);
+
+-- Pairing participants — each person who joins a campaign
+CREATE TABLE public.pairing_participants (
+  id                UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  link_id           UUID NOT NULL REFERENCES public.links(id) ON DELETE CASCADE,
+  user_id           UUID REFERENCES public.users(id) ON DELETE SET NULL,
+  
+  commitment_text   TEXT NOT NULL,
+  gender_preference pairing_gender_preference NOT NULL DEFAULT 'any',
+  
+  -- Their own gender (for matching)
+  gender            TEXT,  -- 'male' | 'female' | null (not disclosed)
+  
+  -- Matching state
+  is_available      BOOLEAN NOT NULL DEFAULT true,  -- waiting to be matched
+  matched_at        TIMESTAMPTZ,
+  
+  -- Session they are part of
+  session_id        UUID,  -- filled after matching, FK added after sessions table
+  
+  -- Engagement
+  last_active_at    TIMESTAMPTZ,
+  missed_checkins   INTEGER NOT NULL DEFAULT 0,
+  
+  created_at        TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- Pairing sessions — the actual paired relationship
+CREATE TABLE public.pairing_sessions (
+  id                UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  pairing_config_id UUID NOT NULL REFERENCES public.pairing_configs(id) ON DELETE CASCADE,
+  link_id           UUID NOT NULL REFERENCES public.links(id),
+  
+  participant_a_id  UUID NOT NULL REFERENCES public.pairing_participants(id),
+  participant_b_id  UUID NOT NULL REFERENCES public.pairing_participants(id),
+  
+  status            session_status NOT NULL DEFAULT 'active',
+  
+  paired_at         TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  expires_at        TIMESTAMPTZ NOT NULL,  -- paired_at + duration_days
+  completed_at      TIMESTAMPTZ,
+  
+  -- Completion asset delivery
+  asset_delivered   BOOLEAN NOT NULL DEFAULT false,
+  asset_delivered_at TIMESTAMPTZ,
+  
+  -- Match hold — 10 minutes while auth happens
+  match_held_until  TIMESTAMPTZ,
+  
+  created_at        TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  
+  CHECK(participant_a_id != participant_b_id)
+);
+
+-- Add FK from participants to sessions (circular, added after both tables exist)
+ALTER TABLE public.pairing_participants
+  ADD CONSTRAINT fk_participant_session
+  FOREIGN KEY (session_id) REFERENCES public.pairing_sessions(id) ON DELETE SET NULL;
+
+-- Chat messages within pairing sessions
+CREATE TABLE public.pairing_messages (
+  id              UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  session_id      UUID NOT NULL REFERENCES public.pairing_sessions(id) ON DELETE CASCADE,
+  sender_id       UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+  
+  content         TEXT,
+  type            TEXT NOT NULL DEFAULT 'text', -- 'text' | 'broadcast' | 'image' | 'file' | 'video'
+  
+  -- Media attachment
+  file_id         UUID REFERENCES public.files(id) ON DELETE SET NULL,
+  
+  -- Broadcast messages from creator
+  is_broadcast    BOOLEAN NOT NULL DEFAULT false,
+  broadcast_id    UUID REFERENCES public.scheduled_messages(id) ON DELETE SET NULL,
+  
+  is_read         BOOLEAN NOT NULL DEFAULT false,
+  read_at         TIMESTAMPTZ,
+  
+  -- Reply threading
+  reply_to_id     UUID REFERENCES public.pairing_messages(id) ON DELETE SET NULL,
+  
+  -- Reactions (stored as JSON array of {user_id, emoji})
+  reactions       JSONB NOT NULL DEFAULT '[]',
+  
+  is_deleted      BOOLEAN NOT NULL DEFAULT false,
+  
+  created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+
+-- Link views (every page load of /r/:slug)
+CREATE TABLE public.link_views (
+  id          UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  link_id     UUID NOT NULL REFERENCES public.links(id) ON DELETE CASCADE,
+  viewer_id   UUID REFERENCES public.users(id) ON DELETE SET NULL,
+  
+  -- Anonymous viewer fingerprint (no PII)
+  session_key TEXT,
+  
+  ip_country  TEXT,
+  referrer    TEXT,
+  user_agent  TEXT,
+  
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- Email subscriptions from email_subscribe links
+CREATE TABLE public.email_subscribers (
+  id              UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  link_id         UUID NOT NULL REFERENCES public.links(id) ON DELETE CASCADE,
+  creator_id      UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+  
+  email           TEXT NOT NULL,
+  
+  -- Whether the content was served after subscribing
+  content_accessed BOOLEAN NOT NULL DEFAULT false,
+  
+  -- Export tracking
+  exported_at     TIMESTAMPTZ,
+  
+  subscribed_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  
+  UNIQUE(link_id, email)
+);
+
+-- Social follow completions
+CREATE TABLE public.social_unlocks (
+  id              UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  link_id         UUID NOT NULL REFERENCES public.links(id) ON DELETE CASCADE,
+  social_config_id UUID NOT NULL REFERENCES public.social_configs(id) ON DELETE CASCADE,
+  
+  viewer_id       UUID REFERENCES public.users(id) ON DELETE SET NULL,
+  session_key     TEXT,
+  
+  -- Which targets were completed and when
+  completed_targets JSONB NOT NULL DEFAULT '[]',
+  -- Array of { target_id, completed_at }
+  
+  all_completed   BOOLEAN NOT NULL DEFAULT false,
+  completed_at    TIMESTAMPTZ,
+  
+  started_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- Sponsor video impressions and CTA clicks
+CREATE TABLE public.sponsor_impressions (
+  id                UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  link_id           UUID NOT NULL REFERENCES public.links(id) ON DELETE CASCADE,
+  sponsor_config_id UUID NOT NULL REFERENCES public.sponsor_configs(id) ON DELETE CASCADE,
+  
+  viewer_id         UUID REFERENCES public.users(id) ON DELETE SET NULL,
+  session_key       TEXT,
+  
+  -- Watch data
+  watch_started_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  watch_completed   BOOLEAN NOT NULL DEFAULT false,
+  watch_completed_at TIMESTAMPTZ,
+  watch_duration_seconds INTEGER,
+  
+  -- CTA interaction
+  cta_clicked       BOOLEAN NOT NULL DEFAULT false,
+  cta_clicked_at    TIMESTAMPTZ,
+  
+  -- Content served after completing
+  content_accessed  BOOLEAN NOT NULL DEFAULT false
+);
+
+
+-- Earnings from sponsor deals
+CREATE TABLE public.earnings (
+  id              UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  user_id         UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+  link_id         UUID REFERENCES public.links(id) ON DELETE SET NULL,
+  
+  type            TEXT NOT NULL, -- 'sponsor_deal' | 'referral_bonus'
+  
+  amount_paise    BIGINT NOT NULL, -- store in smallest unit (paise for INR, cents for USD)
+  currency        TEXT NOT NULL DEFAULT 'INR',
+  
+  -- Commission
+  platform_fee_paise    BIGINT NOT NULL DEFAULT 0,
+  net_amount_paise      BIGINT GENERATED ALWAYS AS (amount_paise - platform_fee_paise) STORED,
+  
+  description     TEXT,
+  
+  is_paid_out     BOOLEAN NOT NULL DEFAULT false,
+  payout_id       UUID,  -- FK added after payouts table
+  
+  created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- Payout requests and processing
+CREATE TABLE public.payouts (
+  id                  UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  user_id             UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+  
+  amount_paise        BIGINT NOT NULL,
+  currency            TEXT NOT NULL DEFAULT 'INR',
+  
+  status              payout_status NOT NULL DEFAULT 'pending',
+  
+  stripe_transfer_id  TEXT,
+  stripe_payout_id    TEXT,
+  
+  requested_at        TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  processed_at        TIMESTAMPTZ,
+  completed_at        TIMESTAMPTZ,
+  
+  notes               TEXT
+);
+
+ALTER TABLE public.earnings
+  ADD CONSTRAINT fk_earnings_payout
+  FOREIGN KEY (payout_id) REFERENCES public.payouts(id) ON DELETE SET NULL;
+
+-- Referrals
+CREATE TABLE public.referrals (
+  id              UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  referrer_id     UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+  referred_id     UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+  
+  -- Attributed when referred user creates first link
+  is_attributed   BOOLEAN NOT NULL DEFAULT false,
+  attributed_at   TIMESTAMPTZ,
+  
+  created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  
+  UNIQUE(referred_id)  -- a user can only be referred once
+);
+
+
+-- Message requests (cold outreach requiring approval)
+CREATE TABLE public.message_requests (
+  id                UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  sender_id         UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+  recipient_id      UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+  
+  opening_message   TEXT NOT NULL CHECK (LENGTH(opening_message) BETWEEN 10 AND 500),
+  
+  status            request_status NOT NULL DEFAULT 'pending',
+  responded_at      TIMESTAMPTZ,
+  
+  -- Prevent duplicate pending requests
+  created_at        TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  
+  CHECK(sender_id != recipient_id),
+  -- Only one pending request between any two users at a time
+  UNIQUE(sender_id, recipient_id)
+);
+
+-- Direct message conversations (created when request is approved)
+CREATE TABLE public.direct_conversations (
+  id                UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  request_id        UUID UNIQUE NOT NULL REFERENCES public.message_requests(id) ON DELETE CASCADE,
+  
+  participant_a_id  UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+  participant_b_id  UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+  
+  -- Denormalized last message for conversation list
+  last_message_content  TEXT,
+  last_message_sender_id UUID REFERENCES public.users(id),
+  last_message_at       TIMESTAMPTZ,
+  
+  -- Unread counts per participant
+  unread_count_a    INTEGER NOT NULL DEFAULT 0,
+  unread_count_b    INTEGER NOT NULL DEFAULT 0,
+  
+  created_at        TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  
+  CHECK(participant_a_id != participant_b_id)
+);
+
+-- Direct messages within conversations
+CREATE TABLE public.direct_messages (
+  id                UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  conversation_id   UUID NOT NULL REFERENCES public.direct_conversations(id) ON DELETE CASCADE,
+  sender_id         UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+  
+  content           TEXT,
+  type              TEXT NOT NULL DEFAULT 'text', -- 'text' | 'image' | 'file' | 'video'
+  
+  file_id           UUID REFERENCES public.files(id) ON DELETE SET NULL,
+  
+  is_opening_message BOOLEAN NOT NULL DEFAULT false,
+  
+  reply_to_id       UUID REFERENCES public.direct_messages(id) ON DELETE SET NULL,
+  
+  reactions         JSONB NOT NULL DEFAULT '[]',
+  
+  is_read           BOOLEAN NOT NULL DEFAULT false,
+  read_at           TIMESTAMPTZ,
+  
+  is_deleted        BOOLEAN NOT NULL DEFAULT false,
+  
+  created_at        TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- Trigger: update conversation last_message and unread counts on new DM
+CREATE OR REPLACE FUNCTION update_conversation_on_message()
+RETURNS TRIGGER AS $$
+BEGIN
+  UPDATE public.direct_conversations
+  SET
+    last_message_content = NEW.content,
+    last_message_sender_id = NEW.sender_id,
+    last_message_at = NEW.created_at,
+    unread_count_a = CASE
+      WHEN participant_a_id != NEW.sender_id THEN unread_count_a + 1
+      ELSE unread_count_a
+    END,
+    unread_count_b = CASE
+      WHEN participant_b_id != NEW.sender_id THEN unread_count_b + 1
+      ELSE unread_count_b
+    END
+  WHERE id = NEW.conversation_id;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER dm_update_conversation
+  AFTER INSERT ON public.direct_messages
+  FOR EACH ROW EXECUTE FUNCTION update_conversation_on_message();
+
+
+-- Trust score event log
+CREATE TABLE public.trust_events (
+  id          UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  user_id     UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+  
+  event_type  trust_event_type NOT NULL,
+  points      INTEGER NOT NULL, -- positive or negative
+  
+  -- What caused this event
+  session_id  UUID REFERENCES public.pairing_sessions(id) ON DELETE SET NULL,
+  report_id   UUID,  -- FK added after reports table
+  
+  notes       TEXT,
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- Trigger: update trust_score on users when a trust event is inserted
+CREATE OR REPLACE FUNCTION apply_trust_event()
+RETURNS TRIGGER AS $$
+BEGIN
+  UPDATE public.users
+  SET trust_score = GREATEST(0, LEAST(100, trust_score + NEW.points))
+  WHERE id = NEW.user_id;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER trust_event_applied
+  AFTER INSERT ON public.trust_events
+  FOR EACH ROW EXECUTE FUNCTION apply_trust_event();
+
+-- Reports
+CREATE TABLE public.reports (
+  id                UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  reporter_id       UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+  reported_user_id  UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+  
+  reason            report_reason NOT NULL,
+  details           TEXT,
+  
+  -- Context
+  session_id        UUID REFERENCES public.pairing_sessions(id) ON DELETE SET NULL,
+  conversation_id   UUID REFERENCES public.direct_conversations(id) ON DELETE SET NULL,
+  
+  status            report_status NOT NULL DEFAULT 'submitted',
+  reviewed_at       TIMESTAMPTZ,
+  resolution_notes  TEXT,
+  
+  created_at        TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  
+  CHECK(reporter_id != reported_user_id)
+);
+
+-- Add FK from trust_events to reports
+ALTER TABLE public.trust_events
+  ADD CONSTRAINT fk_trust_event_report
+  FOREIGN KEY (report_id) REFERENCES public.reports(id) ON DELETE SET NULL;
+
+
+-- Users
+CREATE INDEX idx_users_username ON public.users(username);
+CREATE INDEX idx_users_email ON public.users(email);
+CREATE INDEX idx_users_referral_code ON public.users(referral_code);
+CREATE INDEX idx_users_trust_score ON public.users(trust_score);
+
+-- Full-text search on users for Explore
+CREATE INDEX idx_users_search ON public.users 
+  USING gin(to_tsvector('english', name || ' ' || username || ' ' || COALESCE(bio, '')));
+
+-- Links
+CREATE INDEX idx_links_creator_id ON public.links(creator_id);
+CREATE INDEX idx_links_slug ON public.links(slug);
+CREATE INDEX idx_links_mode ON public.links(mode);
+CREATE INDEX idx_links_unlock_type ON public.links(unlock_type);
+CREATE INDEX idx_links_is_active ON public.links(is_active);
+CREATE INDEX idx_links_created_at ON public.links(created_at DESC);
+
+-- Full-text search on links for Explore
+CREATE INDEX idx_links_search ON public.links
+  USING gin(to_tsvector('english', title || ' ' || COALESCE(description, '')));
+
+-- Views and unlocks
+CREATE INDEX idx_link_views_link_id ON public.link_views(link_id);
+CREATE INDEX idx_link_views_created_at ON public.link_views(created_at DESC);
+CREATE INDEX idx_email_subscribers_link_id ON public.email_subscribers(link_id);
+CREATE INDEX idx_email_subscribers_creator_id ON public.email_subscribers(creator_id);
+CREATE INDEX idx_social_unlocks_link_id ON public.social_unlocks(link_id);
+CREATE INDEX idx_sponsor_impressions_link_id ON public.sponsor_impressions(link_id);
+
+-- Pairing
+CREATE INDEX idx_pairing_participants_link_id ON public.pairing_participants(link_id);
+CREATE INDEX idx_pairing_participants_user_id ON public.pairing_participants(user_id);
+CREATE INDEX idx_pairing_participants_available ON public.pairing_participants(is_available, gender_preference);
+CREATE INDEX idx_pairing_sessions_link_id ON public.pairing_sessions(link_id);
+CREATE INDEX idx_pairing_sessions_status ON public.pairing_sessions(status);
+CREATE INDEX idx_pairing_sessions_expires_at ON public.pairing_sessions(expires_at);
+CREATE INDEX idx_pairing_messages_session_id ON public.pairing_messages(session_id);
+CREATE INDEX idx_pairing_messages_created_at ON public.pairing_messages(created_at DESC);
+
+-- Messages
+CREATE INDEX idx_message_requests_recipient_id ON public.message_requests(recipient_id);
+CREATE INDEX idx_message_requests_sender_id ON public.message_requests(sender_id);
+CREATE INDEX idx_message_requests_status ON public.message_requests(status);
+CREATE INDEX idx_direct_conversations_participant_a ON public.direct_conversations(participant_a_id);
+CREATE INDEX idx_direct_conversations_participant_b ON public.direct_conversations(participant_b_id);
+CREATE INDEX idx_direct_messages_conversation_id ON public.direct_messages(conversation_id);
+CREATE INDEX idx_direct_messages_created_at ON public.direct_messages(created_at DESC);
+
+-- Earnings and payouts
+CREATE INDEX idx_earnings_user_id ON public.earnings(user_id);
+CREATE INDEX idx_earnings_is_paid_out ON public.earnings(is_paid_out);
+CREATE INDEX idx_payouts_user_id ON public.payouts(user_id);
+CREATE INDEX idx_payouts_status ON public.payouts(status);
+
+-- Trust and reports
+CREATE INDEX idx_trust_events_user_id ON public.trust_events(user_id);
+CREATE INDEX idx_reports_reporter_id ON public.reports(reporter_id);
+CREATE INDEX idx_reports_reported_user_id ON public.reports(reported_user_id);
+CREATE INDEX idx_reports_status ON public.reports(status);
+
+-- Files
+CREATE INDEX idx_files_owner_id ON public.files(owner_id);
+CREATE INDEX idx_files_r2_key ON public.files(r2_key);
+
+
+-- Get unpaid earnings balance for a user (in paise)
+CREATE OR REPLACE FUNCTION get_user_balance(p_user_id UUID)
+RETURNS BIGINT AS $$
+  SELECT COALESCE(SUM(net_amount_paise), 0)
+  FROM public.earnings
+  WHERE user_id = p_user_id AND is_paid_out = false;
+$$ LANGUAGE sql SECURITY DEFINER;
+
+-- Check if a user has an active pairing session
+CREATE OR REPLACE FUNCTION user_has_active_session(
+  p_user_id UUID, 
+  p_link_id UUID
+)
+RETURNS BOOLEAN AS $$
+  SELECT EXISTS (
+    SELECT 1 
+    FROM public.pairing_sessions ps
+    JOIN public.pairing_participants pp 
+      ON pp.session_id = ps.id
+    WHERE pp.user_id = p_user_id
+      AND ps.link_id = p_link_id
+      AND ps.status = 'active'
+  );
+$$ LANGUAGE sql SECURITY DEFINER;
+
+-- Expire sessions whose expiry time has passed
+CREATE OR REPLACE FUNCTION expire_pairing_sessions()
+RETURNS INTEGER AS $$
+DECLARE
+  expired_count INTEGER;
+BEGIN
+  UPDATE public.pairing_sessions
+  SET status = 'expired'
+  WHERE status = 'active' AND expires_at < NOW();
+  
+  GET DIAGNOSTICS expired_count = ROW_COUNT;
+  RETURN expired_count;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Increment link view count
+CREATE OR REPLACE FUNCTION increment_link_views(p_link_id UUID)
+RETURNS VOID AS $$
+  UPDATE public.links 
+  SET view_count = view_count + 1 
+  WHERE id = p_link_id;
+$$ LANGUAGE sql SECURITY DEFINER;
+
+-- Increment link unlock count
+CREATE OR REPLACE FUNCTION increment_link_unlocks(p_link_id UUID)
+RETURNS VOID AS $$
+  UPDATE public.links 
+  SET unlock_count = unlock_count + 1 
+  WHERE id = p_link_id;
+$$ LANGUAGE sql SECURITY DEFINER;
+
+
+-- Enable Realtime on tables that need live updates
+ALTER PUBLICATION supabase_realtime ADD TABLE public.pairing_messages;
+ALTER PUBLICATION supabase_realtime ADD TABLE public.direct_messages;
+ALTER PUBLICATION supabase_realtime ADD TABLE public.message_requests;
+ALTER PUBLICATION supabase_realtime ADD TABLE public.pairing_sessions;
+ALTER PUBLICATION supabase_realtime ADD TABLE public.pairing_participants;

@@ -2,8 +2,9 @@ import { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useChatSessions } from '../context/ChatSessionsContext';
 import { useMessaging } from '../context/MessagingContext';
+import { useToast } from '../context/ToastContext';
 import { Link, useLocation } from 'react-router-dom';
-import { SignInModal } from './SignInModal';
+import { AuthBottomSheet } from './AuthBottomSheet';
 import { Menu, X, Lightbulb, Briefcase, Compass, Tag, ChevronRight } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { getAvatarColor } from '../lib/utils';
@@ -41,11 +42,23 @@ const ChatNavBadge = ({ count }: { count: number }) => {
 };
 
 export const Navbar = () => {
-    const { isLoggedIn, currentUser } = useAuth();
+    const { isLoggedIn, currentUser, logout } = useAuth();
+    const { addToast } = useToast();
     const location = useLocation();
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [isMenuOpen, setIsMenuOpen] = useState(false);
+    const [authScreen, setAuthScreen] = useState<'signin' | 'signup'>('signin');
     const navigate = useNavigate();
+
+    const handleLogout = async () => {
+        try {
+            await logout();
+            navigate('/');
+            addToast('Signed out successfully.', 'success');
+        } catch {
+            addToast('Error signing out. Try again.', 'error');
+        }
+    };
 
     let totalUnread = 0;
     try {
@@ -119,13 +132,13 @@ export const Navbar = () => {
                     {!isLoggedIn ? (
                         <>
                             <button
-                                onClick={() => setIsModalOpen(true)}
+                                onClick={() => { setAuthScreen('signin'); setIsModalOpen(true); }}
                                 className="font-bold text-textMid hover:text-text transition-colors px-2 py-2 text-[14px]"
                             >
                                 Login
                             </button>
                             <button
-                                onClick={() => setIsModalOpen(true)}
+                                onClick={() => { setAuthScreen('signup'); setIsModalOpen(true); }}
                                 className="btn-primary h-10 px-4 text-[14px] shadow-sm"
                             >
                                 Sign Up
@@ -254,13 +267,13 @@ export const Navbar = () => {
                         {!isLoggedIn && (
                             <div className="p-4 flex flex-col gap-3 pb-8">
                                 <button
-                                    onClick={() => { setIsMenuOpen(false); setIsModalOpen(true); }}
+                                    onClick={() => { setIsMenuOpen(false); setAuthScreen('signin'); setIsModalOpen(true); }}
                                     className="w-full h-[48px] bg-white border border-border text-text font-black text-[15px] rounded-[12px] shadow-sm"
                                 >
                                     Login
                                 </button>
                                 <button
-                                    onClick={() => { setIsMenuOpen(false); setIsModalOpen(true); }}
+                                    onClick={() => { setIsMenuOpen(false); setAuthScreen('signup'); setIsModalOpen(true); }}
                                     className="w-full h-[48px] bg-brand text-white font-black text-[15px] rounded-[12px] shadow-sm"
                                 >
                                     Sign Up Free
@@ -271,7 +284,11 @@ export const Navbar = () => {
                 </div>
             )}
 
-            <SignInModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} />
+            <AuthBottomSheet 
+                isOpen={isModalOpen} 
+                onClose={() => setIsModalOpen(false)} 
+                defaultScreen={authScreen}
+            />
         </>
     );
 };
