@@ -10,6 +10,7 @@ import { EmailConfigForm, type EmailConfigData } from './EmailConfigForm';
 import { SocialConfigForm, type SocialConfigData } from './SocialConfigForm';
 import { FollowerPairingConfigForm, type FollowerPairingConfigData } from './FollowerPairingConfigForm';
 import { useToast } from '../../context/ToastContext';
+import { uploadFile } from '../../services/uploadService';
 
 interface CreateLinkSheetProps {
     isOpen: boolean;
@@ -61,6 +62,16 @@ export const CreateLinkSheet = ({ isOpen, onClose, onSuccess }: CreateLinkSheetP
         startProgress();
 
         try {
+            let finalFileId = (contentData as any)?.fileId || null;
+            if (contentData.file && !finalFileId) {
+                const uploadResult = await uploadFile(contentData.file, 'content', {
+                    onProgress: () => {
+                        // Progress state omitted for simplicity, can enhance later
+                    }
+                });
+                finalFileId = uploadResult?.fileId || null;
+            }
+
             const mode = unlockType === 'follower_pairing' ? 'follower_pairing' : 'lock_content';
 
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -69,7 +80,7 @@ export const CreateLinkSheet = ({ isOpen, onClose, onSuccess }: CreateLinkSheetP
                 description: desc,
                 mode,
                 unlockType: mode === 'lock_content' ? unlockType : undefined,
-                fileId: (contentData as any)?.fileId || null,
+                fileId: finalFileId,
                 youtubeUrl: unlockType === 'follower_pairing' ? null : (contentData.youtubeUrl || null),
                 donateEnabled: false,
             };

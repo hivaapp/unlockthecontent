@@ -60,7 +60,7 @@ const transformLink = (row: any): DashboardLink => {
         title: row.title,
         type: fileType,
         donate: row.donate_enabled || false,
-        url: `adga.te/r/${row.slug}`,
+        url: `${window.location.origin}/r/${row.slug}`,
         slug: row.slug,
         views: row.view_count || 0,
         unlocks: row.unlock_count || 0,
@@ -132,6 +132,23 @@ export const LinksTab = ({ searchQuery, setSearchQuery }: { searchQuery: string,
                             ? { ...l, views: payload.new.view_count, unlocks: payload.new.unlock_count }
                             : l
                     ));
+                }
+            )
+            .on(
+                'postgres_changes',
+                {
+                    event: 'INSERT',
+                    schema: 'public',
+                    table: 'email_subscribers',
+                    filter: `creator_id=eq.${currentUser.id}`,
+                },
+                (payload: { new: { link_id: string } }) => {
+                    setLinks(prev => prev.map(l =>
+                        l.id === payload.new.link_id
+                            ? { ...l, unlocks: (l.unlocks || 0) + 1 }
+                            : l
+                    ));
+                    showToast({ message: 'New subscriber!', type: 'success' });
                 }
             )
             .subscribe();

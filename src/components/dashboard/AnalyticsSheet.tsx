@@ -1,5 +1,9 @@
+import { useState, useEffect } from 'react';
 import { BottomSheet } from '../ui/BottomSheet';
-import { Share2, ArrowDownRight, UserCheck } from 'lucide-react';
+import { Share2, ArrowDownRight, UserCheck, Download } from 'lucide-react';
+import { useToast } from '../../context/ToastContext';
+import { getEmailLinkAnalytics } from '../../services/analyticsService';
+import { getSubscriberList, exportSubscribersCSV } from '../../services/emailSubscribeService';
 import type { DashboardLink } from './tabs/LinksTab';
 
 interface AnalyticsSheetProps {
@@ -11,6 +15,7 @@ interface AnalyticsSheetProps {
 export const AnalyticsSheet = ({ isOpen, onClose, link }: AnalyticsSheetProps) => {
     const isSocial = link.unlockType === 'social_follow';
     const isAccountability = link.unlockType === 'follower_pairing';
+    const isEmail = link.unlockType === 'email_subscribe';
     const targets = isSocial && link.socialConfig?.followTargets ? (link.socialConfig.followTargets as any[]) : [];
     
     const views = link.views || 0;
@@ -285,7 +290,11 @@ export const AnalyticsSheet = ({ isOpen, onClose, link }: AnalyticsSheetProps) =
                     </div>
                 )}
                 
-                {!isSocial && !isAccountability && (
+                {isEmail && (
+                    <EmailAnalyticsSection link={link} />
+                )}
+                
+                {!isSocial && !isAccountability && !isEmail && (
                     <div className="flex flex-col items-center justify-center p-8 bg-surfaceAlt rounded-[16px] border border-border border-dashed text-center">
                         <UserCheck size={32} className="text-textLight mb-3" />
                         <span className="text-[14px] font-bold text-text">More insights coming soon</span>
@@ -296,3 +305,150 @@ export const AnalyticsSheet = ({ isOpen, onClose, link }: AnalyticsSheetProps) =
         </BottomSheet>
     );
 };
+
+// ── Email Analytics Components ─────────────────────────────────────────────
+
+const EmailAnalyticsSection = ({ link }: { link: DashboardLink }) => {
+    const [analytics, setAnalytics] = useState<any>(null);
+    const [subscribers, setSubscribers] = useState<any[]>([]);
+    const [isLoading, setIsLoading] = useState(true);
+    const [isExporting, setIsExporting] = useState(false);
+    const { showToast } = useToast();
+
+    useEffect(() => {
+        const load = async () => {
+            setIsLoading(true);
+            try {
+                const [analyticsData, subscriberData] = await Promise.all([
+                    getEmailLinkAnalytics(link.id),
+                    getSubscriberList(link.id, { pageSize: 20 }),
+                ]);
+                setAnalytics(analyticsData);
+                setSubscribers(subscriberData.subscribers);
+            } catch (err) {
+                console.error(err);
+            } finally {
+                setIsLoading(false);
+            }
+        };
+        load();
+    }, [link.id]);
+
+    const handleExport = async () => {
+        setIsExporting(true);
+        try {
+            await exportSubscribersCSV(link.id, link.title);
+            showToast({ message: `Exported ${analytics.totalSubscribers} subscribers.`, type: 'success' });
+        } catch (err: any) {
+            showToast({ message: err.message, type: 'error' });
+        } finally {
+            setIsExporting(false);
+        }
+    };
+
+    if (isLoading) return (
+        <div className="flex items-center justify-center p-8">
+            <span className="text-textMid">Loading analytics...</span>
+        </div>
+    );
+
+    return (
+        <div className="flex flex-col w-full border-t border-border pt-6 mt-2">
+            <h3 className="text-[15px] font-black text-text mb-4 flex items-center gap-2">
+                📧 Subscriber Insights
+            </h3>
+            
+            {/* Stats row */}
+            <div className="grid grid-cols-3 gap-2 mb-6">
+                <StatCard
+                    label="Total subscribers"
+                    value={analytics?.totalSubscribers?.toLocaleString() || '0'}
+                    color="#417A55"
+                    bg="#EBF5EE"
+                />
+                <StatCard
+                    label="This week"
+                    value={`+${analytics?.thisWeekSubscribers || 0}`}
+                    color="#D97757"
+                    bg="#FAF0EB"
+                />
+                <StatCard
+                    label="Conversion rate"
+                    value={`${analytics?.conversionRate || '0.0'}%`}
+                    sublabel={`${analytics?.totalViews || 0} views`}
+                    color="#21201C"
+                    bg="#F3F1EC"
+                />
+            </div>
+
+            {/* Daily chart (Simple visualization for now) */}
+            {analytics?.dailyChart && Object.keys(analytics.dailyChart).length > 0 && (
+                <div className="mb-6 p-4 rounded-[12px] bg-white border border-border">
+                    <div className="text-[12px] font-bold text-textMid mb-3 uppercase tracking-wide">Daily Growth (Last 30 Days)</div>
+                    <div className="flex items-end gap-1 h-[80px]">
+                        {Object.entries(analytics.dailyChart).map(([date, count]: [string, any]) => {
+                            const max = Math.max(...Object.values(analytics.dailyChart as Record<string, number>));
+                            const height = max > 0 ? `${(count / max) * 100}%` : '0%';
+                            return (
+                                <div key={date} className="flex-1 bg-brand rounded-t-[4px] min-w-[4px] relative group" style={{ height }}>
+                                    <div className="absolute opacity-0 group-hover:opacity-100 bottom-full left-1/2 -translate-x-1/2 mb-1 bg-text text-white text-[10px] py-1 px-2 rounded-[4px] pointer-events-none whitespace-nowrap z-10 transition-opacity">
+                                        {count} on {date}
+                                    </div>
+                                </div>
+                            );
+                        })}
+                    </div>
+                </div>
+            )}
+
+            {/* Subscriber list */}
+            <div className="flex flex-col">
+                <div className="flex items-center justify-between mb-3">
+                    <h3 className="text-[14px] font-bold text-text">Recent Subscribers</h3>
+                    <button
+                        onClick={handleExport}
+                        disabled={isExporting || (analytics?.totalSubscribers || 0) === 0}
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-[8px] border border-border bg-white text-[12px] font-bold text-text hover:bg-surfaceAlt disabled:opacity-50 transition-colors"
+                    >
+                        <Download size={14} />
+                        {isExporting ? 'Exporting...' : 'Export CSV'}
+                    </button>
+                </div>
+
+                {subscribers.length === 0 ? (
+                    <div className="text-center p-6 bg-surfaceAlt rounded-[12px] border border-border border-dashed">
+                        <span className="text-[13px] font-semibold text-textMid">No subscribers yet.</span>
+                    </div>
+                ) : (
+                    <div className="flex flex-col gap-2">
+                        {subscribers.map((sub: any) => (
+                            <div key={sub.id} className="flex items-center justify-between p-3 rounded-[10px] bg-white border border-border hover:border-brand/30 transition-colors">
+                                <div className="flex flex-col">
+                                    <span className="text-[13px] font-bold text-text">{sub.email}</span>
+                                    <span className="text-[11px] font-semibold text-textLight mt-0.5">
+                                        {new Date(sub.subscribed_at).toLocaleDateString()}
+                                    </span>
+                                </div>
+                                {sub.content_accessed && (
+                                    <span className="text-[10px] font-bold text-success bg-successBg px-2 py-1 rounded-full uppercase tracking-wide">
+                                        Unlocked
+                                    </span>
+                                )}
+                            </div>
+                        ))}
+                    </div>
+                )}
+            </div>
+        </div>
+    );
+};
+
+const StatCard = ({ label, value, sublabel, color, bg }: { label: string, value: string, sublabel?: string, color: string, bg: string }) => (
+    <div className="rounded-[12px] p-3 flex flex-col items-center justify-center text-center border border-border" style={{ backgroundColor: bg }}>
+        <span className="text-[20px] font-black leading-none mb-1" style={{ color }}>{value}</span>
+        <span className="text-[11px] font-bold text-textMid uppercase tracking-wide">{label}</span>
+        {sublabel && (
+            <span className="text-[10px] font-semibold text-textLight mt-0.5">{sublabel}</span>
+        )}
+    </div>
+);

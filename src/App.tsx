@@ -9,7 +9,6 @@ import { Navbar } from './components/Navbar';
 import { MobileBottomNav } from './components/MobileBottomNav';
 import { Landing } from './pages/Landing';
 import { Dashboard } from './pages/Dashboard';
-import { ResourceUnlock } from './pages/ResourceUnlock';
 import { CreatorProfile } from './pages/CreatorProfile';
 import { ExplorePage } from './pages/ExplorePage';
 import { MyChatsHub } from './pages/MyChatsHub';
@@ -23,7 +22,6 @@ import { Privacy } from './pages/Privacy';
 import { HelpPage } from './pages/HelpPage';
 import { ContactPage } from './pages/ContactPage';
 import { ScrollToTop } from './components/ScrollToTop';
-import { FollowerPairingLanding } from './pages/FollowerPairingLanding';
 import { FollowerPairingMatch } from './pages/FollowerPairingMatch';
 import { FollowerPairingMatching } from './pages/FollowerPairingMatching';
 import { FollowerPairingChat } from './pages/FollowerPairingChat';
@@ -69,17 +67,9 @@ const NotFound = () => (
   </div>
 );
 
-import { mockLinks, mockExploreResources } from './lib/mockData';
 
-const ResourceRouter = () => {
-  const slug = window.location.pathname.split('/r/')[1]?.split('/')[0];
-  const linkData = mockLinks.find(l => l.slug === slug);
-  const exploreData = mockExploreResources.find(r => r.slug === slug);
-  const isAccountability = linkData?.unlockType === 'follower_pairing' || exploreData?.unlockType === 'follower_pairing';
-  
-  if (isAccountability) return <FollowerPairingLanding />;
-  return <ResourceUnlock />;
-};
+
+import ResourceUnlockPage from './pages/ResourceUnlockPage';
 
 const RootProfileRoute = () => {
   const { handle } = useParams();
@@ -152,7 +142,7 @@ const AppRoutes = () => {
 
       {/* Public routes */}
       <Route path="/explore" element={<AppLayout><ExplorePage /></AppLayout>} />
-      <Route path="/r/:slug" element={<ResourceRouter />} />
+      <Route path="/r/:slug" element={<ResourceUnlockPage />} />
       <Route path="/r/:slug/match" element={<FollowerPairingMatch />} />
       <Route path="/r/:slug/matching" element={<FollowerPairingMatching />} />
 
