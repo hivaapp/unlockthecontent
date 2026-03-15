@@ -405,7 +405,7 @@ export const ResourceUnlock = () => {
 };
 
 // Step 2 Click Interstitial for Custom Sponsors
-const SponsorClickInterstitial = ({ customAd, onClick, onClose, popupBlocked, onFallbackClick }: { customAd: Partial<CustomAdData> | undefined, onClick: () => void, onClose: () => void, popupBlocked?: boolean, onFallbackClick?: () => void }) => {
+const SponsorClickInterstitial = ({ customAd, onClick, onClose, popupBlocked, onFallbackClick }: { customAd: CustomAdData | undefined, onClick: () => void, onClose: () => void, popupBlocked?: boolean, onFallbackClick?: () => void }) => {
     return (
         <div className="fixed inset-0 z-50 flex flex-col bg-black/95 backdrop-blur-md animate-fadeIn p-4 sm:p-8 items-center justify-center" role="dialog" aria-modal="true">
             {/* Deliberately no close button on Step 2; encourages click or abandonment */}

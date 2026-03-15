@@ -11,7 +11,7 @@ export interface CustomAdData {
     ctaText: string;
     brandName: string;
     skipAfter: number;
-    fileId: string | null;        // R2 file ID after upload
+    fileId?: string | null;        // R2 file ID after upload
     isUploading?: boolean;
     uploadError?: string | null;
 }

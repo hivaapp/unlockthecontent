@@ -6,7 +6,7 @@ interface VideoAdViewerProps {
     onCompleted: () => void;
     onSkip: () => void;
     isCustom?: boolean;
-    customAd: Partial<CustomAdData>;
+    customAd: CustomAdData;
     requiresClick?: boolean;
 }
 
@@ -42,10 +42,10 @@ export function VideoAdViewer({ onCompleted, onSkip, customAd, requiresClick }: 
         }
     };
 
-    const brand = customAd.brandName || "Brand";
+    const brand = customAd.brandName;
     const logoEmoji = '✨';
     const tagline = 'Supported by our partner';
-    const headline = customAd.brandName || "Brand";
+    const headline = customAd.brandName;
     const subtext = 'Sponsor Message';
 
     return (

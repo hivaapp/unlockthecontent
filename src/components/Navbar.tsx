@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useChatSessions } from '../context/ChatSessionsContext';
 import { useMessaging } from '../context/MessagingContext';
+
 import { Link, useLocation } from 'react-router-dom';
 import { AuthBottomSheet } from './AuthBottomSheet';
 import { Menu, X, Lightbulb, Briefcase, Compass, Tag, ChevronRight } from 'lucide-react';
@@ -42,11 +43,14 @@ const ChatNavBadge = ({ count }: { count: number }) => {
 
 export const Navbar = () => {
     const { isLoggedIn, currentUser } = useAuth();
+
     const location = useLocation();
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [isMenuOpen, setIsMenuOpen] = useState(false);
     const [authScreen, setAuthScreen] = useState<'signin' | 'signup'>('signin');
     const navigate = useNavigate();
+
+
 
     let totalUnread = 0;
     try {
