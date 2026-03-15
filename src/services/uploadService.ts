@@ -57,7 +57,7 @@ export const FILE_RULES = {
 
 // ── Client-side validation ────────────────────────────────────────────────
 
-export const validateFile = (file, bucket = 'content') => {
+export const validateFile = (file: File, bucket: keyof typeof FILE_RULES = 'content') => {
   const rules = FILE_RULES[bucket]
   if (!rules) return { valid: false, error: 'Invalid bucket type.' }
 
@@ -72,7 +72,7 @@ export const validateFile = (file, bucket = 'content') => {
     return { valid: false, error: 'File is empty.' }
   }
 
-  const ext = file.name.split('.').pop()?.toLowerCase()
+  const ext = file.name.split('.').pop()?.toLowerCase() || ''
   if (!rules.allowedExtensions.includes(ext)) {
     return {
       valid: false,
@@ -85,7 +85,7 @@ export const validateFile = (file, bucket = 'content') => {
 
 // ── Format file size for display ─────────────────────────────────────────
 
-export const formatFileSize = (bytes) => {
+export const formatFileSize = (bytes: number) => {
   if (bytes === 0) return '0 B'
   const k = 1024
   const sizes = ['B', 'KB', 'MB', 'GB']
@@ -95,8 +95,8 @@ export const formatFileSize = (bytes) => {
 
 // ── Get file emoji for display ────────────────────────────────────────────
 
-export const getFileEmoji = (fileName, mimeType = '') => {
-  const ext = fileName?.split('.').pop()?.toLowerCase()
+export const getFileEmoji = (fileName: string, mimeType: string = '') => {
+  const ext = fileName?.split('.').pop()?.toLowerCase() || ''
   if (ext === 'pdf' || mimeType === 'application/pdf') return '📄'
   if (['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(ext) || mimeType.startsWith('image/')) return '🖼️'
   if (['mp4', 'mov', 'webm', 'avi'].includes(ext) || mimeType.startsWith('video/')) return '🎬'
@@ -142,7 +142,7 @@ const getAuthHeaders = async () => {
 //   })
 //   // result = { fileId, r2Key, originalName, mimeType, sizeBytes }
 
-export const uploadFile = async (file, bucket = 'content', options = {}) => {
+export const uploadFile = async (file: File, bucket: string = 'content', options: any = {}) => {
   const {
     onProgress = () => {},
     onStageChange = () => {},
@@ -151,8 +151,8 @@ export const uploadFile = async (file, bucket = 'content', options = {}) => {
 
   // ── Step 1: Client-side validation ──────────────────────────────────
   onStageChange('validating')
-  const validation = validateFile(file, bucket)
-  if (!validation.valid) throw new Error(validation.error)
+  const validation = validateFile(file, bucket as any)
+  if (!validation.valid) throw new Error(validation.error || 'Validation failed')
 
   // ── Step 2: Get presigned URL from Edge Function ─────────────────────
   onStageChange('preparing')
@@ -220,7 +220,7 @@ export const uploadFile = async (file, bucket = 'content', options = {}) => {
 // ── XMLHttpRequest upload with real progress ──────────────────────────────
 // fetch() does not support upload progress. XHR does.
 
-const uploadWithProgress = (file, presignedUrl, onProgress, signal) => {
+const uploadWithProgress = (file: File, presignedUrl: string, onProgress: (pct: number) => void, signal?: AbortSignal) => {
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest()
 
@@ -234,7 +234,7 @@ const uploadWithProgress = (file, presignedUrl, onProgress, signal) => {
     xhr.addEventListener('load', () => {
       if (xhr.status === 200 || xhr.status === 204) {
         console.log('[Upload] R2 PUT succeeded:', xhr.status)
-        resolve()
+        resolve(undefined)
       } else {
         console.error('[Upload] R2 PUT failed:', xhr.status, xhr.responseText)
         reject(new Error(`Upload to storage failed (HTTP ${xhr.status}). Please try again.`))
@@ -265,6 +265,12 @@ export const getDownloadUrl = async ({
   unlockType,
   sessionKey,
   forceDownload = true,
+}: {
+  fileId: string;
+  linkSlug: string;
+  unlockType: string;
+  sessionKey: string;
+  forceDownload?: boolean;
 }) => {
   const headers = { 'Content-Type': 'application/json' }
 
@@ -293,7 +299,7 @@ export const getDownloadUrl = async ({
 
 // ── Delete a file ─────────────────────────────────────────────────────────
 
-export const deleteFile = async (fileId) => {
+export const deleteFile = async (fileId: string) => {
   const headers = await getAuthHeaders()
 
   const response = await fetch(`${EDGE_FUNCTION_BASE}/delete-file`, {

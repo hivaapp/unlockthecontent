@@ -3,7 +3,7 @@ import { supabase } from '../lib/supabase'
 
 // ── Email subscribe analytics for a specific link ─────────────────────────
 
-export const getEmailLinkAnalytics = async (linkId) => {
+export const getEmailLinkAnalytics = async (linkId: string) => {
   // Subscriber count
   const { count: totalSubscribers } = await supabase
     .from('email_subscribers')
@@ -35,7 +35,7 @@ export const getEmailLinkAnalytics = async (linkId) => {
     .order('subscribed_at', { ascending: true })
 
   // Group by day
-  const byDay = {}
+  const byDay: Record<string, number> = {}
   dailyData?.forEach(row => {
     const day = row.subscribed_at.substring(0, 10)  // YYYY-MM-DD
     byDay[day] = (byDay[day] || 0) + 1
@@ -48,7 +48,7 @@ export const getEmailLinkAnalytics = async (linkId) => {
     .eq('id', linkId)
     .single()
 
-  const conversionRate = linkData?.view_count > 0
+  const conversionRate = (linkData && linkData.view_count > 0)
     ? ((linkData.unlock_count / linkData.view_count) * 100).toFixed(1)
     : '0.0'
 

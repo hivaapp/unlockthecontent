@@ -13,7 +13,7 @@ export const SignUp = () => {
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         try {
-            await login('email');
+            await login({ name, email, password } as any);
             navigate('/dashboard');
         } catch {
             // Error handled by AuthContext

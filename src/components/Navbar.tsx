@@ -2,7 +2,6 @@ import { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useChatSessions } from '../context/ChatSessionsContext';
 import { useMessaging } from '../context/MessagingContext';
-import { useToast } from '../context/ToastContext';
 import { Link, useLocation } from 'react-router-dom';
 import { AuthBottomSheet } from './AuthBottomSheet';
 import { Menu, X, Lightbulb, Briefcase, Compass, Tag, ChevronRight } from 'lucide-react';
@@ -42,23 +41,12 @@ const ChatNavBadge = ({ count }: { count: number }) => {
 };
 
 export const Navbar = () => {
-    const { isLoggedIn, currentUser, logout } = useAuth();
-    const { addToast } = useToast();
+    const { isLoggedIn, currentUser } = useAuth();
     const location = useLocation();
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [isMenuOpen, setIsMenuOpen] = useState(false);
     const [authScreen, setAuthScreen] = useState<'signin' | 'signup'>('signin');
     const navigate = useNavigate();
-
-    const handleLogout = async () => {
-        try {
-            await logout();
-            navigate('/');
-            addToast('Signed out successfully.', 'success');
-        } catch {
-            addToast('Error signing out. Try again.', 'error');
-        }
-    };
 
     let totalUnread = 0;
     try {

@@ -100,7 +100,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     const [isLoggingIn, setIsLoggingIn] = useState(false);
 
     // Legacy state — still mock for now
-    const [activity, setActivity] = useState<ActivityData[]>(mockActivity as ActivityData[]);
+    const [activity] = useState<ActivityData[]>(mockActivity as ActivityData[]);
     const [activeTab, setActiveTab] = useState('home');
 
     // ── Fetch full user profile from public.users ──────────────────────────

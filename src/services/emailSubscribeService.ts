@@ -7,7 +7,7 @@ import { getDownloadUrl } from './uploadService'
 // This tracks their unlock state without requiring an account.
 // Key format: adgate_email_[linkId]
 
-const getSessionKey = (linkId) => {
+const getSessionKey = (linkId: string) => {
   const storageKey = `adgate_email_${linkId}`
   let key = sessionStorage.getItem(storageKey)
   if (!key) {
@@ -18,26 +18,26 @@ const getSessionKey = (linkId) => {
 }
 
 // Check if this session has already completed the email subscribe unlock
-export const hasCompletedEmailUnlock = (linkId) => {
+export const hasCompletedEmailUnlock = (linkId: string) => {
   const sessionKey = `adgate_email_unlocked_${linkId}`
   return sessionStorage.getItem(sessionKey) === 'true'
 }
 
 // Mark this session as having completed the unlock
-const markUnlockComplete = (linkId) => {
+const markUnlockComplete = (linkId: string) => {
   sessionStorage.setItem(`adgate_email_unlocked_${linkId}`, 'true')
 }
 
 // ── Validate email format ─────────────────────────────────────────────────
 
-export const isValidEmail = (email) => {
+export const isValidEmail = (email: string) => {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())
 }
 
 // ── Check if email already subscribed ────────────────────────────────────
 // Used to show "already subscribed" state if viewer returns.
 
-export const checkExistingSubscriber = async (linkId, email) => {
+export const checkExistingSubscriber = async (linkId: string, email: string) => {
   const { data } = await supabase
     .from('email_subscribers')
     .select('id, content_accessed')
@@ -58,7 +58,7 @@ export const subscribeAndUnlock = async ({
   viewerId = null,      // null for anonymous viewers
   linkSlug,
   fileId,
-}) => {
+}: any) => {
   const sessionKey = getSessionKey(linkId)
   const normalizedEmail = email.trim().toLowerCase()
 
@@ -189,7 +189,7 @@ export const subscribeAndUnlock = async ({
 
 // ── Get subscriber count for a link (creator dashboard) ──────────────────
 
-export const getSubscriberCount = async (linkId) => {
+export const getSubscriberCount = async (linkId: string) => {
   const { count, error } = await supabase
     .from('email_subscribers')
     .select('*', { count: 'exact', head: true })
@@ -201,7 +201,7 @@ export const getSubscriberCount = async (linkId) => {
 
 // ── Get subscriber list for creator (dashboard analytics) ────────────────
 
-export const getSubscriberList = async (linkId, { page = 0, pageSize = 50 } = {}) => {
+export const getSubscriberList = async (linkId: string, { page = 0, pageSize = 50 } = {} as any) => {
   const { data, error, count } = await supabase
     .from('email_subscribers')
     .select('id, email, content_accessed, subscribed_at', { count: 'exact' })
@@ -215,7 +215,7 @@ export const getSubscriberList = async (linkId, { page = 0, pageSize = 50 } = {}
 
 // ── Export subscriber emails as CSV ──────────────────────────────────────
 
-export const exportSubscribersCSV = async (linkId, linkTitle) => {
+export const exportSubscribersCSV = async (linkId: string, linkTitle: string) => {
   const { subscribers } = await getSubscriberList(linkId, { pageSize: 10000 })
   
   if (subscribers.length === 0) {
