@@ -4,6 +4,7 @@ import type { Session } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
 import { mockActivity } from '../lib/mockData';
 import type { User } from '../lib/mockData';
+import { clearAll } from '../stores/pendingFileStore';
 
 export interface LinkData {
     id: string;
@@ -177,24 +178,40 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         let mounted = true;
 
         const initializeAuth = async () => {
-            // Get current session (reads from localStorage automatically)
-            const { data: { session: initialSession } } = await supabase.auth.getSession();
+            try {
+                // Get current session (reads from localStorage automatically)
+                const { data: { session: initialSession }, error } = await supabase.auth.getSession();
 
-            if (!mounted) return;
-
-            if (initialSession?.user) {
-                const profile = await fetchUserProfile(initialSession.user.id);
-                if (mounted) {
-                    setSession(initialSession);
-                    setCurrentUser(profile);
-                    setIsLoggedIn(true);
+                if (error) {
+                    console.warn('Auth session error (non-fatal):', error.message);
                 }
-            }
 
-            if (mounted) setIsLoading(false);
+                if (!mounted) return;
+
+                if (initialSession?.user) {
+                    setSession(initialSession);
+                    setIsLoggedIn(true);
+                    // Fetch profile in background — don't block loading
+                    fetchUserProfile(initialSession.user.id).then(profile => {
+                        if (mounted && profile) setCurrentUser(profile);
+                    }).catch(err => {
+                        console.warn('Profile fetch failed (non-fatal):', err.message);
+                    });
+                }
+            } catch (err) {
+                console.warn('Auth initialization failed (non-fatal):', err);
+            } finally {
+                // ALWAYS mark loading as complete, even if auth fails
+                if (mounted) setIsLoading(false);
+            }
         };
 
         initializeAuth();
+
+        // Safety timeout — if auth takes longer than 5 seconds, stop loading anyway
+        const safetyTimeout = setTimeout(() => {
+            if (mounted) setIsLoading(false);
+        }, 5000);
 
         // ── Listen to auth state changes ────────────────────────────────────
         const { data: { subscription } } = supabase.auth.onAuthStateChange(
@@ -203,10 +220,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
                 if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
                     if (newSession?.user) {
-                        const profile = await fetchUserProfile(newSession.user.id);
                         setSession(newSession);
-                        setCurrentUser(profile);
                         setIsLoggedIn(true);
+                        // Fetch profile but don't block
+                        fetchUserProfile(newSession.user.id).then(profile => {
+                            if (mounted && profile) setCurrentUser(profile);
+                        }).catch(err => {
+                            console.warn('Profile fetch error:', err.message);
+                        });
                     }
                 }
 
@@ -214,12 +235,17 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
                     setSession(null);
                     setCurrentUser(null);
                     setIsLoggedIn(false);
+                    localStorage.removeItem('hivaapp_pending_link');
+                    clearAll();
                 }
 
                 if (event === 'USER_UPDATED') {
                     if (newSession?.user) {
-                        const profile = await fetchUserProfile(newSession.user.id);
-                        setCurrentUser(profile);
+                        fetchUserProfile(newSession.user.id).then(profile => {
+                            if (mounted && profile) setCurrentUser(profile);
+                        }).catch(err => {
+                            console.warn('Profile refresh error:', err.message);
+                        });
                     }
                 }
             }
@@ -227,6 +253,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
         return () => {
             mounted = false;
+            clearTimeout(safetyTimeout);
             subscription.unsubscribe();
         };
     }, [fetchUserProfile]);
@@ -309,6 +336,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     const logout = async () => {
         const { error } = await supabase.auth.signOut();
         if (error) throw error;
+        localStorage.removeItem('hivaapp_pending_link');
+        clearAll();
         // onAuthStateChange SIGNED_OUT fires and clears state.
     };
 

@@ -18,7 +18,7 @@ export const LinkCard = ({ link, onEdit, onMore, isPending }: LinkCardProps) => 
             try {
                 await navigator.share({
                     title: link.title,
-                    url: `https://${link.url}`
+                    url: link.url
                 });
             } catch (err) {
                 console.log('Share canceled', err);
@@ -29,7 +29,7 @@ export const LinkCard = ({ link, onEdit, onMore, isPending }: LinkCardProps) => 
     };
 
     const handleCopy = () => {
-        navigator.clipboard.writeText(`https://${link.url}`);
+        navigator.clipboard.writeText(link.url);
         showToast({ message: 'Link copied to clipboard', type: 'success' });
     };
 

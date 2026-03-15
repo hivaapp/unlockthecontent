@@ -29,8 +29,8 @@ export const FILE_RULES = {
     ],
   },
   sponsor: {
-    maxSizeBytes: 500 * 1024 * 1024,
-    maxSizeMB: 500,
+    maxSizeBytes: 20 * 1024 * 1024,
+    maxSizeMB: 20,
     allowedExtensions: ['mp4', 'mov', 'webm', 'avi'],
     allowedMimeTypes: ['video/mp4', 'video/quicktime', 'video/webm', 'video/avi'],
   },
@@ -112,8 +112,21 @@ export const getFileEmoji = (fileName, mimeType = '') => {
 // ── Get auth headers ──────────────────────────────────────────────────────
 
 const getAuthHeaders = async () => {
+  // Try to get a fresh session first (handles expired tokens)
+  const { data: { session: refreshedSession } } = await supabase.auth.refreshSession()
+  
+  if (refreshedSession?.access_token) {
+    return {
+      'Authorization': `Bearer ${refreshedSession.access_token}`,
+      'Content-Type': 'application/json',
+    }
+  }
+  
+  // Fallback: try cached session
   const { data: { session } } = await supabase.auth.getSession()
-  if (!session?.access_token) throw new Error('Not authenticated')
+  if (!session?.access_token) {
+    throw new Error('Not authenticated. Please sign in and try again.')
+  }
   return {
     'Authorization': `Bearer ${session.access_token}`,
     'Content-Type': 'application/json',
@@ -220,18 +233,24 @@ const uploadWithProgress = (file, presignedUrl, onProgress, signal) => {
 
     xhr.addEventListener('load', () => {
       if (xhr.status === 200 || xhr.status === 204) {
+        console.log('[Upload] R2 PUT succeeded:', xhr.status)
         resolve()
       } else {
-        reject(new Error(`Upload failed with status ${xhr.status}`))
+        console.error('[Upload] R2 PUT failed:', xhr.status, xhr.responseText)
+        reject(new Error(`Upload to storage failed (HTTP ${xhr.status}). Please try again.`))
       }
     })
 
-    xhr.addEventListener('error', () => reject(new Error('Upload failed. Check your connection.')))
+    xhr.addEventListener('error', (e) => {
+      console.error('[Upload] XHR network error:', e)
+      reject(new Error('Upload failed due to a network error. Check your connection and try again.'))
+    })
     xhr.addEventListener('abort', () => reject(new Error('Upload cancelled.')))
 
     // Support AbortController for cancellation
     signal?.addEventListener('abort', () => xhr.abort())
 
+    console.log('[Upload] Starting PUT to R2, file size:', file.size, 'type:', file.type)
     xhr.open('PUT', presignedUrl)
     xhr.setRequestHeader('Content-Type', file.type || 'application/octet-stream')
     xhr.send(file)

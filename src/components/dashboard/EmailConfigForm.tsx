@@ -37,7 +37,7 @@ export const EmailConfigForm = ({ value, onChange, onErrorStateChange }: EmailCo
     });
 
     useEffect(() => {
-        const hasErrors = !data.newsletterName || !data.newsletterDescription || !data.incentiveText || !data.platform;
+        const hasErrors = !data.newsletterName.trim();
         onErrorStateChange(hasErrors);
         onChange(data);
         // eslint-disable-next-line react-hooks/exhaustive-deps

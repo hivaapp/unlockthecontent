@@ -83,13 +83,22 @@ export const subscribeAndUnlock = async ({
       await supabase.rpc('increment_link_unlocks', { p_link_id: linkId })
     }
     
-    const { downloadUrl } = await getDownloadUrl({
-      fileId,
-      linkSlug,
-      unlockType: 'email_subscribe',
-      sessionKey,
-      forceDownload: false,
-    })
+    // Get download URL only if a file is attached
+    let downloadUrl = null
+    if (fileId) {
+      try {
+        const result = await getDownloadUrl({
+          fileId,
+          linkSlug,
+          unlockType: 'email_subscribe',
+          sessionKey,
+          forceDownload: false,
+        })
+        downloadUrl = result.downloadUrl
+      } catch (err) {
+        console.error('Failed to get download URL:', err)
+      }
+    }
     
     return {
       success: true,
@@ -100,7 +109,10 @@ export const subscribeAndUnlock = async ({
   }
 
   // ── Insert new subscriber ────────────────────────────────────────────
-  const { data: subscriber, error: insertError } = await supabase
+  // NOTE: We do NOT use .select().single() here because anonymous users
+  // cannot read back their own row due to RLS policies. The insert itself
+  // succeeds (insert policy allows any), but the SELECT-back would fail.
+  const { error: insertError } = await supabase
     .from('email_subscribers')
     .insert({
       link_id:          linkId,
@@ -110,15 +122,37 @@ export const subscribeAndUnlock = async ({
       viewer_id:        viewerId,
       content_accessed: true,
     })
-    .select('id')
-    .single()
   
   if (insertError) {
     // Handle race condition — duplicate insert from double-tap
     if (insertError.code === '23505') {
       // Unique constraint violation — already subscribed
-      return subscribeAndUnlock({ linkId, creatorId, email, viewerId, linkSlug, fileId })
+      markUnlockComplete(linkId)
+      
+      let downloadUrl = null
+      if (fileId) {
+        try {
+          const result = await getDownloadUrl({
+            fileId,
+            linkSlug,
+            unlockType: 'email_subscribe',
+            sessionKey,
+            forceDownload: false,
+          })
+          downloadUrl = result.downloadUrl
+        } catch (err) {
+          console.error('Failed to get download URL on duplicate:', err)
+        }
+      }
+      
+      return {
+        success: true,
+        alreadySubscribed: true,
+        downloadUrl,
+        subscriberId: null,
+      }
     }
+    console.error('Subscriber insert error:', insertError)
     throw new Error('Failed to save subscription. Please try again.')
   }
 
@@ -129,19 +163,27 @@ export const subscribeAndUnlock = async ({
   markUnlockComplete(linkId)
 
   // ── Get download URL from Edge Function ─────────────────────────────
-  const { downloadUrl } = await getDownloadUrl({
-    fileId,
-    linkSlug,
-    unlockType: 'email_subscribe',
-    sessionKey,
-    forceDownload: false,
-  })
+  let downloadUrl = null
+  if (fileId) {
+    try {
+      const result = await getDownloadUrl({
+        fileId,
+        linkSlug,
+        unlockType: 'email_subscribe',
+        sessionKey,
+        forceDownload: false,
+      })
+      downloadUrl = result.downloadUrl
+    } catch (err) {
+      console.error('Failed to get download URL:', err)
+    }
+  }
 
   return {
     success: true,
     alreadySubscribed: false,
     downloadUrl,
-    subscriberId: subscriber.id,
+    subscriberId: null,
   }
 }
 

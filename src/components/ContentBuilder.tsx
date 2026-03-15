@@ -1,5 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { UploadCloud, X, File as FileIcon, Link as LinkIcon } from 'lucide-react';
+import { uploadFile, validateFile } from '../services/uploadService';
 
 export type ContentMode = "file" | "text" | "both";
 
@@ -14,12 +15,18 @@ export interface ContentData {
     links: LinkItem[];
     youtubeUrl?: string | null;
     file: File | null;
+    fileId?: string | null;
+    isUploading?: boolean;
+    uploadProgress?: number;
+    uploadError?: string | null;
 }
 
 interface ContentBuilderProps {
     value: ContentData;
     onChange: (data: ContentData) => void;
     isSheet?: boolean;
+    isAuthenticated?: boolean;
+    onPendingFile?: (file: File) => void;
 }
 
 // Helper to reliably get a domain initial and a color based on hash
@@ -51,7 +58,7 @@ const getDomainColor = (url: string) => {
     return colors[Math.abs(hash) % colors.length];
 };
 
-export const ContentBuilder: React.FC<ContentBuilderProps> = ({ value, onChange, isSheet = false }) => {
+export const ContentBuilder: React.FC<ContentBuilderProps> = ({ value, onChange, isSheet = false, isAuthenticated = true, onPendingFile }) => {
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [isDragging, setIsDragging] = useState(false);
 
@@ -79,21 +86,56 @@ export const ContentBuilder: React.FC<ContentBuilderProps> = ({ value, onChange,
         setIsDragging(false);
     };
 
+    // ── Immediate file upload when selected ─────────────────────────────
+    const startUpload = async (file: File) => {
+        // Client-side validation first
+        const validation = validateFile(file, 'content');
+        if (!validation.valid) {
+            onChange({ ...value, file, fileId: null, isUploading: false, uploadProgress: 0, uploadError: validation.error });
+            return;
+        }
+
+        if (!isAuthenticated) {
+            onPendingFile?.(file);
+            onChange({ ...value, file, fileId: null, isUploading: false, uploadProgress: 100, uploadError: null });
+            return;
+        }
+
+        // Set file and begin upload
+        onChange({ ...value, file, fileId: null, isUploading: true, uploadProgress: 5, uploadError: null });
+
+        try {
+            const result = await uploadFile(file, 'content', {
+                onProgress: (percent: number) => {
+                    // We can't use onChange here due to stale closure, so use a ref-based approach
+                    // Instead, the progress is tracked via the onProgress callback to the parent
+                    onChange({ ...value, file, fileId: null, isUploading: true, uploadProgress: percent, uploadError: null });
+                },
+            });
+            onChange({ ...value, file, fileId: result.fileId, isUploading: false, uploadProgress: 100, uploadError: null });
+        } catch (err: any) {
+            onChange({ ...value, file, fileId: null, isUploading: false, uploadProgress: 0, uploadError: err.message || 'Upload failed' });
+        }
+    };
+
     const handleDrop = (e: React.DragEvent) => {
         e.preventDefault();
         setIsDragging(false);
         if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-            onChange({ ...value, file: e.dataTransfer.files[0] });
+            startUpload(e.dataTransfer.files[0]);
         }
     };
 
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files && e.target.files.length > 0) {
-            onChange({ ...value, file: e.target.files[0] });
+            startUpload(e.target.files[0]);
         }
     };
 
-    const removeFile = () => onChange({ ...value, file: null });
+    const removeFile = () => {
+        if (value.isUploading) return; // Don't allow removal during upload
+        onChange({ ...value, file: null, fileId: null, isUploading: false, uploadProgress: 0, uploadError: null });
+    };
 
     const handleTextChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
         // Enforce 5000 chars limit
@@ -472,19 +514,56 @@ export const ContentBuilder: React.FC<ContentBuilderProps> = ({ value, onChange,
                                 </div>
                             )
                         ) : (
-                            <div className="w-full flex items-center justify-between">
-                                <div className="flex items-center flex-1 min-w-0 pr-3">
-                                    <div className="w-12 h-12 bg-[#F5F5F5] text-text rounded-[10px] flex items-center justify-center shrink-0">
-                                        <FileIcon size={24} />
+                            <div className="w-full flex flex-col gap-2">
+                                <div className="w-full flex items-center justify-between">
+                                    <div className="flex items-center flex-1 min-w-0 pr-3">
+                                        <div className={`w-12 h-12 rounded-[10px] flex items-center justify-center shrink-0 ${
+                                            value.uploadError ? 'bg-[#FDECEA] text-[#C0392B]' :
+                                            value.isUploading ? 'bg-[#FDF4EC] text-[#A0622A]' :
+                                            value.fileId ? 'bg-[#EBF5EE] text-[#417A55]' :
+                                            'bg-[#F5F5F5] text-text'
+                                        }`}>
+                                            <FileIcon size={24} />
+                                        </div>
+                                        <div className="ml-3 flex flex-col min-w-0">
+                                            <span className="font-[800] text-[14px] text-[#111] truncate">{value.file.name}</span>
+                                            <span className="text-[12px] text-[#666]">
+                                                {(value.file.size / 1024 / 1024).toFixed(2)} MB
+                                                {value.isUploading && ' · Uploading...'}
+                                                {value.fileId && ' · ✓ Ready'}
+                                                {value.uploadError && ' · ✗ Failed'}
+                                            </span>
+                                        </div>
                                     </div>
-                                    <div className="ml-3 flex flex-col min-w-0">
-                                        <span className="font-[800] text-[14px] text-[#111] truncate">{value.file.name}</span>
-                                        <span className="text-[12px] text-[#666]">{(value.file.size / 1024 / 1024).toFixed(2)} MB</span>
-                                    </div>
+                                    <button 
+                                        onClick={(e) => { e.stopPropagation(); removeFile(); }} 
+                                        disabled={value.isUploading}
+                                        className="w-8 h-8 rounded-full flex items-center justify-center text-[#E8312A] bg-[#FFF0EF] shrink-0 disabled:opacity-40 disabled:cursor-not-allowed"
+                                    >
+                                        <X size={16} strokeWidth={3} />
+                                    </button>
                                 </div>
-                                <button onClick={(e) => { e.stopPropagation(); removeFile(); }} className="w-8 h-8 rounded-full flex items-center justify-center text-[#E8312A] bg-[#FFF0EF] shrink-0">
-                                    <X size={16} strokeWidth={3} />
-                                </button>
+                                {/* Upload progress bar */}
+                                {value.isUploading && (
+                                    <div className="w-full h-[4px] bg-[#E6E2D9] rounded-full overflow-hidden">
+                                        <div 
+                                            className="h-full bg-[#D97757] rounded-full transition-all duration-300"
+                                            style={{ width: `${value.uploadProgress || 0}%` }}
+                                        />
+                                    </div>
+                                )}
+                                {/* Upload error */}
+                                {value.uploadError && (
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-[12px] text-[#C0392B] font-[700]">{value.uploadError}</span>
+                                        <button 
+                                            onClick={(e) => { e.stopPropagation(); if (value.file) startUpload(value.file); }}
+                                            className="text-[12px] text-[#D97757] font-[800] hover:underline"
+                                        >
+                                            Retry
+                                        </button>
+                                    </div>
+                                )}
                             </div>
                         )}
                     </div>

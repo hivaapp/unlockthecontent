@@ -3,6 +3,7 @@ import { BrowserRouter as Router, Routes, Route, Navigate, Link, useParams } fro
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { ToastProvider } from './context/ToastContext';
 import { ProgressProvider } from './context/ProgressContext';
+import { PendingLinkProvider } from './context/PendingLinkContext';
 import { ChatSessionsProvider } from './context/ChatSessionsContext';
 import { MessagingProvider } from './context/MessagingContext';
 import { Navbar } from './components/Navbar';
@@ -176,13 +177,15 @@ function App() {
       <ScrollToTop />
       <ToastProvider>
         <AuthProvider>
-          <ChatSessionsProvider>
-            <MessagingProvider>
-              <ProgressProvider>
-                <AppRoutes />
-              </ProgressProvider>
-            </MessagingProvider>
-          </ChatSessionsProvider>
+          <PendingLinkProvider>
+            <ChatSessionsProvider>
+              <MessagingProvider>
+                <ProgressProvider>
+                  <AppRoutes />
+                </ProgressProvider>
+              </MessagingProvider>
+            </ChatSessionsProvider>
+          </PendingLinkProvider>
         </AuthProvider>
       </ToastProvider>
     </Router>

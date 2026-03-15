@@ -1,0 +1,222 @@
+## Email Subscribe — Complete End-to-End Implementation Blueprint
+
+---
+
+### The Three Completely Separate Phases
+
+Before anything else, understand that this entire feature has three phases that must never overlap or trigger each other at the wrong time. **Phase 1** is the creator building and saving the link. **Phase 2** is the viewer visiting the link and subscribing. **Phase 3** is the content being delivered after subscription. Every bug in your current implementation comes from these three phases being mixed up or triggered at wrong times.
+
+---
+
+## Phase 1 — Creator Builds The Link
+
+---
+
+### Stage 1A — The Creator Fills The Form
+
+The creator opens the Create Link sheet. They choose Lock Content mode and Email Subscribe as the unlock type. They fill in a title, an optional description, the newsletter name, an optional newsletter description, and an optional incentive text like "Get my free Notion template."
+
+Nothing touches Supabase or R2 at this stage. Every field is purely local state living in the React component. No API calls, no network requests, no loading states. The form just collects information.
+
+---
+
+### Stage 1B — The Creator Chooses What To Unlock
+
+This is the most important design decision in the entire feature. The creator must choose what the viewer receives after subscribing. There are four possible content types and they are mutually exclusive — a creator picks one.
+
+**Content Type 1 — File Download.** The creator attaches a PDF, video, ZIP, template, or any supported file. The moment they select the file from their device, the upload begins immediately without waiting for them to tap Generate. The upload goes through the `generate-upload-url` Edge Function to get a presigned PUT URL, then the file bytes are sent directly from the browser to R2, then `confirm-upload` is called to mark the file as ready. By the time the upload progress bar reaches 100%, the file physically exists in R2 and the `files` table has a confirmed row with `is_placeholder = false`. The form stores the `fileId` in its local state. This entire upload happens before Generate is tapped.
+
+**Content Type 2 — Text Only.** The creator types a message, a poem, a code snippet, a password, a secret link, or any text content into a textarea. This text is stored directly in the link configuration — no file upload, no R2, nothing. The text will be shown directly on the unlock success screen.
+
+**Content Type 3 — External Link.** The creator pastes a URL — a Google Drive link, a Notion page, a Gumroad product, a private Discord invite, anything. This URL is stored as a string in the link configuration. After subscribing, the viewer gets a button that opens this URL.
+
+**Content Type 4 — YouTube Video.** The creator pastes a YouTube URL. The video embed appears on the unlock success screen after subscribing. The video is never stored in R2 — it is just a URL pointing to YouTube.
+
+These four types can be combined. A creator can attach a file AND add a YouTube video AND add a text message. All four become visible to the viewer after they subscribe. But each one individually is sufficient — a creator can publish a link with only a text message and no file.
+
+---
+
+### Stage 1C — The Creator Taps Generate
+
+This is the only moment the `links` table is written to. The app takes all the form state and performs exactly two Supabase inserts.
+
+Insert one goes into the `links` table. This row contains the `creator_id`, the `slug`, the `title`, the `description`, `mode: lock_content`, `unlock_type: email_subscribe`, the `file_id` if a file was uploaded (null otherwise), the `youtube_url` if one was provided (null otherwise), `is_active: true`, and initial counts of zero for views and unlocks.
+
+Insert two goes into the `email_configs` table. This row contains the `link_id` from the first insert, the `newsletter_name`, the `newsletter_description`, the `incentive_text`, and the `confirmation_message`.
+
+If the creator included unlock text, that text goes into a field in `email_configs` called something like `unlock_text` or `unlock_message`. If they included an external URL, that goes into `email_configs` as `unlock_url`. These fields are part of the email config because they are specific to this unlock type's delivery.
+
+No Edge Functions are called during Generate. No R2 interaction happens during Generate. If loading forever is happening at Generate, it means something in the Generate handler is calling something it should not be calling.
+
+---
+
+### Stage 1D — The Slug Is Generated And The Share URL Is Built
+
+Before the `links` insert, the app generates a URL-safe slug from the title. The slug generator takes the title, converts it to lowercase, replaces spaces with hyphens, removes special characters, and trims it to a reasonable length. It then checks the `links` table to see if this slug already exists. If it does, a short random suffix is appended and it checks again. This repeats until a unique slug is found.
+
+The `links` table has a UNIQUE constraint on the `slug` column. This guarantees at the database level that no two links ever share a slug regardless of creator.
+
+After the insert succeeds, the app has the slug back. The share URL is constructed as `http://localhost:5173/r/[slug]` during development and `https://hivaapp.com/r/[slug]` in production. This URL is shown to the creator with a copy button and optionally a QR code.
+
+This URL is unique to this specific creator's specific link because the slug is unique across the entire platform. No two creators will ever have the same share URL.
+
+---
+
+## Phase 2 — Viewer Visits The Unlock Page
+
+---
+
+### Stage 2A — The Viewer Arrives At `/r/[slug]`
+
+When anyone visits `hivaapp.com/r/my-figma-kit-2024`, the unlock page component mounts. The first thing it does is extract the slug from the URL parameters and call `getLinkBySlug(slug)`.
+
+This is a single Supabase SELECT query on the `links` table filtered by slug and `is_active = true`. The query joins in the `email_configs` row, the `files` row (if a file exists), and the `users` row for the creator. The result comes back as a single object containing everything the page needs.
+
+If the slug does not exist or the link is inactive, the page shows a not-found state with a message and a button to browse explore.
+
+If the slug exists and is active, the page renders the full unlock UI. The viewer sees the creator's name and avatar, the link title and description, the newsletter name and incentive text, and a clear indication of what they will receive — the file name and size if a file is attached, a preview of that there is text content, the YouTube thumbnail if a video is included.
+
+---
+
+### Stage 2B — The View Is Tracked
+
+Immediately after the link data loads, the page tracks a view. This is a fire-and-forget operation — it does not block rendering. A row is inserted into `link_views` with the `link_id`, an anonymous `session_key` from sessionStorage, and the `viewer_id` if the viewer is logged in. The `view_count` on the `links` row is incremented via a Supabase RPC call.
+
+The session key is a random string generated once per browser session and stored in sessionStorage. The view deduplication logic checks if the same session key already has a view for this link within the last 30 minutes. If so, it skips the insert. This prevents inflating view counts when someone refreshes the page.
+
+---
+
+### Stage 2C — The Viewer Enters Their Email
+
+The email input field is shown. If the viewer is logged in to their AdGate account, the field is pre-filled with their account email. They can change it. If they are not logged in, the field is empty.
+
+There is no server call when the viewer types their email. Validation is purely client-side — check that it is a valid email format. The Subscribe button becomes active once a valid email is in the field.
+
+---
+
+### Stage 2D — The Viewer Taps Subscribe
+
+The button shows a loading spinner. The app calls `subscribeAndUnlock` with the `linkId`, `creatorId`, `email`, `viewerId` (null if not logged in), `linkSlug`, and the `fileId` from the link data (null if no file).
+
+The first thing this function does is check for a duplicate subscription. It queries `email_subscribers` filtered by `link_id` and `email`. If a row already exists, this means the viewer subscribed before. The function skips the insert and goes directly to content delivery. The viewer still gets the content — they are not blocked for being a returning subscriber.
+
+If the email is new, a row is inserted into `email_subscribers` with the `link_id`, `creator_id`, `email`, the `session_key`, the `viewer_id` if logged in, and `content_accessed: true`. The `unlock_count` on the `links` row is incremented via RPC.
+
+The `session_key` stored on the subscriber row is critical. It links this specific browser session to this specific subscription. The Edge Function uses it in the next step to verify the unlock without requiring the viewer to be logged in.
+
+---
+
+## Phase 3 — Content Delivery
+
+---
+
+### Stage 3A — The App Requests A Download URL (Only If File Exists)
+
+If the link has a file attached, the app calls the `get-download-url` Edge Function after the subscription row is created. This call passes the `fileId`, the `linkSlug`, `unlockType: email_subscribe`, and the `session_key`.
+
+Inside the Edge Function, the flow is:
+
+The function looks up the `files` row using `fileId` to get the `r2_key` and `r2_bucket`. It verifies that `is_placeholder` is false — the file was fully uploaded. It then looks up the `links` row using `linkSlug` to get the `link_id` and verify it is active. It then checks `email_subscribers` for a row matching `link_id` and `session_key`. Because the frontend just created this row moments ago, the check passes. The function then calls `generatePresignedGetUrl` from the R2 signing utility with the bucket name, the key, a 5-minute expiry, and the correct `response-content-disposition` header so the browser downloads the file rather than trying to render it. The function returns the presigned GET URL.
+
+The presigned URL is a direct R2 URL with all authentication embedded as query string parameters. It is valid for exactly 5 minutes. After that it cannot be used.
+
+If the link has no file, this step is skipped entirely. There is no Edge Function call and no R2 interaction.
+
+---
+
+### Stage 3B — The Success Screen Renders
+
+The unlock page transitions from the email form state to the success state. This transition must feel instant — no loading spinner between tap and success screen. The spinner is only on the Subscribe button while the subscription insert and download URL generation are happening.
+
+The success screen shows different content based on what the creator configured.
+
+**If a file was attached**, a download card appears showing the file emoji, the original file name, and the file size. A large Download button is shown. When the viewer taps it, the app creates a temporary invisible anchor element, sets its `href` to the presigned R2 URL, sets `download` to the original file name, and programmatically clicks it. The browser then downloads the file directly from R2. The presigned URL contains the path to the file in R2, the expiry time, and the creator's R2 credentials all encoded as URL parameters. R2 validates these parameters when it receives the request and serves the file if valid. Nothing about this download goes through Supabase or any server.
+
+**If unlock text was provided**, the text appears in a styled box on the success screen. This could be a password, a code snippet, a secret message, or any text the creator wrote. It comes directly from the `email_config.unlock_text` field that was fetched when the page loaded. No additional API call is needed to show this.
+
+**If an external URL was provided**, a button appears labeled with whatever the creator named it, or a default like "Access Your Resource." Tapping it opens the URL in a new tab. This URL comes from `email_config.unlock_url` — already in memory from the initial page load.
+
+**If a YouTube URL was provided**, an iframe embed of the video appears. The app extracts the video ID from the YouTube URL and constructs the embed URL. The video is playable directly on the page. This requires no API calls — it is a simple iframe pointing to YouTube's embed endpoint.
+
+All four content types can appear simultaneously on the same success screen if the creator configured all four. They stack vertically in this order: text message at top, file download card next, external link button next, YouTube embed at the bottom.
+
+---
+
+### Stage 3C — The Creator Profile CTA
+
+Below all the content, the success screen shows the creator's avatar, name, handle, and a "View profile" button. Tapping it navigates to `hivaapp.com/@[username]`. This is an optional discovery mechanism — it helps viewers find more content from the same creator.
+
+---
+
+### Stage 3D — Returning Viewer Flow
+
+If the viewer closes the browser and returns to the same URL later, the session key in sessionStorage is gone. The page loads fresh in the locked state. The viewer enters their email again. The duplicate check in `subscribeAndUnlock` finds their existing row, skips the insert, and goes directly to content delivery. They get a fresh download URL valid for another 5 minutes. They can download as many times as they want — they are already subscribed and the subscriber count does not increment again.
+
+---
+
+## How The Explore Page Connection Works
+
+---
+
+The Explore page shows link cards fetched from the `links` table. Each card shows the title, creator name, unlock type badge, and view/unlock counts. The card is tappable.
+
+When a viewer taps a card on Explore, they navigate to `hivaapp.com/r/[slug]`. That is it. The Explore page passes the slug through the URL. The unlock page receives the slug, fetches the link data fresh from Supabase, and renders exactly the same UI regardless of whether the viewer came from Explore, from a direct share link, from a WhatsApp message, or from anywhere else.
+
+The unlock page does not know or care where the viewer came from. It only knows the slug. Everything else it fetches from Supabase on mount.
+
+---
+
+## How Uniqueness Is Guaranteed
+
+---
+
+Every link has a unique slug because the `links` table enforces a UNIQUE constraint on the `slug` column at the database level. Two creators cannot have the same slug. The slug generator checks for collisions before inserting and appends a random suffix if the base slug is taken.
+
+The share URL `hivaapp.com/r/[slug]` maps one-to-one to one row in the `links` table which maps one-to-one to one creator's one link. There is no ambiguity. When any viewer anywhere in the world visits that URL, they always see that creator's content and only that creator's content.
+
+The `file_id` in the `links` row points to the `files` table row which contains the `r2_key`. The `r2_key` is the exact path where the file lives in R2, structured as `user-id/YYYY-MM/timestamp-random.ext`. This key is generated at upload time and is globally unique because it includes the user ID, the timestamp in milliseconds, and a random component. No two files ever share an R2 key.
+
+---
+
+## The Exact Sequence of All Database and Storage Operations
+
+---
+
+**When creator attaches file:**
+- `generate-upload-url` Edge Function called → INSERT into `files` with `is_placeholder: true` → returns presigned PUT URL
+- Browser PUT to R2 presigned URL → file stored in `adgate-content` bucket
+- `confirm-upload` Edge Function called → UPDATE `files` set `is_placeholder: false`
+
+**When creator taps Generate:**
+- INSERT into `links` → row created with slug, file_id, creator_id, all metadata
+- INSERT into `email_configs` → row created with newsletter_name, unlock_text, unlock_url, confirmation_message
+
+**When viewer lands on unlock page:**
+- SELECT from `links` JOIN `email_configs` JOIN `files` JOIN `users` WHERE slug = X AND is_active = true
+- INSERT into `link_views` + RPC increment `links.view_count`
+
+**When viewer subscribes:**
+- SELECT from `email_subscribers` WHERE link_id = X AND email = Y (duplicate check)
+- INSERT into `email_subscribers` (if new)
+- RPC increment `links.unlock_count`
+- `get-download-url` Edge Function called (only if file exists) → SELECT `files` → SELECT `email_subscribers` verify session_key → generate R2 presigned GET URL → return URL
+
+**When viewer downloads:**
+- Browser GET to R2 presigned URL → R2 validates signature → R2 streams file to browser
+- Zero Supabase involvement during download
+
+---
+
+## What Must Not Happen At The Wrong Time
+
+---
+
+The file upload must never be triggered by tapping Generate. It must trigger when the file is selected.
+
+The `get-download-url` Edge Function must never be called during link creation. It is only called after a viewer subscribes.
+
+The `links` insert must never happen before the file upload is complete. If the file upload fails or is cancelled, Generate should show an error saying the file upload failed and the creator must reattach the file.
+
+The Generate button should be disabled while a file is uploading. Once the upload is complete and `is_placeholder` is false, Generate becomes tappable.
+
+If the creator removes an attached file and the file had a `fileId`, the `delete-file` Edge Function should be called to remove the orphaned R2 object and the `files` row. This cleanup prevents accumulation of unused files.

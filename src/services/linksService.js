@@ -6,14 +6,22 @@ import { supabase } from '../lib/supabase'
 // "My Figma UI Kit 2024" → "my-figma-ui-kit-2024"
 
 export const generateSlug = (title) => {
-  return title
+  let slug = title
     .toLowerCase()
     .trim()
-    .replace(/[^\w\s-]/g, '')     // remove special chars except hyphens
-    .replace(/[\s_]+/g, '-')      // spaces and underscores to hyphens
-    .replace(/-+/g, '-')          // collapse multiple hyphens
-    .replace(/^-|-$/g, '')        // trim leading/trailing hyphens
-    .substring(0, 60)             // max 60 chars
+    .replace(/[^a-z0-9\s-]/g, '')  // keep only lowercase alphanumeric, spaces, hyphens
+    .replace(/[\s_]+/g, '-')       // spaces and underscores to hyphens
+    .replace(/-+/g, '-')           // collapse multiple hyphens
+    .replace(/^-|-$/g, '')         // trim leading/trailing hyphens
+    .substring(0, 60)              // max 60 chars
+
+  // Ensure slug meets minimum 3-char constraint
+  if (slug.length < 3) {
+    const suffix = Math.random().toString(36).substring(2, 8)
+    slug = slug ? `${slug}-${suffix}` : `link-${suffix}`
+  }
+
+  return slug
 }
 
 // Appends a random suffix if the base slug is taken
@@ -78,6 +86,8 @@ const FULL_LINK_SELECT = `
     newsletter_description,
     incentive_text,
     confirmation_message,
+    unlock_text,
+    unlock_url,
     platform,
     platform_display_name
   ),
@@ -85,6 +95,8 @@ const FULL_LINK_SELECT = `
     id,
     custom_heading,
     follow_description,
+    unlock_text,
+    unlock_url,
     follow_targets (
       id,
       type,
@@ -105,11 +117,15 @@ const FULL_LINK_SELECT = `
     cta_button_label,
     requires_click,
     skip_after_seconds,
+    unlock_text,
+    unlock_url,
     video_file:files (
       id,
       original_name,
       mime_type,
-      size_bytes
+      size_bytes,
+      r2_key,
+      r2_bucket
     )
   ),
   pairing_config:pairing_configs (
@@ -378,6 +394,8 @@ export const createLink = async (creatorId, linkData) => {
           newsletter_description: emailConfig.newsletterDescription || null,
           incentive_text:         emailConfig.incentiveText || null,
           confirmation_message:   emailConfig.confirmationMessage || null,
+          unlock_text:            emailConfig.unlockText || null,
+          unlock_url:             emailConfig.unlockUrl || null,
           platform:               emailConfig.platform || 'direct',
           platform_display_name:  emailConfig.platformDisplayName || null,
         })
@@ -389,9 +407,11 @@ export const createLink = async (creatorId, linkData) => {
       const { data: sc, error: scError } = await supabase
         .from('social_configs')
         .insert({
-          link_id:           link.id,
-          custom_heading:    socialConfig.customHeading || null,
+          link_id:            link.id,
+          custom_heading:     socialConfig.customHeading || null,
           follow_description: socialConfig.followDescription || null,
+          unlock_text:        socialConfig.unlockText || null,
+          unlock_url:         socialConfig.unlockUrl || null,
         })
         .select('id')
         .single()
@@ -430,6 +450,8 @@ export const createLink = async (creatorId, linkData) => {
           video_file_id:       sponsorConfig.videoFileId || null,
           requires_click:      sponsorConfig.requiresClick || false,
           skip_after_seconds:  sponsorConfig.skipAfterSeconds || 5,
+          unlock_text:         sponsorConfig.unlockText || null,
+          unlock_url:          sponsorConfig.unlockUrl || null,
         })
       if (error) throw error
     }
@@ -551,6 +573,8 @@ export const updateLink = async (linkId, creatorId, updates) => {
         newsletter_description: emailConfig.newsletterDescription || null,
         incentive_text:         emailConfig.incentiveText || null,
         confirmation_message:   emailConfig.confirmationMessage || null,
+        unlock_text:            emailConfig.unlockText || null,
+        unlock_url:             emailConfig.unlockUrl || null,
         platform:               emailConfig.platform || 'direct',
       })
       .eq('link_id', linkId)

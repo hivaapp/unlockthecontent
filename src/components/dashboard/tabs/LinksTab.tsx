@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { Search, Plus, X } from 'lucide-react';
+import { useLocation, useNavigate } from 'react-router-dom';
+import { Search, Plus, X, CheckCircle2 } from 'lucide-react';
 import { LinkCard } from '../LinkCard';
 import { CreateLinkSheet } from '../CreateLinkSheet';
 import { EditLinkSheet } from '../EditLinkSheet';
@@ -92,7 +93,24 @@ export const LinksTab = ({ searchQuery, setSearchQuery }: { searchQuery: string,
 
     const { showToast } = useToast();
     const { currentUser } = useAuth();
+    const location = useLocation();
+    const navigate = useNavigate();
     const subscriptionRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
+
+    // Read newLink param for newly generated links after recovery
+    const query = new URLSearchParams(location.search);
+    const newLinkSlug = query.get('newLink');
+    const [showNewLinkBanner, setShowNewLinkBanner] = useState(!!newLinkSlug);
+
+    const clearNewLinkParam = useCallback(() => {
+        if (newLinkSlug) {
+            query.delete('newLink');
+            navigate({
+                pathname: location.pathname,
+                search: query.toString()
+            }, { replace: true });
+        }
+    }, [newLinkSlug, query, navigate, location.pathname]);
 
     // ── Fetch links from Supabase ─────────────────────────────────────────
     const fetchLinks = useCallback(async () => {
@@ -263,6 +281,25 @@ export const LinksTab = ({ searchQuery, setSearchQuery }: { searchQuery: string,
             </div>
 
             <div className="px-4 py-4 flex flex-col gap-4">
+                {/* Success Banner for Recovered Links */}
+                {showNewLinkBanner && (
+                    <div className="bg-[#EBF5EE] border border-[#d3e8db] rounded-[16px] p-4 flex items-start gap-3 relative animate-in slide-in-from-top-4 fade-in duration-300">
+                        <CheckCircle2 className="w-5 h-5 text-[#417A55] shrink-0 mt-0.5" />
+                        <div className="pr-6">
+                            <h3 className="text-[14px] font-black text-[#111]">Link created successfully!</h3>
+                            <p className="text-[13px] text-[#417A55] font-medium mt-1 leading-snug">
+                                Good news! Since you signed in, we secured your files and successfully generated your link. 
+                            </p>
+                        </div>
+                        <button 
+                            onClick={() => { setShowNewLinkBanner(false); clearNewLinkParam(); }}
+                            className="absolute top-4 right-4 text-[#417A55] hover:opacity-70 p-1 -m-1"
+                        >
+                            <X size={16} />
+                        </button>
+                    </div>
+                )}
+
                 {/* Search Bar */}
                 <div className="relative w-full">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-textLight" />
@@ -319,13 +356,14 @@ export const LinksTab = ({ searchQuery, setSearchQuery }: { searchQuery: string,
                         </div>
                     ) : (
                         filteredLinks.map(link => (
-                            <LinkCard
-                                key={link.id}
-                                link={link}
-                                onEdit={() => setEditLinkData(link)}
-                                onMore={() => setMoreActionLink(link)}
-                                isPending={pendingIds.has(link.id)}
-                            />
+                            <div key={link.id} className={newLinkSlug === link.slug ? "ring-2 ring-brand rounded-[18px] transition-all" : ""}>
+                                <LinkCard
+                                    link={link}
+                                    onEdit={() => setEditLinkData(link)}
+                                    onMore={() => setMoreActionLink(link)}
+                                    isPending={pendingIds.has(link.id)}
+                                />
+                            </div>
                         ))
                     )}
                 </div>

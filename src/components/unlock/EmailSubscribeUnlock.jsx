@@ -16,7 +16,7 @@ const EmailSubscribeUnlock = ({ link, currentUser, isLoggedIn, sessionKey }) => 
 
   // ── Internal states ──────────────────────────────────────────────────
   // 'locked' → 'submitting' → 'unlocked'
-  // 'already_subscribed' is a variant of 'unlocked'
+  // 'already_unlocked' is a variant of 'unlocked'
   const [screen, setScreen] = useState('locked')
   const [email, setEmail] = useState(currentUser?.email || '')
   const [emailError, setEmailError] = useState(null)
@@ -29,9 +29,6 @@ const EmailSubscribeUnlock = ({ link, currentUser, isLoggedIn, sessionKey }) => 
   const { email_config, file, creator } = link
 
   // ── Restore unlocked state from sessionStorage ───────────────────────
-  // If viewer refreshes the page after unlocking — they should not need
-  // to re-subscribe. But we cannot serve the download URL from sessionStorage
-  // (presigned URLs expire). We show the "already subscribed" state instead.
   useEffect(() => {
     if (hasCompletedEmailUnlock(link.id)) {
       setScreen('already_unlocked')
@@ -121,6 +118,13 @@ const EmailSubscribeUnlock = ({ link, currentUser, isLoggedIn, sessionKey }) => 
     }
   }
 
+  // ── Helper: Check if there's unlock content besides file ──────────────
+  const hasUnlockText = !!email_config?.unlock_text
+  const hasUnlockUrl = !!email_config?.unlock_url
+  const hasYouTube = !!link.youtube_url
+  const hasFile = !!file
+  const hasAnyContent = hasFile || hasUnlockText || hasUnlockUrl || hasYouTube
+
   // ── Render: Already unlocked (session refresh) ───────────────────────
   if (screen === 'already_unlocked') {
     return (
@@ -192,8 +196,31 @@ const EmailSubscribeUnlock = ({ link, currentUser, isLoggedIn, sessionKey }) => 
           </p>
         </div>
 
-        {/* Download card */}
-        {file && (
+        {/* ── Content Delivery (per blueprint: text → file → link → video) ── */}
+
+        {/* 1. Unlock text (if provided by creator) */}
+        {hasUnlockText && (
+          <div style={{
+            background: 'white', border: '1px solid #E6E2D9',
+            borderRadius: '16px', padding: '20px 16px', margin: '0 0 16px',
+          }}>
+            <div style={{
+              fontSize: '12px', fontWeight: 800, color: '#6B6860',
+              textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '10px',
+            }}>
+              📝 Your content
+            </div>
+            <div style={{
+              fontSize: '14px', color: '#21201C', lineHeight: 1.7,
+              fontWeight: 600, whiteSpace: 'pre-wrap', wordBreak: 'break-word',
+            }}>
+              {email_config.unlock_text}
+            </div>
+          </div>
+        )}
+
+        {/* 2. Download card (if file attached) */}
+        {hasFile && (
           <div style={{
             background: 'white', border: '1px solid #E6E2D9',
             borderRadius: '16px', padding: '20px 16px', margin: '0 0 16px',
@@ -221,16 +248,18 @@ const EmailSubscribeUnlock = ({ link, currentUser, isLoggedIn, sessionKey }) => 
 
             <button
               onClick={handleDownload}
+              disabled={!downloadUrl}
               style={{
                 width: '100%', height: '52px',
-                background: downloadStarted ? '#417A55' : '#D97757',
+                background: downloadStarted ? '#417A55' : !downloadUrl ? '#E6E2D9' : '#D97757',
                 color: 'white', border: 'none', borderRadius: '12px',
-                fontSize: '15px', fontWeight: 900, cursor: 'pointer',
+                fontSize: '15px', fontWeight: 900, cursor: downloadUrl ? 'pointer' : 'default',
                 transition: 'background 300ms ease',
                 display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
               }}
             >
-              {downloadStarted ? '✅ Download started' : `⬇️ Download ${file.original_name}`}
+              {!downloadUrl ? 'Preparing download...' :
+                downloadStarted ? '✅ Download started' : `⬇️ Download ${file.original_name}`}
             </button>
 
             {downloadStarted && (
@@ -250,8 +279,43 @@ const EmailSubscribeUnlock = ({ link, currentUser, isLoggedIn, sessionKey }) => 
           </div>
         )}
 
-        {/* YouTube embed if set */}
-        {link.youtube_url && (
+        {/* 3. External link button (if provided) */}
+        {hasUnlockUrl && (
+          <div style={{
+            background: 'white', border: '1px solid #E6E2D9',
+            borderRadius: '16px', padding: '20px 16px', margin: '0 0 16px',
+            textAlign: 'center',
+          }}>
+            <div style={{
+              fontSize: '12px', fontWeight: 800, color: '#6B6860',
+              textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '12px',
+            }}>
+              🔗 Your resource
+            </div>
+            <a
+              href={email_config.unlock_url}
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{
+                display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
+                width: '100%', height: '48px',
+                background: '#21201C', color: 'white', border: 'none', borderRadius: '12px',
+                fontSize: '15px', fontWeight: 900, cursor: 'pointer', textDecoration: 'none',
+              }}
+            >
+              Access Your Resource →
+            </a>
+            <p style={{
+              fontSize: '11px', color: '#AAA49C', marginTop: '8px', fontWeight: 600,
+              overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+            }}>
+              {email_config.unlock_url}
+            </p>
+          </div>
+        )}
+
+        {/* 4. YouTube embed (if set) */}
+        {hasYouTube && (
           <YouTubeEmbed url={link.youtube_url} />
         )}
 
@@ -386,7 +450,14 @@ const PageWrapper = ({ children }) => (
 )
 
 const ContentPreviewCard = ({ link }) => {
-  const { file, title, description } = link
+  const { file, title, description, email_config } = link
+  
+  // Determine content type indicators
+  const hasFile = !!file
+  const hasText = !!email_config?.unlock_text
+  const hasUrl = !!email_config?.unlock_url
+  const hasYouTube = !!link.youtube_url
+  
   return (
     <div style={{
       background: 'white', border: '1px solid #E6E2D9',
@@ -399,7 +470,7 @@ const ContentPreviewCard = ({ link }) => {
         display: 'flex', alignItems: 'center', padding: '0 16px', gap: '12px',
       }}>
         <span style={{ fontSize: '36px' }}>
-          {file ? getFileEmoji(file.original_name, file.mime_type) : '📄'}
+          {hasFile ? getFileEmoji(file.original_name, file.mime_type) : hasText ? '📝' : hasUrl ? '🔗' : '📄'}
         </span>
         <div>
           <div style={{
@@ -409,7 +480,10 @@ const ContentPreviewCard = ({ link }) => {
             📧 Email Subscribe
           </div>
           <div style={{ fontSize: '11px', fontWeight: 700, color: '#417A55', opacity: 0.8 }}>
-            {file ? `${file.file_type?.toUpperCase()} · ${formatFileSize(file.size_bytes)}` : 'Digital content'}
+            {hasFile ? `${file.file_type?.toUpperCase()} · ${formatFileSize(file.size_bytes)}` :
+              hasText ? 'Text content' :
+                hasUrl ? 'External resource' :
+                  'Digital content'}
           </div>
         </div>
       </div>
@@ -423,16 +497,42 @@ const ContentPreviewCard = ({ link }) => {
             {description}
           </p>
         )}
-        {link.youtube_url && (
-          <div style={{
-            marginTop: '10px', display: 'flex', alignItems: 'center', gap: '6px',
-          }}>
-            <span style={{ fontSize: '14px' }}>▶️</span>
-            <span style={{ fontSize: '12px', fontWeight: 700, color: '#6B6860' }}>
-              Includes video content
+        
+        {/* Content type indicators */}
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginTop: '10px' }}>
+          {hasFile && (
+            <span style={{
+              fontSize: '11px', fontWeight: 700, color: '#417A55', background: '#EBF5EE',
+              padding: '3px 8px', borderRadius: '6px',
+            }}>
+              📎 {file.original_name}
             </span>
-          </div>
-        )}
+          )}
+          {hasText && (
+            <span style={{
+              fontSize: '11px', fontWeight: 700, color: '#6366F1', background: '#EEF2FF',
+              padding: '3px 8px', borderRadius: '6px',
+            }}>
+              📝 Text content
+            </span>
+          )}
+          {hasUrl && (
+            <span style={{
+              fontSize: '11px', fontWeight: 700, color: '#D97757', background: '#FAF0EB',
+              padding: '3px 8px', borderRadius: '6px',
+            }}>
+              🔗 External link
+            </span>
+          )}
+          {hasYouTube && (
+            <span style={{
+              fontSize: '11px', fontWeight: 700, color: '#6B6860', background: '#F3F1EC',
+              padding: '3px 8px', borderRadius: '6px',
+            }}>
+              ▶️ Video content
+            </span>
+          )}
+        </div>
       </div>
     </div>
   )

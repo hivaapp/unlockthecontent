@@ -21,6 +21,8 @@ const FileUploadZone = ({
   sublabel,
   currentFile,        // { originalName, sizeBytes, mimeType } — for showing existing file
   disabled = false,
+  isAuthenticated = true,
+  onPendingFile,      // (file) => void
 }) => {
   const [isDragging, setIsDragging] = useState(false)
   const [isUploading, setIsUploading] = useState(false)
@@ -39,6 +41,18 @@ const FileUploadZone = ({
       setError(validation.error)
       onUploadError?.(validation.error)
       return
+    }
+
+    if (!isAuthenticated) {
+      // Defer upload
+      onPendingFile?.(file);
+      onUploadComplete?.({ 
+        originalName: file.name, 
+        sizeBytes: file.size, 
+        mimeType: file.type,
+        fileId: null,
+      });
+      return;
     }
 
     setIsUploading(true)
@@ -65,7 +79,7 @@ const FileUploadZone = ({
       setStage(null)
       abortRef.current = null
     }
-  }, [bucket, onUploadComplete, onUploadError])
+  }, [bucket, onUploadComplete, onUploadError, isAuthenticated, onPendingFile])
 
   const handleDrop = useCallback((e) => {
     e.preventDefault()

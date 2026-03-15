@@ -1,0 +1,145 @@
+## Social Follow Unlock — Complete Implementation Prompt for Your AI
+
+---
+
+### Context Your AI Must Read First
+
+Before implementing anything, your AI must read the existing Email Subscribe implementation completely. It must understand how the email subscribe flow works end to end — how the creator builds the link, how the slug is generated, how the viewer lands on the unlock page, how the subscription is recorded in Supabase, how the `get-download-url` Edge Function verifies the unlock using a session key, and how the content is delivered afterward. The Social Follow implementation must follow the exact same pattern. Every architectural decision made in Email Subscribe applies here. The database interaction pattern, the session key verification system, the presigned URL delivery, the optimistic UI updates, the content delivery screen — all identical. The only thing that changes is the unlock action itself.
+
+---
+
+### What Social Follow Is
+
+Instead of entering an email to unlock content, the viewer must follow one or more social accounts or visit one or more custom URLs. The creator defines a list of follow targets when building the link. Each target is either a known social platform like Instagram, YouTube, Twitter, LinkedIn, TikTok, Discord, Telegram, Pinterest, Spotify, or GitHub — or a completely custom link the creator provides with their own label and icon. The viewer must click every single target, visit the page, come back to the unlock page, and have all targets marked as visited before the content unlocks.
+
+---
+
+### Phase 1 — Creator Builds The Social Follow Link
+
+#### What The Creator Configures
+
+The creator fills in the same base fields as Email Subscribe — title, description, and content to unlock (file, text, external URL, or YouTube video). These work identically to Email Subscribe and must reuse the exact same content attachment components.
+
+The new part is the Follow Targets section. The creator builds a list of follow targets. There is no minimum or maximum enforced by the UI but practically a creator will add one to six targets. Each target is either a platform follow or a custom link.
+
+For a platform follow, the creator selects the platform from a list of known platforms and enters their handle or username for that platform. The app automatically constructs the full profile URL from the handle. For example if the creator picks Instagram and enters `@johndoe` the app constructs `https://instagram.com/johndoe`. The viewer will be sent to that constructed URL when they tap the follow button.
+
+For a custom link, the creator provides a label like "Join my Discord server" or "Read my newsletter", a URL, and optionally picks an emoji or icon to represent it.
+
+The creator can add as many targets as they want in any combination of platform follows and custom links. They can reorder them by dragging. They can remove any target.
+
+The creator also optionally writes a custom heading for the unlock section — something like "Follow me to unlock" — and an optional description.
+
+#### How This Is Saved To Supabase
+
+When the creator taps Generate, three inserts happen in sequence. First the `links` row is created exactly as in Email Subscribe with `unlock_type: social_follow`. Second the `social_configs` row is created with the `link_id`, the custom heading, and the follow description. Third each follow target is inserted as a separate row in the `follow_targets` table with the `social_config_id`, the type (platform or custom), the platform name if applicable, the handle if applicable, the constructed full profile URL, the custom label if applicable, the custom URL if applicable, and a `sort_order` integer reflecting the order the creator arranged them. Each target gets its own row. A link with three follow targets gets three rows in `follow_targets`.
+
+The slug generation and share URL construction work identically to Email Subscribe.
+
+---
+
+### Phase 2 — Viewer Lands On The Unlock Page
+
+#### Initial Page Load
+
+The viewer visits `hivaapp.com/r/[slug]`. The unlock page fetches the link data from Supabase using `getLinkBySlug` — this is the same function used by Email Subscribe. The query must join in `social_configs` and `follow_targets` along with the file, creator, and link data. The `follow_targets` rows come back as an array sorted by `sort_order`.
+
+The page renders the creator row, the content preview card showing what will be unlocked, and then the follow targets section. The follow targets section shows each target as a tappable card. Each card shows the platform icon or custom icon, the platform name or custom label, and a status indicator showing whether this target has been visited or not.
+
+#### Session State For Follow Tracking
+
+This is the core mechanism. The viewer's progress through the follow targets must be tracked in the browser session. When the page first loads, the app checks sessionStorage for a key like `adgate_follow_[linkId]_visited`. This key stores a Set or array of target IDs that have been visited in this session. Initially it is empty. As the viewer visits each target, that target's ID is added to the set. When the set contains every target ID, all follows are complete.
+
+This session state must survive page refreshes. When the viewer comes back from visiting an Instagram profile, the browser restores the unlock page and the session state is read from sessionStorage to restore which targets are already visited.
+
+---
+
+### Phase 3 — Viewer Visits Each Target
+
+#### The Click And Return Mechanism
+
+When the viewer taps a follow target card, two things happen simultaneously. First the target's full URL opens in a new browser tab — `window.open(url, '_blank')`. Second the target is immediately marked as visited in the session state. The target's ID is added to the visited set in sessionStorage and the card's visual state updates to show a green checkmark or a "Visited ✓" indicator.
+
+This is important — the target is marked as visited the moment the viewer taps it and the link opens. The app does not verify that the viewer actually followed the account. It cannot do this because there is no API access to social platforms. The contract with the viewer is based on trust — tapping the link and navigating there is sufficient for the platform to mark it as done. This is the standard approach used by every link-in-bio tool that does social follow gating.
+
+The viewer can tap the targets in any order. After tapping a target, they switch to the new tab, visit the social page, come back to the hivaapp tab, and the card already shows as visited. They proceed to the next target.
+
+#### Visual State of Each Target Card
+
+Each target card has three visual states. The default state shows the platform icon, the label, and an arrow indicating it is tappable. The visited state shows the same content but with a green background tint, a checkmark icon, and the label changes to something like "Visited ✓". The locked state is never shown per card — each card is always tappable regardless of whether others have been visited.
+
+#### The Unlock Progress Indicator
+
+Above or below the targets list there is a progress indicator. It shows something like "2 of 3 followed" and a progress bar filling from left to right. As each target is visited, the count increments and the bar grows. When all targets are visited the bar turns fully green and a brief animation plays.
+
+#### The Unlock Trigger
+
+The moment the last target is marked as visited, the app automatically triggers the unlock flow. The viewer does not need to tap a separate Unlock button. The detection is: after updating the visited set in sessionStorage, check if the visited set size equals the total number of targets. If yes, proceed immediately to the unlock flow.
+
+---
+
+### Phase 4 — Recording The Unlock In Supabase
+
+When all targets are visited, the app calls `recordSocialUnlock` in the social follow service. This function inserts a row into the `social_unlocks` table with the `link_id`, `viewer_id` if logged in, the `session_key`, `all_completed: true`, and a timestamp. This row is what the `get-download-url` Edge Function will check to verify the unlock is legitimate.
+
+After the insert, the `unlock_count` on the `links` row is incremented via the same RPC call used in Email Subscribe.
+
+Then if the link has a file attached, the app calls the `get-download-url` Edge Function with `unlockType: social_follow` and the `session_key`. The Edge Function verifies by looking up `social_unlocks` for a row matching `link_id` and `session_key` with `all_completed: true`. If found, it generates and returns the presigned R2 GET URL exactly as it does for email subscribe.
+
+---
+
+### Phase 5 — Content Delivery
+
+The success screen after a social follow unlock is identical to the Email Subscribe success screen. The same download card appears if a file was attached. The same text box appears if unlock text was provided. The same external link button appears if an unlock URL was provided. The same YouTube embed appears if a YouTube URL was provided. The same creator profile CTA appears at the bottom.
+
+The file download mechanism is identical — presigned R2 URL, temporary anchor element, programmatic click, direct browser-to-R2 download.
+
+This success screen must be built as a shared component that both Email Subscribe and Social Follow use. There should be zero duplication between the two unlock types' success screens.
+
+---
+
+### Returning Viewer Handling
+
+If the viewer previously completed the social follow unlock in this session and refreshes the page, the app checks sessionStorage for the visited set. If all targets are in the visited set, the app shows the already-unlocked state. The viewer can re-download by triggering the `get-download-url` call again — the `social_unlocks` row from their previous unlock is still in the database so verification passes and a fresh presigned URL is returned.
+
+If the viewer returns in a new session (new tab, new browser, different device), the visited set is empty and they go through the full flow again. They visit each target again and a new `social_unlocks` row is inserted. The unlock count does not increment again because the duplicate check should verify if this `viewer_id` (if logged in) already has a completed unlock for this link before incrementing.
+
+---
+
+### How This Differs From Email Subscribe — Summary For The AI
+
+The AI must understand these are the only differences. Everything else is identical.
+
+The `subscribeAndUnlock` function equivalent for social follow is `recordSocialUnlock`. Instead of collecting an email, it collects proof that all targets were visited via the session state. Instead of inserting into `email_subscribers`, it inserts into `social_unlocks`. The Edge Function verification checks `social_unlocks` instead of `email_subscribers` but uses the exact same session key mechanism.
+
+The unlock page renders a list of tappable follow target cards instead of an email input field. Each card opens a URL in a new tab and marks itself as visited. When all are visited the unlock triggers automatically instead of requiring a form submission.
+
+The `links` insert uses `unlock_type: social_follow` instead of `email_subscribe`. The config insert goes into `social_configs` and `follow_targets` instead of `email_configs`. The query in `getLinkBySlug` joins `social_configs` and `follow_targets` instead of `email_configs`.
+
+Everything about content delivery, file download, R2 presigned URLs, the `get-download-url` Edge Function, the success screen, the creator profile CTA, the view tracking, the unlock count tracking, the share URL construction, the slug generation, the dashboard display, the analytics, and the Explore page display — all identical to Email Subscribe.
+
+---
+
+### Supported Platform List and URL Construction Rules
+
+The AI must hardcode the URL construction rules for each supported platform. The creator enters only the handle and the app constructs the full URL.
+
+Instagram handle `johndoe` constructs `https://instagram.com/johndoe`. YouTube handle `@channelname` constructs `https://youtube.com/@channelname`. Twitter handle `johndoe` constructs `https://twitter.com/johndoe`. LinkedIn handle `johndoe` constructs `https://linkedin.com/in/johndoe`. TikTok handle `@johndoe` constructs `https://tiktok.com/@johndoe`. Discord the creator must provide a full invite URL since Discord profiles are not publicly accessible by handle. Telegram handle `johndoe` constructs `https://t.me/johndoe`. Pinterest handle `johndoe` constructs `https://pinterest.com/johndoe`. Spotify the creator provides a full profile or playlist URL. GitHub handle `johndoe` constructs `https://github.com/johndoe`.
+
+For all platforms, the handle input should strip the `@` prefix before constructing the URL since some creators will type `@johndoe` and some will type `johndoe`. Both inputs should produce the same URL.
+
+For custom links the creator provides the full URL directly. No construction needed.
+
+---
+
+### What The AI Must Not Do
+
+The AI must not build a separate unlock page component from scratch. It must extend the existing `ResourceUnlockPage` component which already handles routing to the correct unlock type. The switch statement in that component already has a case for `social_follow` pointing to `SocialFollowUnlock` — the AI fills in that component.
+
+The AI must not build a separate success screen. It must extract the success screen from `EmailSubscribeUnlock` into a shared `UnlockSuccessScreen` component and use it in both. If the AI duplicates the success screen, it is doing it wrong.
+
+The AI must not invent a new verification mechanism. Session key based verification is already working in Email Subscribe. Use the exact same pattern.
+
+The AI must not add a server-side check that verifies whether the viewer actually followed on the social platform. This is impossible without OAuth access to each platform's API. The click-and-mark-visited mechanism is the correct and only approach.
+
+The AI must not make the Generate button available while a file is uploading. The same disabled state logic from Email Subscribe applies here.

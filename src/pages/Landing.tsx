@@ -3,6 +3,8 @@ import { useAuth } from '../context/AuthContext';
 import { Link as LinkIcon, Lock, Check, Loader2, Star, Settings, X } from 'lucide-react';
 
 import { AuthBottomSheet } from '../components/AuthBottomSheet';
+import { setContentFile, setSponsorVideo } from '../stores/pendingFileStore';
+import { createLink } from '../services/linksService';
 import { CustomSponsorForm, type CustomAdData } from '../components/CustomSponsorForm';
 import { useNavigate, Link, useSearchParams } from 'react-router-dom';
 import { ContentBuilder, type ContentData } from '../components/ContentBuilder';
@@ -17,7 +19,7 @@ import { BelowTheFold } from '../components/landing/BelowTheFold';
 
 
 export const Landing = () => {
-    const { isLoggedIn } = useAuth();
+    const { isLoggedIn, currentUser } = useAuth();
     const navigate = useNavigate();
     const [searchParams] = useSearchParams();
     const [isAuthOpen, setIsAuthOpen] = useState(
@@ -29,6 +31,7 @@ export const Landing = () => {
         searchParams.get('signUp') === 'true' ? 'signup' : 
         searchParams.get('forgot') === 'true' ? 'forgot' : 'signin'
     );
+    const [pendingMessage, setPendingMessage] = useState<string | null>(null);
 
     // Content state
     const [contentData, setContentData] = useState<ContentData>({
@@ -50,12 +53,15 @@ export const Landing = () => {
     const [hasSocialErrors, setHasSocialErrors] = useState(true);
     const [hasFollowerPairingErrors, setHasFollowerPairingErrors] = useState(true);
 
+    const [title, setTitle] = useState('');
+    const [desc, setDesc] = useState('');
+
     // Generate state
     const [isGenerating, setIsGenerating] = useState(false);
     const [isGenerated, setIsGenerated] = useState(false);
     const linkRevealed = isLoggedIn && isGenerated;
 
-    const [fakeUrl] = useState('adga.te/r/freeresource');
+    const [generatedSlug, setGeneratedSlug] = useState('freeresource');
     const [isCopied, setIsCopied] = useState(false);
 
 
@@ -105,7 +111,7 @@ export const Landing = () => {
         }, 220);
     };
 
-    const handleGenerate = () => {
+    const handleGenerate = async () => {
         const hasTextContent = contentData.textContent.trim().length > 0 || contentData.links.length > 0;
         const hasContent = unlockType === 'follower_pairing' ? true : (contentData.file || hasTextContent);
         if (!hasContent) return;
@@ -116,15 +122,96 @@ export const Landing = () => {
             return;
         }
 
-        setIsGenerating(true);
-        setTimeout(() => {
+        if (!isLoggedIn || !currentUser) {
+            setIsGenerating(true);
+            setTimeout(() => {
+                // Save to localStorage
+                const pendingLink = {
+                version: 1,
+                savedAt: new Date().toISOString(),
+                title: title || (contentData.file ? contentData.file.name : (contentData.links[0]?.title || "My Link")),
+                description: desc || contentData.textContent || null,
+                mode: unlockType === 'follower_pairing' ? 'follower_pairing' : 'lock_content',
+                unlockType: unlockType,
+                youtubeUrl: contentData.youtubeUrl || null,
+                fileMetadata: contentData.file ? {
+                    name: contentData.file.name,
+                    size: contentData.file.size,
+                    type: contentData.file.type,
+                    lastModified: contentData.file.lastModified
+                } : null,
+                hasSponsorVideo: !!customAd?.fileName,
+                sponsorVideoMetadata: customAd && customAd.fileName ? {
+                    name: customAd.fileName,
+                    size: customAd.fileSize,
+                    type: customAd.fileMimeType,
+                    lastModified: Date.now()
+                } : null,
+                emailConfig: unlockType === 'email_subscribe' ? emailConfig : null,
+                socialConfig: unlockType === 'social_follow' ? socialConfig : null,
+                sponsorConfig: unlockType === 'custom_sponsor' ? {
+                    brandName: customAd?.brandName,
+                    brandWebsite: customAd?.redirectUrl || null,
+                    ctaButtonLabel: customAd?.ctaText || "Visit",
+                    requiresClick: !!customAd?.redirectUrl,
+                    skipAfterSeconds: customAd?.skipAfter || 5,
+                    unlockText: null,
+                    unlockUrl: null
+                } : null,
+                followerPairingConfig: unlockType === 'follower_pairing' ? followerPairingConfig : null
+            };
+            localStorage.setItem('hivaapp_pending_link', JSON.stringify(pendingLink));
+            
+            // Show as generated inline and delay prompt
+            setPendingMessage("Sign up to save your link. We've securely paused your upload and will automatically create your link once you're in.");
             setIsGenerating(false);
             setIsGenerated(true);
-        }, 1200);
+            }, 1000);
+            return;
+        }
+
+        setIsGenerating(true);
+        try {
+            const linkDataPayload: any = {
+                title: title || (contentData.file ? contentData.file.name : (contentData.links[0]?.title || "My Link")),
+                description: desc || contentData.textContent || null,
+                mode: unlockType === 'follower_pairing' ? 'follower_pairing' : 'lock_content',
+                unlockType: unlockType,
+                fileId: contentData.fileId || null,
+                emailConfig: unlockType === 'email_subscribe' ? emailConfig : null,
+                socialConfig: unlockType === 'social_follow' ? socialConfig : null,
+                sponsorConfig: unlockType === 'custom_sponsor' ? {
+                    brandName: customAd?.brandName,
+                    brandWebsite: customAd?.redirectUrl || null,
+                    ctaButtonLabel: customAd?.ctaText || "Visit",
+                    videoFileId: customAd?.fileId || null,
+                    requiresClick: !!customAd?.redirectUrl,
+                    skipAfterSeconds: customAd?.skipAfter || 5,
+                    unlockText: null,
+                    unlockUrl: null
+                } : null,
+                followerPairingConfig: unlockType === 'follower_pairing' ? followerPairingConfig : null,
+                youtubeUrl: contentData.youtubeUrl || null,
+                status: 'active'
+            };
+
+            const created = await createLink(
+                currentUser.id,
+                linkDataPayload
+            );
+            
+            // Re-use logic for generated UI
+            setGeneratedSlug(created.slug);
+            setIsGenerating(false);
+            setIsGenerated(true);
+        } catch (err: any) {
+            setIsGenerating(false);
+            alert("Error creating link: " + err.message);
+        }
     };
 
     const copyToClipboard = () => {
-        navigator.clipboard.writeText(`https://${fakeUrl}`);
+        navigator.clipboard.writeText(`https://adgate.vip/r/${generatedSlug}`);
         setIsCopied(true);
         setTimeout(() => setIsCopied(false), 2000);
     };
@@ -144,7 +231,7 @@ export const Landing = () => {
         }
     };
 
-    const isGenerateDisabled = isGenerating || 
+    const isGenerateDisabled = !title || isGenerating || 
         (unlockType !== 'follower_pairing' && !(contentData.file || contentData.textContent.trim().length > 0 || contentData.links.length > 0)) ||
         (hasConfiguredAdSetup && (
             (unlockType === 'custom_sponsor' && hasCustomAdErrors) ||
@@ -205,7 +292,12 @@ export const Landing = () => {
                                 <span className="text-[12px] font-[700] text-[#92400E]">🤝 No file needed for Follower Pairing. Your followers pair up and support each other.</span>
                             </div>
                         ) : (
-                            <ContentBuilder value={contentData} onChange={setContentData} />
+                            <ContentBuilder 
+                                value={contentData} 
+                                onChange={setContentData}
+                                isAuthenticated={isLoggedIn}
+                                onPendingFile={setContentFile}
+                            />
                         )}
                     </div>
 
@@ -238,6 +330,40 @@ export const Landing = () => {
 
                     <div className="h-px w-full bg-border my-2" />
 
+                    {/* Title and Description */}
+                    <div className="flex flex-col gap-4">
+                        <div className="flex flex-col gap-1.5 relative">
+                            <label className="text-[12px] font-extrabold text-textMid uppercase tracking-wide">Resource Title</label>
+                            <input
+                                type="text"
+                                className={`input-field h-[48px] text-[15px] font-bold ${title.length > 50 ? 'border-error/50 focus:border-error focus:ring-error focus:ring-1' : ''}`}
+                                value={title}
+                                onChange={(e) => setTitle(e.target.value)}
+                                maxLength={60}
+                                placeholder="e.g. Figma UI Kit - 2026 Edition"
+                            />
+                            <span className={`absolute bottom-3 right-3 text-[11px] font-bold ${title.length >= 50 ? 'text-error' : 'text-textLight'}`}>
+                                {title.length}/60
+                            </span>
+                        </div>
+
+                        <div className="flex flex-col gap-1.5 relative">
+                            <label className="text-[12px] font-extrabold text-textMid uppercase tracking-wide">Description <span className="text-textLight font-semibold capitalize tracking-normal">(optional)</span></label>
+                            <textarea
+                                className={`w-full border border-border rounded-[12px] p-3 text-[14px] font-semibold bg-white focus:outline-none focus:ring-1 focus:ring-brand focus:border-brand transition-colors h-[80px] resize-none ${desc.length > 140 ? 'border-error/50 focus:border-error focus:ring-error focus:ring-1' : ''}`}
+                                value={desc}
+                                onChange={(e) => setDesc(e.target.value)}
+                                maxLength={150}
+                                placeholder="Add a short description so users know what they are unlocking..."
+                            />
+                            <span className={`absolute bottom-3 right-3 text-[11px] font-bold ${desc.length >= 140 ? 'text-error' : 'text-textLight'}`}>
+                                {desc.length}/150
+                            </span>
+                        </div>
+                    </div>
+
+                    <div className="h-px w-full bg-border my-2" />
+
                     {/* Section C - Config */}
                     <div className={`flex flex-col gap-3 min-h-[0px] p-4 -m-4 rounded-[20px] transition-colors bg-transparent`}>
                         <div className="flex flex-col gap-4">
@@ -246,10 +372,12 @@ export const Landing = () => {
                             )}
                             
                             {unlockType === 'custom_sponsor' && (
-                                <CustomSponsorForm
-                                    value={customAd}
-                                    onChange={setCustomAd}
+                                <CustomSponsorForm 
+                                    value={customAd} 
+                                    onChange={setCustomAd} 
                                     onErrorStateChange={setHasCustomAdErrors}
+                                    isAuthenticated={isLoggedIn}
+                                    onPendingFile={setSponsorVideo}
                                 />
                             )}
                             {unlockType === 'email_subscribe' && (
@@ -302,16 +430,21 @@ export const Landing = () => {
                                     {linkRevealed ? (
                                         <>
                                             <div className="flex-1 h-[56px] rounded-[14px] border-2 px-4 flex items-center relative overflow-hidden transition-colors bg-brandTint border-brand/30">
-                                                <span className="font-bold font-mono text-[14px] sm:text-[15px] truncate text-text">{fakeUrl}</span>
-                                            </div>
+                                                <span className="text-[14px] sm:text-[15px] font-[900] text-black bg-[#F3F1EC] px-3 sm:px-4 py-2 sm:py-[10px] rounded-lg border-2 border-[#E6E2D9] tracking-tight">
+                                    adgate.vip/r/{generatedSlug}
+                                </span>            </div>
                                             <button onClick={copyToClipboard} className={`h-[56px] w-[56px] rounded-[14px] flex items-center justify-center text-white transition-colors shrink-0 shadow-sm ${isCopied ? 'bg-success' : 'bg-brand hover:bg-brand-hover'}`}>
                                                 {isCopied ? <Check size={24} /> : <LinkIcon size={24} />}
                                             </button>
                                         </>
                                     ) : (
-                                        <button onClick={() => setIsAuthOpen(true)} className="w-full h-[56px] bg-brand text-white rounded-[14px] font-black text-[15px] flex items-center justify-center gap-2 shadow-sm shrink-0 hover:bg-brand-hover transition-colors">
-                                            <Lock size={18} /> Sign In to Reveal Link
-                                        </button>
+                                        <div className="flex-1 h-[56px] rounded-[14px] border-2 px-4 flex items-center justify-between relative overflow-hidden transition-colors bg-[#F3F1EC] border-[#E6E2D9] group cursor-pointer shadow-sm" onClick={() => setIsAuthOpen(true)}>
+                                            <div className="w-[65%] h-[20px] bg-[#E6E2D9] rounded animate-pulse"></div>
+                                            <button onClick={(e) => { e.stopPropagation(); setIsAuthOpen(true); }} className="relative z-10 px-4 h-[36px] bg-brand text-white rounded-[10px] font-black text-[13px] flex items-center justify-center gap-1.5 shadow-sm hover:bg-brandHover transition-colors">
+                                                <Lock size={14} /> Reveal Link
+                                            </button>
+                                            <div className="absolute inset-0 bg-white/20 backdrop-blur-[1px] pointer-events-none transition-all group-hover:bg-transparent"></div>
+                                        </div>
                                     )}
                                 </div>
                                 <div className="flex items-center gap-2 mt-3 flex-wrap">
@@ -345,7 +478,12 @@ export const Landing = () => {
                             <span className="text-[12px] font-[700] text-[#92400E]">🤝 No file needed for Follower Pairing. Your followers pair up and support each other.</span>
                         </div>
                     ) : (
-                        <ContentBuilder value={contentData} onChange={setContentData} />
+                        <ContentBuilder 
+                            value={contentData} 
+                            onChange={setContentData}
+                            isAuthenticated={isLoggedIn}
+                            onPendingFile={setContentFile}
+                        />
                     )}
 
                     {/* Mode Switch Mobile */}
@@ -365,6 +503,38 @@ export const Landing = () => {
                                 <span className="text-[16px]">🤝</span>
                                 <span className="text-[14px] font-[800]">Pairing</span>
                             </button>
+                        </div>
+                    </div>
+
+                    {/* Title and Description */}
+                    <div className="flex flex-col gap-4 mt-2 mb-2">
+                        <div className="flex flex-col gap-1.5 relative">
+                            <label className="text-[12px] font-extrabold text-textMid uppercase tracking-wide">Resource Title</label>
+                            <input
+                                type="text"
+                                className={`input-field h-[48px] text-[15px] font-bold ${title.length > 50 ? 'border-error/50 focus:border-error focus:ring-error focus:ring-1' : ''}`}
+                                value={title}
+                                onChange={(e) => setTitle(e.target.value)}
+                                maxLength={60}
+                                placeholder="e.g. Figma UI Kit - 2026 Edition"
+                            />
+                            <span className={`absolute bottom-3 right-3 text-[11px] font-bold ${title.length >= 50 ? 'text-error' : 'text-textLight'}`}>
+                                {title.length}/60
+                            </span>
+                        </div>
+
+                        <div className="flex flex-col gap-1.5 relative">
+                            <label className="text-[12px] font-extrabold text-textMid uppercase tracking-wide">Description <span className="text-textLight font-semibold capitalize tracking-normal">(optional)</span></label>
+                            <textarea
+                                className={`w-full border border-border rounded-[12px] p-3 text-[14px] font-semibold bg-white focus:outline-none focus:ring-1 focus:ring-brand focus:border-brand transition-colors h-[80px] resize-none ${desc.length > 140 ? 'border-error/50 focus:border-error focus:ring-error focus:ring-1' : ''}`}
+                                value={desc}
+                                onChange={(e) => setDesc(e.target.value)}
+                                maxLength={150}
+                                placeholder="Add a short description so users know what they are unlocking..."
+                            />
+                            <span className={`absolute bottom-3 right-3 text-[11px] font-bold ${desc.length >= 140 ? 'text-error' : 'text-textLight'}`}>
+                                {desc.length}/150
+                            </span>
                         </div>
                     </div>
 
@@ -518,16 +688,19 @@ export const Landing = () => {
                                 {isLoggedIn ? (
                                     <>
                                         <div className="flex-1 h-[40px] rounded-[10px] px-3 flex items-center relative overflow-hidden transition-colors bg-[#F3F1EC]">
-                                            <span className="font-bold font-mono text-[13px] truncate text-text">{fakeUrl}</span>
+                                            <span className="font-bold font-mono text-[13px] truncate text-text">adgate.vip/r/{generatedSlug}</span>
                                         </div>
                                         <button onClick={copyToClipboard} className={`w-[40px] h-[40px] rounded-full flex items-center justify-center text-white transition-colors shrink-0 shadow-sm ${isCopied ? 'bg-success' : 'bg-[#E8312A]'}`}>
                                             {isCopied ? <Check size={18} /> : <LinkIcon size={18} />}
                                         </button>
                                     </>
                                 ) : (
-                                    <button onClick={() => setIsAuthOpen(true)} className="w-full h-[40px] bg-[#E8312A] text-white rounded-[10px] font-black text-[13px] flex items-center justify-center gap-1.5 shrink-0">
-                                        Sign In to reveal
-                                    </button>
+                                    <div className="flex-1 h-[40px] rounded-[10px] px-3 flex items-center justify-between relative overflow-hidden transition-colors bg-[#F3F1EC] border border-[#E6E2D9] group cursor-pointer shadow-sm" onClick={() => setIsAuthOpen(true)}>
+                                        <div className="w-[60%] h-[16px] bg-[#E6E2D9] rounded animate-pulse"></div>
+                                        <button onClick={(e) => { e.stopPropagation(); setIsAuthOpen(true); }} className="relative z-10 px-3 h-[28px] bg-[#E8312A] text-white rounded-[8px] font-black text-[11px] flex items-center justify-center gap-1.5 shadow-sm">
+                                            <Lock size={12} /> Reveal
+                                        </button>
+                                    </div>
                                 )}
                             </div>
 
@@ -603,9 +776,10 @@ export const Landing = () => {
 
             <AuthBottomSheet
                 isOpen={isAuthOpen}
-                onClose={() => setIsAuthOpen(false)}
+                onClose={() => { setIsAuthOpen(false); setPendingMessage(null); }}
                 onSuccess={handleSignInSuccess}
                 defaultScreen={authDefaultScreen}
+                contextualMessage={pendingMessage}
             />
         </div>
     );

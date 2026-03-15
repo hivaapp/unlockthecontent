@@ -1,0 +1,270 @@
+## Unauthenticated Link Generation → Auth → Link Recovery — Complete Implementation Prompt
+
+---
+
+### Context Your AI Must Read First
+
+Before implementing anything, the AI must fully understand the current architecture. File uploads require a valid JWT because the `generate-upload-url` Edge Function verifies the user's auth token before creating the `files` row and generating the presigned R2 URL. The `links` table has a `creator_id` column with RLS policies that require an authenticated user. This means an unauthenticated user cannot upload files to R2 and cannot insert rows into the `links` table. The entire solution must work within these constraints without changing any RLS policy or Edge Function auth requirement.
+
+The AI must also understand that the current landing page lets unauthenticated users fill the complete form — title, description, unlock type, config fields, and file attachment. The file attachment currently triggers an upload attempt which fails silently because there is no JWT. The Generate button currently calls `createLink` which fails because there is no authenticated user. The fix is not to make these operations work without auth — it is to preserve everything the user did, prompt them to authenticate, and replay the operations after auth succeeds.
+
+---
+
+### The Core Problem Broken Down
+
+There are three separate problems that need three separate solutions working together.
+
+**Problem 1 — The file.** The user selected a file on the landing page. The file bytes exist in the browser's memory as a JavaScript `File` object. This object cannot be serialized to localStorage — you cannot JSON.stringify a File object. But the File object does survive navigation within the same browser tab as long as the page is not fully refreshed. This is the window of opportunity.
+
+**Problem 2 — The form state.** All the text fields, dropdown selections, config values, and metadata the user filled in are plain JavaScript values that can be serialized to localStorage. These must be saved before the auth sheet opens and restored after auth completes.
+
+**Problem 3 — The auth interruption.** The auth bottom sheet opens on top of the landing page. After the user signs in or signs up, the sheet closes and the app must automatically detect that there is a pending link waiting to be created, execute the upload and link creation, and navigate to the dashboard showing the newly created link.
+
+---
+
+### The Solution Architecture
+
+The solution has four components working together.
+
+**Component 1 — Pending Link Store.** A localStorage-based store that holds the serialized form state of the pending link. This persists across page refreshes, browser closes, and device restarts.
+
+**Component 2 — In-Memory File Store.** A module-level JavaScript variable (not React state, not localStorage) that holds the actual `File` object. This survives navigation and auth sheet opening within the same tab but is lost on page refresh.
+
+**Component 3 — Post-Auth Recovery Hook.** A hook that runs after every successful auth event. It checks the Pending Link Store, finds a pending link, and executes the full create-link flow including upload if the file is still in memory.
+
+**Component 4 — Pending Link UI.** Visual feedback shown to the user during and after recovery — a progress indicator showing "Creating your link..." and a success state navigating to the dashboard.
+
+---
+
+### What Gets Saved To localStorage and What Stays In Memory
+
+The AI must be precise about what goes where.
+
+**Goes to localStorage (survives everything):**
+- `pendingLink.title`
+- `pendingLink.description`
+- `pendingLink.mode` — lock_content or follower_pairing
+- `pendingLink.unlockType` — email_subscribe, social_follow, custom_sponsor
+- `pendingLink.youtubeUrl`
+- `pendingLink.emailConfig` — newsletter name, description, incentive text, confirmation message
+- `pendingLink.socialConfig` — heading, description, follow targets array with all target data
+- `pendingLink.sponsorConfig` — brand name, website, CTA label, requires click, skip seconds
+- `pendingLink.fileMetadata` — original name, size in bytes, MIME type, last modified timestamp — this is metadata only, not the actual bytes
+- `pendingLink.hasSponsorVideo` — boolean
+- `pendingLink.sponsorVideoMetadata` — same metadata shape as fileMetadata
+- `pendingLink.savedAt` — ISO timestamp of when this was saved
+- `pendingLink.version` — a version number so future schema changes can handle stale pending links
+
+The localStorage key is `hivaapp_pending_link`. A single key holds the entire pending link as one JSON object.
+
+**Goes to in-memory module variable (survives tab navigation, lost on refresh):**
+- The actual `File` object for the content file
+- The actual `File` object for the sponsor video
+
+These are stored in a module-level object exported from a file like `src/stores/pendingFileStore.js`. The store exposes `setContentFile(file)`, `getContentFile()`, `setSponsorVideo(file)`, `getSponsorVideo()`, and `clearAll()`. It is a plain JavaScript object — no React state, no localStorage, no context. Just a module-level variable that persists for the lifetime of the JavaScript runtime in that tab.
+
+---
+
+### Phase 1 — User Fills The Form On The Landing Page
+
+#### What Changes On The Landing Page
+
+The landing page form already exists. The AI must add two behaviors to it.
+
+**Behavior 1 — File selection stores the file in memory but does not upload.**
+
+Currently the `FileUploadZone` component triggers `uploadFile` from `uploadService.js` when a file is selected. For unauthenticated users, this must not happen. When the user is not authenticated, the `FileUploadZone` must store the `File` object in the in-memory store and show the file name and size as if it were uploaded — but no network request is made. The upload is deferred. The UI looks identical to a successful upload — the file name, size, and emoji are shown with the remove button.
+
+The `FileUploadZone` component receives an `isAuthenticated` prop. When false, file selection stores in memory and shows the preview without uploading. When true, file selection immediately uploads as it currently does.
+
+**Behavior 2 — Generate button saves state and opens auth sheet instead of creating the link.**
+
+When the user taps Generate and they are not authenticated, the form validates all required fields as normal. If validation passes, instead of calling `createLink`, the form:
+- Serializes all form state into the pending link shape
+- Saves it to localStorage under `hivaapp_pending_link`
+- Stores the File object in the in-memory store if one was selected
+- Opens the auth bottom sheet with `defaultScreen: 'signUp'` because a user filling the landing page form is most likely new — they do not have an account yet
+- Passes a prop to the auth sheet indicating that a pending link exists so the sheet can show a contextual message
+
+The auth sheet must show a contextual message when a pending link is present. Instead of generic copy it shows something like "Create your account to publish your link" or "Sign in to save your link" depending on which screen of the sheet they are on. This is passed as a prop to the auth bottom sheet and shown as a small info card above the form fields.
+
+---
+
+### Phase 2 — The Auth Bottom Sheet
+
+No structural changes to the auth bottom sheet are needed. The contextual message is the only addition. After sign in or sign up succeeds, the auth sheet closes exactly as it does today. The post-auth recovery runs automatically via the hook described next.
+
+---
+
+### Phase 3 — Post-Auth Recovery
+
+#### The Recovery Hook
+
+A custom hook called `usePendingLinkRecovery` must be created and called in exactly one place — inside the `AuthProvider` component right after the auth state change listener detects a `SIGNED_IN` event. This hook runs automatically every time a user signs in from anywhere in the app.
+
+The hook's logic is:
+
+First it checks localStorage for `hivaapp_pending_link`. If nothing is there, the hook does nothing and returns immediately. This is the common case for users who are already authenticated.
+
+If a pending link is found, the hook checks the `savedAt` timestamp. If the pending link is older than 24 hours it is considered stale, it is cleared from localStorage, and the hook returns without doing anything. Stale links are not worth recovering because the user has clearly moved on.
+
+If the pending link is fresh, the hook sets a recovery state in a React context that other components can read. The recovery state contains the pending link data and a status field starting at `pending`.
+
+#### The Recovery Context
+
+A new context called `PendingLinkContext` wraps the app and exposes the recovery state and a `startRecovery` function. The recovery status flows through these states: `idle` → `recovering` → `uploading_file` → `creating_link` → `complete` → `error`.
+
+Any component in the app can read this context to know if a recovery is in progress. The dashboard reads it to show a banner. The landing page reads it to not show a duplicate form while recovery is running.
+
+#### The Recovery Execution Flow
+
+When recovery starts, it executes these steps in sequence. Each step updates the recovery status.
+
+**Step 1 — Status becomes `recovering`.** The app reads the pending link from localStorage.
+
+**Step 2 — File upload if needed.** If `pendingLink.fileMetadata` is not null, meaning the user selected a content file, the hook checks the in-memory store for the `File` object. 
+
+If the `File` object is still in memory — which it will be if the user stayed in the same tab — the status becomes `uploading_file` and the upload is executed normally using `uploadFile` from `uploadService.js`. This now works because the user is authenticated and a valid JWT exists. The upload goes through `generate-upload-url`, the file is PUT to R2, `confirm-upload` is called. The resulting `fileId` is stored in the recovery state.
+
+If the `File` object is NOT in memory — because the user refreshed the page, opened a new tab, or signed in from a different device — the recovery cannot upload the file. In this case the recovery proceeds without a file. The link is created without a `file_id`. After the link is created, the dashboard shows the link with a warning banner saying "Your file could not be recovered after sign in. Edit this link to re-attach your file." The user can tap Edit and re-attach the file. The link slug and all other configuration are intact.
+
+**Step 3 — Sponsor video upload if needed.** Same logic as the content file. Check in-memory store. Upload if available. Skip and warn if not.
+
+**Step 4 — Status becomes `creating_link`.** The `createLink` function from `linksService.js` is called with the pending link data plus the `fileId` and sponsor video `fileId` obtained from the upload steps. This is the exact same function used everywhere else in the app. No special version needed.
+
+**Step 5 — Status becomes `complete`.** The pending link is cleared from localStorage. The in-memory file store is cleared. The `createdLink` object (containing the slug and id) is stored in the recovery state.
+
+**Step 6 — Navigation.** The app navigates to `/dashboard` with a query parameter like `?newLink=[slug]` so the dashboard knows to highlight and scroll to the newly created link.
+
+**Step 7 — Error handling.** If any step fails, the status becomes `error` and the error message is stored. The pending link is NOT cleared from localStorage on error — the user should be able to retry. The dashboard shows an error banner with a Retry button that calls `startRecovery` again.
+
+---
+
+### Phase 4 — Dashboard Shows The Recovered Link
+
+#### The New Link Banner
+
+When the dashboard mounts and detects `?newLink=[slug]` in the URL, it shows a success banner at the top of the Links tab. The banner says something like "Your link was created successfully!" with the share URL displayed and a copy button. The banner has an X to dismiss it. It is not shown on subsequent visits to the dashboard — it only appears immediately after recovery.
+
+The dashboard also scrolls to and briefly highlights the newly created link card using a yellow background that fades out over 2 seconds.
+
+#### The File Recovery Warning
+
+If the link was created without a file because the File object was lost, the link card in the dashboard shows a small amber warning indicator — a dot or a badge — with a tooltip or expandable message saying "File not attached. Edit to re-upload." Tapping Edit opens the edit sheet pre-filled with all the link's configuration and an empty file upload zone that shows the original file name in grey as a hint of what was lost.
+
+---
+
+### Phase 5 — Edge Cases That Must Be Handled
+
+#### User Signs Up vs Signs In
+
+Recovery runs after both sign up and sign in. The `onAuthStateChange` listener fires `SIGNED_IN` in both cases. The recovery hook does not need to distinguish between them.
+
+#### User Signs In On A Different Device
+
+The pending link in localStorage exists only on the device where the user filled the form. If they sign in on a different device, no recovery happens on that device — localStorage is device-specific. When they return to the original device and the JavaScript runtime has been reset (browser closed and reopened), the File object is gone but the localStorage pending link is still there. Recovery runs but without the file. The amber warning appears.
+
+#### User Creates Multiple Pending Links
+
+This should not be possible given the UI — the landing page form generates one link at a time. But if the localStorage has a pending link and the user fills the form again without signing in, the new form state overwrites the previous pending link in localStorage. Only one pending link can exist at a time. The in-memory store also only holds one content file and one sponsor video at a time.
+
+#### User Signs In, Recovery Fails, User Tries Again
+
+The Retry button in the dashboard error banner calls `startRecovery` again. If the file is no longer in memory the second attempt creates the link without the file. The user is notified clearly.
+
+#### User Signs In But Did Not Come From The Landing Page
+
+Most sign-ins happen from the auth bottom sheet opened from the nav bar or the Account tab — not from the landing page. In these cases localStorage has no pending link, the recovery hook finds nothing, and the hook returns immediately. Zero impact on normal sign-in flow.
+
+#### User Creates An Account, Immediately Logs Out, Logs Back In
+
+The pending link in localStorage persists. When they log back in, recovery runs again and finds the pending link. The timestamp check prevents recovery of links older than 24 hours. Within 24 hours, recovery runs again. This is the correct behavior.
+
+#### User Fills The Landing Page Form With A File, Auth Sheet Opens, User Refreshes Before Completing Auth
+
+The pending link metadata is in localStorage. The File object is lost because the page refreshed. The auth sheet no longer shows. When the user returns to the landing page, the form is empty — no auto-fill of the landing page form from the pending link. The pending link waits in localStorage. When they eventually sign in (by tapping sign in from anywhere), the recovery runs and creates the link without the file with the amber warning.
+
+The AI must NOT attempt to restore the landing page form from the pending link. The landing page form always starts empty. The pending link is only used for recovery after auth, not for pre-filling the landing page form.
+
+---
+
+### The localStorage Pending Link Schema
+
+The AI must use exactly this shape for the pending link saved to localStorage. Every field must be explicitly null if not provided — never undefined, which would be dropped by JSON.stringify.
+
+```
+{
+  version: 1,
+  savedAt: "ISO timestamp string",
+  title: "string",
+  description: "string or null",
+  mode: "lock_content or follower_pairing",
+  unlockType: "email_subscribe or social_follow or custom_sponsor or null",
+  youtubeUrl: "string or null",
+  
+  fileMetadata: {
+    name: "original file name",
+    size: 12345,
+    type: "application/pdf",
+    lastModified: 1234567890
+  } or null,
+  
+  hasSponsorVideo: true or false,
+  sponsorVideoMetadata: { same shape as fileMetadata } or null,
+  
+  emailConfig: {
+    newsletterName: "string",
+    newsletterDescription: "string or null",
+    incentiveText: "string or null",
+    confirmationMessage: "string or null",
+    unlockText: "string or null",
+    unlockUrl: "string or null"
+  } or null,
+  
+  socialConfig: {
+    customHeading: "string or null",
+    followDescription: "string or null",
+    followTargets: [
+      {
+        type: "platform or custom",
+        platform: "instagram or youtube etc or null",
+        handle: "string or null",
+        profileUrl: "string or null",
+        customLabel: "string or null",
+        customUrl: "string or null",
+        customIcon: "string or null",
+        instructionText: "string or null",
+        sortOrder: 0
+      }
+    ]
+  } or null,
+  
+  sponsorConfig: {
+    brandName: "string",
+    brandWebsite: "string or null",
+    ctaButtonLabel: "string",
+    requiresClick: false,
+    skipAfterSeconds: 5,
+    unlockText: "string or null",
+    unlockUrl: "string or null"
+  } or null
+}
+```
+
+---
+
+### What The AI Must Not Do
+
+The AI must not change any RLS policy to allow unauthenticated inserts into `links` or `files`. The current policies are correct. Anonymous users cannot own links. This is by design.
+
+The AI must not attempt to upload files before authentication. The `generate-upload-url` Edge Function requires a JWT. Calling it without auth will always return 401. The solution is to defer upload until after auth, not to bypass auth.
+
+The AI must not try to serialize the File object to localStorage. `JSON.stringify` will produce `{}` for a File object. The file bytes must stay in memory.
+
+The AI must not show the landing page form pre-filled from the pending link. The form always starts empty. Pre-filling would be confusing because the user might have navigated away and returned much later.
+
+The AI must not run recovery on every page load — only on auth state change to `SIGNED_IN`. Running on every load would create infinite loops and unnecessary processing.
+
+The AI must not delete the pending link from localStorage until the link is successfully created in Supabase. If the link creation fails, the user must be able to retry. Clearing on failure would permanently lose the user's work.
+
+The AI must not create a separate landing page upload flow or a separate unauthenticated version of `uploadService.js`. The same upload service is used after auth. The only change is timing — upload is deferred until after auth, not skipped entirely.

@@ -10,7 +10,6 @@ import { EmailConfigForm, type EmailConfigData } from './EmailConfigForm';
 import { SocialConfigForm, type SocialConfigData } from './SocialConfigForm';
 import { FollowerPairingConfigForm, type FollowerPairingConfigData } from './FollowerPairingConfigForm';
 import { useToast } from '../../context/ToastContext';
-import { uploadFile } from '../../services/uploadService';
 
 interface CreateLinkSheetProps {
     isOpen: boolean;
@@ -62,14 +61,19 @@ export const CreateLinkSheet = ({ isOpen, onClose, onSuccess }: CreateLinkSheetP
         startProgress();
 
         try {
-            let finalFileId = (contentData as any)?.fileId || null;
+            // File is already uploaded by ContentBuilder — use fileId directly
+            const finalFileId = contentData.fileId || null;
+
+            // Block Generate if file was selected but upload hasn't completed
             if (contentData.file && !finalFileId) {
-                const uploadResult = await uploadFile(contentData.file, 'content', {
-                    onProgress: () => {
-                        // Progress state omitted for simplicity, can enhance later
-                    }
-                });
-                finalFileId = uploadResult?.fileId || null;
+                if (contentData.isUploading) {
+                    showToast({ message: 'Please wait for the file upload to complete', type: 'error' });
+                } else if (contentData.uploadError) {
+                    showToast({ message: 'File upload failed. Please retry or remove the file.', type: 'error' });
+                }
+                setIsSubmitting(false);
+                stopProgress();
+                return;
             }
 
             const mode = unlockType === 'follower_pairing' ? 'follower_pairing' : 'lock_content';
@@ -88,16 +92,42 @@ export const CreateLinkSheet = ({ isOpen, onClose, onSuccess }: CreateLinkSheetP
             // Attach type-specific config
             if (mode === 'lock_content') {
                 if (unlockType === 'email_subscribe' && emailConfig) {
+                    // Build unlock text from content builder's text
+                    const unlockTextParts: string[] = [];
+                    if (contentData.textContent.trim()) {
+                        unlockTextParts.push(contentData.textContent.trim());
+                    }
+                    const unlockText = unlockTextParts.length > 0 ? unlockTextParts.join('\n\n') : null;
+                    
+                    // Use first external link as unlock_url
+                    const unlockUrl = contentData.links.length > 0 ? contentData.links[0].url : null;
+                    
                     linkData.emailConfig = {
                         newsletterName: emailConfig.newsletterName,
                         newsletterDescription: emailConfig.newsletterDescription || null,
+                        incentiveText: emailConfig.incentiveText || null,
+                        confirmationMessage: emailConfig.confirmationMessage || null,
+                        unlockText: unlockText,
+                        unlockUrl: unlockUrl,
                         platform: emailConfig.platform || 'direct',
                     };
                 }
                 if (unlockType === 'social_follow' && socialConfig) {
+                    // Build unlock text from content builder's text — same as email subscribe
+                    const socialUnlockTextParts: string[] = [];
+                    if (contentData.textContent.trim()) {
+                        socialUnlockTextParts.push(contentData.textContent.trim());
+                    }
+                    const socialUnlockText = socialUnlockTextParts.length > 0 ? socialUnlockTextParts.join('\n\n') : null;
+
+                    // Use first external link as unlock_url — same as email subscribe
+                    const socialUnlockUrl = contentData.links.length > 0 ? contentData.links[0].url : null;
+
                     linkData.socialConfig = {
                         customHeading: socialConfig.customHeading || null,
                         followDescription: socialConfig.followDescription || null,
+                        unlockText: socialUnlockText,
+                        unlockUrl: socialUnlockUrl,
                         followTargets: socialConfig.followTargets?.map((t: any) => ({
                             type: t.type || 'platform',
                             platform: t.platform,
@@ -110,6 +140,14 @@ export const CreateLinkSheet = ({ isOpen, onClose, onSuccess }: CreateLinkSheetP
                     };
                 }
                 if (unlockType === 'custom_sponsor' && customAd) {
+                    // Build unlock text from content builder's text
+                    const sponsorUnlockTextParts: string[] = [];
+                    if (contentData.textContent.trim()) {
+                        sponsorUnlockTextParts.push(contentData.textContent.trim());
+                    }
+                    const sponsorUnlockText = sponsorUnlockTextParts.length > 0 ? sponsorUnlockTextParts.join('\n\n') : null;
+                    const sponsorUnlockUrl = contentData.links.length > 0 ? contentData.links[0].url : null;
+
                     linkData.sponsorConfig = {
                         brandName: customAd.brandName || '',
                         brandWebsite: customAd.redirectUrl || null,
@@ -117,6 +155,8 @@ export const CreateLinkSheet = ({ isOpen, onClose, onSuccess }: CreateLinkSheetP
                         videoFileId: (customAd as any).fileId || null,
                         requiresClick: !!(customAd.redirectUrl),
                         skipAfterSeconds: customAd.skipAfter || 5,
+                        unlockText: sponsorUnlockText,
+                        unlockUrl: sponsorUnlockUrl,
                     };
                 }
             }
@@ -152,7 +192,11 @@ export const CreateLinkSheet = ({ isOpen, onClose, onSuccess }: CreateLinkSheetP
                     contentMode: 'both',
                     textContent: '',
                     links: [],
-                    file: null
+                    file: null,
+                    fileId: null,
+                    isUploading: false,
+                    uploadProgress: 0,
+                    uploadError: null,
                 });
                 setTitle('');
                 setDesc('');
@@ -178,7 +222,8 @@ export const CreateLinkSheet = ({ isOpen, onClose, onSuccess }: CreateLinkSheetP
                 (unlockType === 'custom_sponsor' && hasCustomAdErrors) ||
                 (unlockType === 'email_subscribe' && hasEmailErrors) ||
                 (unlockType === 'social_follow' && hasSocialErrors) ||
-                (unlockType === 'follower_pairing' && hasFollowerPairingErrors)
+                (unlockType === 'follower_pairing' && hasFollowerPairingErrors) ||
+                (contentData.isUploading === true)
             }
             className="btn-primary w-full h-[52px] border-none bg-brand text-white font-[800] rounded-[14px] text-[16px] hover:bg-brandHover disabled:opacity-50 disabled:grayscale-[50%]"
         >

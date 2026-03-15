@@ -1,5 +1,6 @@
-import { useState, useEffect } from "react";
-import { Play, UploadCloud, Check, Link as LinkIcon, MousePointerClick, Video } from "lucide-react";
+import { useState, useEffect, useRef, useCallback } from "react";
+import { Play, Check, Link as LinkIcon, MousePointerClick, Video, X } from "lucide-react";
+import { uploadFile, validateFile, formatFileSize } from '../services/uploadService';
 
 export interface CustomAdData {
     fileName: string;
@@ -10,15 +11,20 @@ export interface CustomAdData {
     ctaText: string;
     brandName: string;
     skipAfter: number;
+    fileId: string | null;        // R2 file ID after upload
+    isUploading?: boolean;
+    uploadError?: string | null;
 }
 
 interface CustomSponsorFormProps {
     value?: CustomAdData | null;
     onChange?: (data: CustomAdData | null) => void;
     onErrorStateChange?: (hasErrors: boolean) => void;
+    isAuthenticated?: boolean;
+    onPendingFile?: (file: File) => void;
 }
 
-export function CustomSponsorForm({ value, onChange, onErrorStateChange }: CustomSponsorFormProps) {
+export function CustomSponsorForm({ value, onChange, onErrorStateChange, isAuthenticated = true, onPendingFile }: CustomSponsorFormProps) {
     const defaultData: CustomAdData = {
         fileName: "",
         fileSize: 0,
@@ -28,6 +34,9 @@ export function CustomSponsorForm({ value, onChange, onErrorStateChange }: Custo
         ctaText: "",
         brandName: "",
         skipAfter: 5,
+        fileId: null,
+        isUploading: false,
+        uploadError: null,
     };
 
     const [data, setData] = useState<CustomAdData>(value || defaultData);
@@ -36,6 +45,12 @@ export function CustomSponsorForm({ value, onChange, onErrorStateChange }: Custo
     const [showErrors, setShowErrors] = useState(false);
     const [shakeAck, setShakeAck] = useState(false);
     const [previewTab, setPreviewTab] = useState<"watch" | "click">("watch");
+
+    // Upload state
+    const [uploadProgress, setUploadProgress] = useState(0);
+    const [uploadStage, setUploadStage] = useState<string | null>(null);
+    const fileInputRef = useRef<HTMLInputElement>(null);
+    const abortRef = useRef<AbortController | null>(null);
 
     if (value !== prevValue) {
         setPrevValue(value);
@@ -48,7 +63,10 @@ export function CustomSponsorForm({ value, onChange, onErrorStateChange }: Custo
     }
 
     useEffect(() => {
-        const isError = !data.brandName || !data.fileName || !acknowledged || ((data.redirectUrl?.length ?? 0) > 0 && !(data.redirectUrl?.startsWith("http") ?? false));
+        const isError = !data.brandName || !data.fileName || !acknowledged
+            || ((data.redirectUrl?.length ?? 0) > 0 && !(data.redirectUrl?.startsWith("http") ?? false))
+            || data.isUploading
+            || !!data.uploadError;
         if (onErrorStateChange) {
             onErrorStateChange(isError);
         }
@@ -62,31 +80,114 @@ export function CustomSponsorForm({ value, onChange, onErrorStateChange }: Custo
         setData(newData);
     };
 
-    const handleFileSelect = () => {
+    // ── Real file upload handler ──────────────────────────────────────────
+    const handleFileSelect = useCallback(async (file: File) => {
+        // Client-side validation
+        const validation = validateFile(file, 'sponsor');
+        if (!validation.valid) {
+            handleDataChange({
+                uploadError: validation.error,
+            });
+            return;
+        }
+
+        // Create a preview URL for video
+        const previewUrl = URL.createObjectURL(file);
+
+        if (!isAuthenticated) {
+            onPendingFile?.(file);
+            handleDataChange({
+                fileName: file.name,
+                fileSize: file.size,
+                fileMimeType: file.type,
+                previewUrl,
+                isUploading: false,
+                uploadError: null,
+                fileId: null,
+            });
+            return;
+        }
+
         handleDataChange({
-            fileName: "sponsor_video.mp4",
-            fileSize: 4500000,
-            fileMimeType: "video/mp4",
-            previewUrl: "",
+            fileName: file.name,
+            fileSize: file.size,
+            fileMimeType: file.type,
+            previewUrl,
+            isUploading: true,
+            uploadError: null,
+            fileId: null,
         });
+
+        setUploadProgress(0);
+        setUploadStage('preparing');
+        abortRef.current = new AbortController();
+
+        try {
+            const result = await uploadFile(file, 'sponsor', {
+                onProgress: (p: number) => setUploadProgress(p),
+                onStageChange: (s: string) => setUploadStage(s),
+                signal: abortRef.current.signal,
+            });
+
+            // Upload complete — store the real fileId
+            setData(prev => ({
+                ...prev,
+                fileId: result.fileId,
+                isUploading: false,
+                uploadError: null,
+            }));
+            setUploadStage(null);
+        } catch (err: any) {
+            if (err.message !== 'Upload cancelled.') {
+                setData(prev => ({
+                    ...prev,
+                    isUploading: false,
+                    uploadError: err.message || 'Upload failed',
+                    fileId: null,
+                }));
+            }
+            setUploadStage(null);
+        } finally {
+            abortRef.current = null;
+        }
+    }, []);
+
+    const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (file) handleFileSelect(file);
+        e.target.value = '';
+    };
+
+    const handleCancelUpload = () => {
+        abortRef.current?.abort();
+        handleDataChange({
+            fileName: '',
+            fileSize: 0,
+            fileMimeType: '',
+            previewUrl: '',
+            fileId: null,
+            isUploading: false,
+            uploadError: null,
+        });
+        setUploadProgress(0);
+        setUploadStage(null);
     };
 
     const removeFile = () => {
+        if (data.previewUrl) {
+            URL.revokeObjectURL(data.previewUrl);
+        }
         handleDataChange({
             fileName: "",
             fileSize: 0,
             fileMimeType: "",
             previewUrl: "",
+            fileId: null,
+            isUploading: false,
+            uploadError: null,
         });
-    };
-
-    const formatSize = (bytes: number) => {
-        if (bytes === 0) return '0 Bytes';
-        const k = 1024;
-        const dm = 1;
-        const sizes = ['Bytes', 'KB', 'MB', 'GB'];
-        const i = Math.floor(Math.log(bytes) / Math.log(k));
-        return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
+        setUploadProgress(0);
+        setUploadStage(null);
     };
 
     const brandError = showErrors && !data.brandName;
@@ -105,6 +206,14 @@ export function CustomSponsorForm({ value, onChange, onErrorStateChange }: Custo
         return () => window.removeEventListener("CUSTOM_SPONSOR_VALIDATE", handleTrigger);
     }, [acknowledged]);
 
+    const STAGE_LABELS: Record<string, string> = {
+        validating: 'Checking file...',
+        preparing: 'Preparing upload...',
+        uploading: 'Uploading...',
+        confirming: 'Finishing...',
+        complete: 'Upload complete',
+    };
+
     // Computed properties for the UI
     const isTwoStep = (data.redirectUrl?.length ?? 0) > 0;
 
@@ -115,43 +224,106 @@ export function CustomSponsorForm({ value, onChange, onErrorStateChange }: Custo
                 <div className="flex items-center justify-between">
                     <span className="text-[13px] font-[800] text-[#333]">Ad Creative</span>
                     <div className="bg-[#EDE9FE] text-[#6366F1] text-[10px] font-[800] px-2.5 h-6 rounded-full flex items-center">
-                        Video Only
+                        Video Only · Max 20MB
                     </div>
                 </div>
 
-                {!data.fileName ? (
-                    <button
-                        onClick={handleFileSelect}
-                        className="w-full h-[100px] border border-dashed border-[#C4B5FD] rounded-[10px] bg-[#FAFAFF] flex flex-col items-center justify-center gap-1 mt-1 transition-colors hover:bg-[#F5F3FF]"
-                    >
-                        <Play size={24} className="text-[#6366F1]" />
-                        <span className="text-[13px] font-[700] text-[#6366F1]">Tap to upload sponsor video</span>
-                        <span className="text-[11px] text-[#AAA49C]">
-                            MP4, MOV, WebM · Max 50MB
-                        </span>
-                    </button>
+                {/* ── Uploading state ────────────────────────────────────── */}
+                {data.isUploading ? (
+                    <div className="w-full rounded-[10px] border border-[#C4B5FD] bg-white p-[14px] mt-1">
+                        <div className="flex items-center justify-between mb-2">
+                            <span className="text-[13px] font-[700] text-[#21201C] truncate flex-1 mr-2">
+                                {data.fileName}
+                            </span>
+                            <span className="text-[13px] font-[800] text-[#6366F1]">
+                                {uploadProgress}%
+                            </span>
+                        </div>
+                        <div className="w-full h-[6px] bg-[#F3F1EC] rounded-full overflow-hidden mb-2">
+                            <div
+                                className="h-full bg-[#6366F1] rounded-full transition-all duration-200"
+                                style={{ width: `${uploadProgress}%` }}
+                            />
+                        </div>
+                        <div className="flex items-center justify-between">
+                            <span className="text-[11px] text-[#AAA49C] font-[600]">
+                                {STAGE_LABELS[uploadStage || ''] || 'Uploading...'}
+                            </span>
+                            <button
+                                onClick={handleCancelUpload}
+                                className="text-[11px] text-[#C0392B] font-[700] hover:underline"
+                            >
+                                Cancel
+                            </button>
+                        </div>
+                    </div>
+                ) : !data.fileName ? (
+                    /* ── Empty state — tap to upload ──────────────────── */
+                    <>
+                        <button
+                            onClick={() => fileInputRef.current?.click()}
+                            className="w-full h-[100px] border border-dashed border-[#C4B5FD] rounded-[10px] bg-[#FAFAFF] flex flex-col items-center justify-center gap-1 mt-1 transition-colors hover:bg-[#F5F3FF]"
+                        >
+                            <Play size={24} className="text-[#6366F1]" />
+                            <span className="text-[13px] font-[700] text-[#6366F1]">Tap to upload sponsor video</span>
+                            <span className="text-[11px] text-[#AAA49C]">
+                                MP4, MOV, WebM · Max 20MB
+                            </span>
+                        </button>
+                        <input
+                            ref={fileInputRef}
+                            type="file"
+                            accept="video/mp4,video/quicktime,video/webm,video/avi,.mp4,.mov,.webm,.avi"
+                            onChange={handleInputChange}
+                            style={{ display: 'none' }}
+                        />
+                    </>
                 ) : (
+                    /* ── File uploaded state ──────────────────────────── */
                     <div className="w-full rounded-[10px] border border-[#C4B5FD] bg-white p-[14px] flex items-center mt-1 relative">
-                        <div className="w-[60px] h-[60px] bg-[#1A1A1A] rounded-[14px] flex items-center justify-center shrink-0">
-                            <Play size={20} className="text-white fill-white" />
+                        <div className="w-[60px] h-[60px] bg-[#1A1A1A] rounded-[14px] flex items-center justify-center shrink-0 overflow-hidden">
+                            {data.previewUrl ? (
+                                <video
+                                    src={data.previewUrl}
+                                    className="w-full h-full object-cover"
+                                    muted
+                                />
+                            ) : (
+                                <Play size={20} className="text-white fill-white" />
+                            )}
                         </div>
                         <div className="ml-3 flex flex-col flex-1 min-w-0 pr-8">
                             <span className="text-[13px] font-[700] text-[#21201C] truncate">{data.fileName}</span>
-                            <span className="text-[11px] text-[#AAA49C] mt-0.5">{formatSize(data.fileSize)}</span>
+                            <span className="text-[11px] text-[#AAA49C] mt-0.5">{formatFileSize(data.fileSize)}</span>
+                            {data.fileId && (
+                                <span className="text-[10px] text-[#417A55] font-[700] mt-1 flex items-center gap-1">
+                                    <Check size={10} strokeWidth={3} /> Uploaded
+                                </span>
+                            )}
+                            {data.uploadError && (
+                                <span className="text-[10px] text-[#C0392B] font-[700] mt-1">
+                                    ⚠️ {data.uploadError}
+                                </span>
+                            )}
                         </div>
-                        <button onClick={removeFile} className="absolute top-3 right-3 w-6 h-6 rounded-full bg-[#F5F5F5] flex items-center justify-center text-[#888]">
-                            &times;
+                        <button onClick={removeFile} className="absolute top-3 right-3 w-6 h-6 rounded-full bg-[#F5F5F5] flex items-center justify-center text-[#888] hover:bg-[#eee]">
+                            <X size={14} />
                         </button>
                     </div>
                 )}
 
+                {/* Upload error banner */}
+                {data.uploadError && !data.isUploading && !data.fileName && (
+                    <div className="px-3 py-2 bg-[#FDECEA] border border-[#C0392B20] rounded-lg">
+                        <span className="text-[12px] font-[600] text-[#C0392B]">
+                            ⚠️ {data.uploadError}
+                        </span>
+                    </div>
+                )}
+
                 {/* Duration controls */}
-                {data.fileName && (
+                {data.fileName && !data.isUploading && (
                     <div className="flex items-center gap-6 mt-2 animate-in fade-in slide-in-from-top-2 duration-250">
-                        <div className="flex flex-col gap-1">
-                            <span className="text-[12px] font-[700] text-[#666]">Duration</span>
-                            <span className="text-[13px] font-[800] text-[#333]">30s</span>
-                        </div>
                         <div className="flex flex-col gap-1">
                             <span className="text-[12px] font-[700] text-[#666]">Skip after</span>
                             <div className="flex items-center gap-1">
@@ -170,7 +342,7 @@ export function CustomSponsorForm({ value, onChange, onErrorStateChange }: Custo
                         </div>
                     </div>
                 )}
-                {data.fileName && (
+                {data.fileName && !data.isUploading && (
                     <span className="text-[12px] text-[#AAA49C]">Viewers can skip after {data.skipAfter} seconds. Full view earns more trust.</span>
                 )}
             </div>
@@ -314,10 +486,20 @@ export function CustomSponsorForm({ value, onChange, onErrorStateChange }: Custo
                         {(previewTab === "watch" || !isTwoStep) ? (
                             <>
                                 {!data.fileName ? (
-                                    <div className="absolute inset-0 bg-[#2A2A2A] flex flex-col items-center justify-center">
-                                        <UploadCloud size={32} className="text-white mb-2" />
+                                    <div className="absolute inset-0 bg-[#2A2A2A] flex flex-col items-center justify-center cursor-pointer"
+                                        onClick={() => fileInputRef.current?.click()}>
+                                        <Video size={32} className="text-white mb-2" />
                                         <span className="text-[12px] text-[#AAA49C]">Upload your creative to see a preview</span>
                                     </div>
+                                ) : data.previewUrl ? (
+                                    <video
+                                        src={data.previewUrl}
+                                        className="absolute inset-0 w-full h-full object-contain"
+                                        muted
+                                        playsInline
+                                        loop
+                                        autoPlay
+                                    />
                                 ) : (
                                     <div className="absolute inset-0 flex flex-col items-center justify-center">
                                         <Play size={32} className="text-white fill-white mb-2" />

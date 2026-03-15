@@ -10,6 +10,7 @@ interface AuthBottomSheetProps {
   onSuccess?: () => void;
   defaultScreen?: 'signin' | 'signup' | 'forgot';
   redirectAfter?: string;
+  contextualMessage?: React.ReactNode;
 }
 
 const getPasswordStrength = (password: string) => {
@@ -32,6 +33,7 @@ export const AuthBottomSheet: React.FC<AuthBottomSheetProps> = ({
   onSuccess,
   defaultScreen = 'signin',
   redirectAfter,
+  contextualMessage,
 }) => {
   const navigate = useNavigate();
   const { signIn, signUp, signInWithGoogle, sendPasswordReset, resendConfirmation } = useAuth();
@@ -263,6 +265,12 @@ export const AuthBottomSheet: React.FC<AuthBottomSheetProps> = ({
                 <p className="text-[13px] font-semibold text-[#888] mt-1">Sign in to your AdGate account</p>
               </div>
 
+              {contextualMessage && (
+                <div className="bg-[#FFF8F3] border border-[#ffddc2] rounded-[12px] p-3 mx-4 mt-3">
+                  <p className="text-[13px] font-bold text-[#D97757] leading-snug">{contextualMessage}</p>
+                </div>
+              )}
+
               <form onSubmit={handleSignIn} className="mt-6 space-y-4 px-4">
                 <div>
                   <label className="block text-[12px] font-bold text-[#555] mb-1.5 ml-1">Email</label>
@@ -370,6 +378,12 @@ export const AuthBottomSheet: React.FC<AuthBottomSheetProps> = ({
                 <h2 className="text-[22px] font-black text-[#111]">Create your account</h2>
                 <p className="text-[13px] font-semibold text-[#888] mt-1">Free forever. No credit card.</p>
               </div>
+
+              {contextualMessage && (
+                <div className="bg-[#FFF8F3] border border-[#ffddc2] rounded-[12px] p-3 mx-4 mt-3">
+                  <p className="text-[13px] font-bold text-[#D97757] leading-snug">{contextualMessage}</p>
+                </div>
+              )}
 
               <form onSubmit={handleSignUp} className="mt-6 space-y-3.5 px-4 overflow-x-hidden">
                 <div className={errors.name ? 'animate-shake' : ''}>

@@ -16,7 +16,7 @@ export const MoreActionSheet = ({ isOpen, onClose, link, onDelete, onDisable, on
     const isDisabled = link.status === 'disabled';
 
     const handleCopy = () => {
-        navigator.clipboard.writeText(`https://${link.url}`);
+        navigator.clipboard.writeText(link.url);
         showToast({ message: 'Link copied to clipboard', type: 'success' });
         onClose();
     };

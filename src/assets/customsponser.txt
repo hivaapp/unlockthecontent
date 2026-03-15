@@ -1,0 +1,183 @@
+## Custom Sponsor Unlock — Complete Implementation Prompt for Your AI
+
+---
+
+### Context Your AI Must Read First
+
+Before implementing anything, your AI must read the existing Email Subscribe and Social Follow implementations completely and understand them end to end. The Custom Sponsor implementation follows the exact same architectural pattern — same session key verification system, same `get-download-url` Edge Function for content delivery, same slug generation, same share URL construction, same success screen shared component, same view and unlock tracking. The only things that change are the unlock action itself (watching a sponsor video instead of entering email or visiting social links) and the fact that the sponsor video is streamed rather than downloaded. Every decision made in Email Subscribe and Social Follow applies here unless explicitly stated otherwise in this prompt.
+
+---
+
+### What Custom Sponsor Is
+
+The creator has a sponsorship deal with a brand. Instead of the platform taking a cut, the creator locks their content behind the sponsor's video ad. The viewer must watch the sponsor video — the entire video or at least a configurable minimum number of seconds — and optionally click the sponsor's CTA button before the content unlocks. The creator keeps 100% of whatever the brand pays them directly. The platform just provides the mechanism.
+
+---
+
+### The 20MB Video File Limit
+
+This limit applies only to the sponsor video that the creator uploads. It does not apply to the content file the viewer receives after unlocking. The content file can be up to 500MB as before.
+
+The 20MB limit must be enforced in three places. First in the client-side validation in `uploadService.js` — when the bucket is `sponsor`, the `maxSizeBytes` in `FILE_RULES` must be set to `20 * 1024 * 1024` which is 20971520 bytes. Second in the `generate-upload-url` Edge Function — the `FILE_RULES` object for the `sponsor` bucket must also have `maxBytes: 20 * 1024 * 1024`. The server-side check is the authoritative one. Third in the file input UI on the create link form — show the limit clearly as "Max 20MB" in the sublabel of the upload zone for sponsor videos.
+
+If the creator tries to attach a video larger than 20MB, the client-side validation catches it immediately before any network request and shows an error message saying "Sponsor video must be under 20MB. Compress your video or trim it shorter and try again." The error appears inline next to the upload zone, not as a toast.
+
+The reason for 20MB specifically is that the sponsor video will be streamed via a presigned GET URL that the viewer's browser plays inline. Very large videos cause buffering issues on mobile connections. 20MB covers roughly 2 to 3 minutes of compressed 720p video which is more than sufficient for a sponsor ad.
+
+---
+
+### Phase 1 — Creator Builds The Custom Sponsor Link
+
+#### What The Creator Configures
+
+The creator fills in the same base fields as Email Subscribe — title, description, and content to unlock (file, text, external URL, or YouTube video). These are identical to Email Subscribe and must reuse the exact same components.
+
+The new section is the Sponsor Configuration. It has these fields:
+
+**Brand Name** — required. The name of the sponsoring brand. Shown to the viewer on the unlock page as "Sponsored by [Brand Name]."
+
+**Brand Website** — optional. The URL of the brand's website or the specific campaign landing page. Used as the destination when the viewer taps the CTA button.
+
+**CTA Button Label** — optional with a default of "Visit Sponsor." The creator can customize this to "Shop Now", "Get 20% Off", "Download the App", or whatever the brand specifies.
+
+**Requires CTA Click** — a toggle. If on, the viewer must both watch the video and tap the CTA button before unlocking. If off, watching the video alone is sufficient. Default is off.
+
+**Skip After Seconds** — a number input. How many seconds the viewer must watch before a Skip button appears. Default is 5 seconds. Minimum is 0 (skip available immediately, though creator would rarely want this). Maximum is 30 seconds. If set to 0 the video can be skipped immediately. If the full video is shorter than the skip threshold, the content unlocks when the video ends naturally.
+
+**Sponsor Video** — the video file upload. This is the actual ad video. It goes into the `adgate-sponsor` R2 bucket. The 20MB limit applies here. The upload works exactly like the content file upload in Email Subscribe — file selection triggers the upload immediately, progress bar shows, `fileId` is stored in form state, Generate is disabled until upload completes.
+
+The unlock content (file, text, URL, YouTube) works identically to Email Subscribe. These are the reward the viewer gets after watching the ad.
+
+#### How The Video Upload Differs From Content File Upload
+
+The sponsor video upload uses the `sponsor` bucket instead of the `content` bucket. Everything else is identical — `generate-upload-url` Edge Function, XHR PUT directly to R2, `confirm-upload` Edge Function, `is_placeholder` flag. The file size validation catches anything over 20MB before any network request.
+
+When the upload completes, the `files` table has a confirmed row for the sponsor video. The `fileId` for this video is stored separately in the form state from the `fileId` of the content file. There are potentially two `files` rows — one for the sponsor video and one for the content file.
+
+#### How This Is Saved To Supabase
+
+When the creator taps Generate, three inserts happen. First the `links` row with `unlock_type: custom_sponsor`. Second the `sponsor_configs` row with `link_id`, `brand_name`, `brand_website`, `cta_button_label`, `video_file_id` pointing to the sponsor video's `files` row, `requires_click`, and `skip_after_seconds`. Third if a content file was also attached, that `file_id` goes on the `links` row as it does in Email Subscribe.
+
+---
+
+### Phase 2 — Viewer Lands On The Unlock Page
+
+#### Initial Page Load
+
+The viewer visits `hivaapp.com/r/[slug]`. The unlock page calls `getLinkBySlug` which joins in `sponsor_configs` along with the sponsor video's file row, the content file row, and the creator. The sponsor video's `r2_key` and `r2_bucket` come back in the query result.
+
+The page renders the creator row and the content preview card showing what will be unlocked — identical to Email Subscribe. Below that it shows the sponsor section with the brand name and a play button to start the video.
+
+#### Getting The Sponsor Video Stream URL
+
+This is the first difference from Email Subscribe. The sponsor video must be streamed to the viewer before any unlock action happens. The viewer needs to watch the video as the unlock action. So the presigned GET URL for the sponsor video must be fetched when the page loads — not after the unlock.
+
+The page calls a function called `getSponsorVideoUrl` which calls the `get-download-url` Edge Function with `unlockType: sponsor_video` and the sponsor video's `fileId`. This is a special unlock type that bypasses the standard unlock verification — the video is always streamable regardless of unlock status, because watching it IS the unlock action. The Edge Function must handle `unlockType: sponsor_video` as a special case that skips the verification check and directly generates a presigned GET URL for the video.
+
+The presigned URL for the sponsor video should have a longer expiry — 3600 seconds (1 hour) — because the viewer may sit on the page for a while before pressing play. The standard content delivery URL has a 5 minute expiry.
+
+The response is a streamable presigned GET URL that the browser's native video player can play directly.
+
+---
+
+### Phase 3 — The Viewer Watches The Video
+
+#### The Video Player
+
+The sponsor video is rendered as a native HTML5 `video` element, not an iframe. It uses the presigned R2 GET URL as the `src`. The video must have these attributes configured:
+
+The video must not autoplay. The viewer must tap a play button to start it. Autoplay with sound is blocked by browsers on mobile and would create a bad experience.
+
+The video must play inline on mobile — it must not go fullscreen automatically on iOS. The `playsinline` attribute handles this.
+
+The video must not show download controls. The standard video player controls allow downloading the video. This must be prevented by using a custom controls overlay instead of the browser's native controls.
+
+The video player shows: a large centered play button before the viewer starts watching, a progress bar at the bottom, the current time and total duration, and a mute/unmute button. No fullscreen button, no download button, no playback speed control.
+
+#### The Skip Button Logic
+
+A countdown overlay appears in the top right corner of the video from the moment it starts playing. It shows "Skip in Xs" counting down from the `skip_after_seconds` value configured by the creator. The countdown decrements every second. When it reaches zero, the overlay changes to a "Skip →" button that the viewer can tap.
+
+If the viewer taps Skip, the video stops and the CTA check happens. If `requires_click` is true, the CTA button must still be tapped before unlocking. If `requires_click` is false, skipping is sufficient to unlock.
+
+If the video plays to its natural end before the skip countdown finishes, it is treated as a full watch. The skip button is irrelevant — the video ending naturally always counts as sufficient watch time.
+
+#### Tracking Watch Progress In Session State
+
+The app tracks watch progress in sessionStorage using a key like `adgate_sponsor_[linkId]_progress`. Every 2 seconds while the video plays, the current playback position is saved. This allows restoring the position if the viewer accidentally refreshes. It also tracks whether the skip threshold was reached or the video ended naturally.
+
+Two boolean flags are tracked in session state. `videoWatchComplete` becomes true when either the video ends naturally or the viewer taps Skip after the countdown. `ctaClicked` becomes true when the viewer taps the CTA button.
+
+#### The CTA Button
+
+Below the video player, the sponsor's CTA button is shown. It displays the `cta_button_label` text and the `brand_name`. Tapping it opens `brand_website` in a new tab — same mechanism as the custom links in Social Follow. Simultaneously `ctaClicked` is set to true in session state.
+
+If `requires_click` is false, the CTA button is shown as a recommendation — "Visit the sponsor to learn more" — but tapping it is optional. The button still tracks whether it was clicked for analytics purposes.
+
+If `requires_click` is true, the CTA button is highlighted with a pulsing border or animation to draw the viewer's attention. The unlock cannot happen until both `videoWatchComplete` and `ctaClicked` are true.
+
+#### The Unlock Trigger
+
+The unlock triggers automatically the moment the conditions are met. The conditions are checked after every relevant event — when the video ends, when skip is tapped, and when the CTA button is tapped.
+
+If `requires_click` is false, the unlock triggers as soon as `videoWatchComplete` becomes true.
+If `requires_click` is true, the unlock triggers as soon as both `videoWatchComplete` and `ctaClicked` are both true.
+
+There is no manual Unlock button. The viewer does the required actions and the content reveals automatically.
+
+---
+
+### Phase 4 — Recording The Unlock In Supabase
+
+When the unlock conditions are met, the app calls `recordSponsorUnlock`. This inserts a row into `sponsor_impressions` with `link_id`, `viewer_id` if logged in, `session_key`, `watch_completed: true`, `cta_clicked` reflecting whether the CTA was tapped, and a timestamp. The `unlock_count` on the `links` row is incremented via RPC.
+
+Then if the link has a content file, the app calls `get-download-url` with `unlockType: custom_sponsor` and the `session_key`. The Edge Function verifies by looking up `sponsor_impressions` for a row matching `link_id` and `session_key` with `watch_completed: true`. If found, it generates and returns the presigned R2 GET URL for the content file exactly as it does for email subscribe.
+
+---
+
+### Phase 5 — Content Delivery
+
+The success screen is identical to Email Subscribe and Social Follow. The shared `UnlockSuccessScreen` component renders with whatever content the creator configured — download card, text, external link, YouTube embed. The brand name appears in a small "Sponsored by [Brand]" line at the very bottom of the success screen as attribution.
+
+---
+
+### The `get-download-url` Edge Function Changes
+
+The Edge Function needs two new cases added to its verification switch statement.
+
+The first new case is `sponsor_video`. This case skips all verification and directly generates a presigned GET URL for the video file. No unlock check. The video is always streamable. The expiry is 3600 seconds instead of 300.
+
+The second new case is `custom_sponsor`. This case checks `sponsor_impressions` for a row matching `link_id` and `session_key` with `watch_completed: true`. If found, generates and returns the presigned GET URL for the content file with a 300 second expiry. Identical logic to the `email_subscribe` and `social_follow` cases but looking at a different table.
+
+---
+
+### Returning Viewer Handling
+
+If the viewer refreshes the page, the session state restores. The video player restores its position from `adgate_sponsor_[linkId]_progress` in sessionStorage. If the viewer had already reached `videoWatchComplete` and all required conditions, the page goes straight to the already-unlocked state and calls `get-download-url` again — the `sponsor_impressions` row exists so verification passes and a fresh content URL is returned.
+
+If the viewer returns in a new session, they watch the video again. A new `sponsor_impressions` row is inserted. The duplicate check before incrementing `unlock_count` checks if this `viewer_id` already has a completed impression for this link. If so the count does not increment again.
+
+---
+
+### Creator Dashboard Sponsor Analytics
+
+The per-link analytics page for a custom sponsor link shows sponsor-specific metrics. Total impressions meaning how many unique sessions watched the video. CTA click rate meaning what percentage of viewers also tapped the CTA button. Average watch time if the app tracks it. These come from the `sponsor_impressions` table aggregated with COUNT and AVG queries. The analytics section must follow the same structure as the email subscribe analytics section — stat cards at the top, a daily chart below, and a raw data list at the bottom showing impression timestamps and whether CTA was clicked.
+
+---
+
+### What The AI Must Not Do
+
+The AI must not build a custom video player from scratch using Canvas or WebGL. The native HTML5 video element with a custom controls overlay div positioned absolutely on top of it is sufficient and correct.
+
+The AI must not use the content file's presigned URL for streaming the sponsor video. The sponsor video has its own separate `files` row and its own separate presigned URL request. These are two completely separate files in R2 and must be fetched independently.
+
+The AI must not make the sponsor video downloadable. The custom controls overlay must suppress the browser's right-click download option on the video element using `onContextMenu` returning false.
+
+The AI must not verify the watch using server-side timing. All watch completion tracking is client-side via the video element's `onEnded` event and the skip button tap. The `sponsor_impressions` insert is trusted based on the client's report. This is the same trust model as Social Follow's click-and-mark-visited mechanism.
+
+The AI must not autoplay the video with sound. The video element must start paused and require a deliberate tap to play.
+
+The AI must not skip the `getSponsorVideoUrl` call on page load. Without this call the video player has no source and the player shows a broken state. This call must happen as part of the initial page load sequence immediately after the link data is fetched from Supabase.
+
+The AI must not duplicate the success screen. The shared `UnlockSuccessScreen` component already exists from the Email Subscribe and Social Follow implementations. Import and use it.
+The content file limit remains 500MB. Only the sponsor video upload zone uses the 20MB limit.
