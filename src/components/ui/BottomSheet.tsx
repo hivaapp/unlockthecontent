@@ -59,6 +59,7 @@ export const BottomSheet = ({ isOpen, onClose, title, children, footer, fullHeig
                     <h2 className="text-[17px] font-black text-text m-0">{title}</h2>
                     <button
                         onClick={onClose}
+                        aria-label="Close"
                         className="w-9 h-9 flex items-center justify-center rounded-full bg-surfaceAlt text-textMid hover:text-text transition-colors"
                     >
                         <X size={20} />
