@@ -29,13 +29,13 @@ export const DashboardLayout = ({ children, currentTab, onTabChange }: Dashboard
     return (
         <div className="flex h-[calc(100vh-64px)] sm:h-screen w-full bg-bg overflow-hidden">
             {/* Desktop Sidebar (hidden on mobile) */}
-            <aside className="hidden md:flex flex-col w-[220px] bg-surfaceAlt border-r border-border h-full flex-shrink-0">
+            <aside className="hidden md:flex flex-col w-[240px] bg-surfaceAlt border-r border-border h-full flex-shrink-0">
                 <div className="h-16 flex items-center px-6 border-b border-border">
                     <div className="flex items-center gap-2">
                         <div className="w-8 h-8 rounded-[14px] bg-brand flex items-center justify-center text-white font-black text-xs leading-none">
-                            AG
+                            UC
                         </div>
-                        <span className="font-black text-xl tracking-tight text-text">AdGate</span>
+                        <span className="font-black text-lg tracking-tighter text-text truncate">UnlockTheContent</span>
                     </div>
                 </div>
 

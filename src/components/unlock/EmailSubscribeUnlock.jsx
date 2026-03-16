@@ -8,15 +8,11 @@ import {
   checkExistingSubscriber,
 } from '../../services/emailSubscribeService'
 import { getFileEmoji, formatFileSize } from '../../services/uploadService'
-import CreatorRow from '../shared/CreatorRow'
 
-const EmailSubscribeUnlock = ({ link, currentUser, isLoggedIn, sessionKey }) => {
+const EmailSubscribeUnlock = ({ link, currentUser, isLoggedIn, sessionKey, onUnlockSuccess }) => {
   const navigate = useNavigate()
   const emailInputRef = useRef(null)
 
-  // ── Internal states ──────────────────────────────────────────────────
-  // 'locked' → 'submitting' → 'unlocked'
-  // 'already_unlocked' is a variant of 'unlocked'
   const [screen, setScreen] = useState('locked')
   const [email, setEmail] = useState(currentUser?.email || '')
   const [emailError, setEmailError] = useState(null)
@@ -28,41 +24,32 @@ const EmailSubscribeUnlock = ({ link, currentUser, isLoggedIn, sessionKey }) => 
 
   const { email_config, file, creator } = link
 
-  // ── Restore unlocked state from sessionStorage ───────────────────────
   useEffect(() => {
     if (hasCompletedEmailUnlock(link.id)) {
       setScreen('already_unlocked')
+      if (onUnlockSuccess) onUnlockSuccess()
     }
   }, [link.id])
 
-  // ── Pre-fill email if logged in ──────────────────────────────────────
   useEffect(() => {
     if (currentUser?.email && !email) {
       setEmail(currentUser.email)
     }
   }, [currentUser?.email])
 
-  // ── Validate email on blur ───────────────────────────────────────────
   const handleEmailBlur = async () => {
     if (!email) return
     if (!isValidEmail(email)) {
       setEmailError('Please enter a valid email address.')
       return
     }
-    
-    // Check if already subscribed (shows warning, not blocking)
     setCheckingExisting(true)
     const existing = await checkExistingSubscriber(link.id, email)
     setCheckingExisting(false)
-    
-    if (existing) {
-      setEmailError(null) // Not an error — just informational below
-    }
+    if (existing) setEmailError(null)
   }
 
-  // ── Submit handler ───────────────────────────────────────────────────
   const handleSubscribe = async () => {
-    // Validate
     if (!email.trim()) {
       setEmailError('Please enter your email address.')
       emailInputRef.current?.focus()
@@ -86,11 +73,10 @@ const EmailSubscribeUnlock = ({ link, currentUser, isLoggedIn, sessionKey }) => 
         linkSlug:  link.slug,
         fileId:    file?.id,
       })
-
       setDownloadUrl(result.downloadUrl)
       setAlreadySubscribed(result.alreadySubscribed)
       setScreen('unlocked')
-
+      if (onUnlockSuccess) onUnlockSuccess()
     } catch (err) {
       setEmailError(err.message || 'Something went wrong. Please try again.')
     } finally {
@@ -98,7 +84,6 @@ const EmailSubscribeUnlock = ({ link, currentUser, isLoggedIn, sessionKey }) => 
     }
   }
 
-  // ── Trigger download ─────────────────────────────────────────────────
   const handleDownload = () => {
     if (!downloadUrl) return
     const a = document.createElement('a')
@@ -111,300 +96,112 @@ const EmailSubscribeUnlock = ({ link, currentUser, isLoggedIn, sessionKey }) => 
     setDownloadStarted(true)
   }
 
-  // ── Handle Enter key ─────────────────────────────────────────────────
   const handleKeyDown = (e) => {
     if (e.key === 'Enter' && !isSubmitting) {
       handleSubscribe()
     }
   }
 
-  // ── Helper: Check if there's unlock content besides file ──────────────
-  const hasUnlockText = !!email_config?.unlock_text
-  const hasUnlockUrl = !!email_config?.unlock_url
-  const hasYouTube = !!link.youtube_url
-  const hasFile = !!file
-  const hasAnyContent = hasFile || hasUnlockText || hasUnlockUrl || hasYouTube
-
-  // ── Render: Already unlocked (session refresh) ───────────────────────
   if (screen === 'already_unlocked') {
     return (
-      <PageWrapper>
-        <CreatorRow creator={creator} />
-        <ContentPreviewCard link={link} />
-        
-        <div style={{
-          background: '#EBF5EE', border: '1.5px solid #BBF7D0',
-          borderRadius: '14px', padding: '20px 16px',
-          textAlign: 'center', marginTop: '20px',
-        }}>
-          <div style={{ fontSize: '32px', marginBottom: '8px' }}>✅</div>
-          <h3 style={{ fontSize: '16px', fontWeight: 900, color: '#417A55', margin: '0 0 6px' }}>
-            You're already subscribed
-          </h3>
-          <p style={{ fontSize: '13px', color: '#417A55', margin: '0 0 16px', lineHeight: 1.6, opacity: 0.8 }}>
-            You subscribed to {email_config?.newsletter_name} earlier. Enter your email again to re-download.
+      <div className="w-full">
+        <div className="bg-successBg border border-success/20 rounded-xl p-4 mb-4 text-center">
+          <div className="text-xl mb-1">✅</div>
+          <h3 className="text-success font-black mb-1">Already subscribed</h3>
+          <p className="text-[12px] text-success/80 mb-3 leading-relaxed">
+            You subscribed to {email_config?.newsletter_name} earlier.
           </p>
         </div>
-
-        {/* Show the email form again for re-download */}
-        <div style={{ marginTop: '20px' }}>
-          <EmailInputField
-            email={email}
-            onChange={setEmail}
-            onBlur={handleEmailBlur}
-            onKeyDown={handleKeyDown}
-            error={emailError}
-            isLoggedIn={isLoggedIn}
-            inputRef={emailInputRef}
-            disabled={isSubmitting}
-          />
-          <SubscribeButton
-            onClick={handleSubscribe}
-            isSubmitting={isSubmitting}
-            label="Re-download"
-            emailConfig={email_config}
-          />
-        </div>
-      </PageWrapper>
+        <EmailInputField
+          email={email}
+          onChange={setEmail}
+          onBlur={handleEmailBlur}
+          onKeyDown={handleKeyDown}
+          error={emailError}
+          isLoggedIn={isLoggedIn}
+          inputRef={emailInputRef}
+          disabled={isSubmitting}
+        />
+        <SubscribeButton
+          onClick={handleSubscribe}
+          isSubmitting={isSubmitting}
+          label="Re-download"
+          emailConfig={email_config}
+        />
+      </div>
     )
   }
 
-  // ── Render: Unlocked ─────────────────────────────────────────────────
   if (screen === 'unlocked') {
     return (
-      <PageWrapper>
-        <CreatorRow creator={creator} />
-
-        {/* Success celebration */}
-        <div style={{
-          textAlign: 'center', padding: '24px 16px 16px',
-        }}>
-          <div style={{
-            fontSize: '52px', marginBottom: '8px',
-            animation: 'popIn 400ms cubic-bezier(0.34, 1.56, 0.64, 1)',
-          }}>
-            🎉
-          </div>
-          <h2 style={{ fontSize: '22px', fontWeight: 900, color: '#21201C', margin: '0 0 6px' }}>
+      <div className="w-full animate-pop-in">
+        <div className="text-center mb-4">
+          <div className="text-3xl mb-2">🎉</div>
+          <h2 className="text-lg font-black text-text mb-0.5">
             {alreadySubscribed ? 'Welcome back!' : 'You\'re in!'}
           </h2>
-          <p style={{ fontSize: '14px', color: '#6B6860', margin: '0', lineHeight: 1.65 }}>
-            {alreadySubscribed
-              ? `Already subscribed to ${email_config?.newsletter_name}.`
-              : `Subscribed to ${email_config?.newsletter_name}.`
-            }
+          <p className="text-[12px] text-textMid">
+            Subscribed to {email_config?.newsletter_name}.
           </p>
         </div>
 
-        {/* ── Content Delivery (per blueprint: text → file → link → video) ── */}
-
-        {/* 1. Unlock text (if provided by creator) */}
-        {hasUnlockText && (
-          <div style={{
-            background: 'white', border: '1px solid #E6E2D9',
-            borderRadius: '16px', padding: '20px 16px', margin: '0 0 16px',
-          }}>
-            <div style={{
-              fontSize: '12px', fontWeight: 800, color: '#6B6860',
-              textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '10px',
-            }}>
-              📝 Your content
-            </div>
-            <div style={{
-              fontSize: '14px', color: '#21201C', lineHeight: 1.7,
-              fontWeight: 600, whiteSpace: 'pre-wrap', wordBreak: 'break-word',
-            }}>
-              {email_config.unlock_text}
-            </div>
-          </div>
-        )}
-
-        {/* 2. Download card (if file attached) */}
-        {hasFile && (
-          <div style={{
-            background: 'white', border: '1px solid #E6E2D9',
-            borderRadius: '16px', padding: '20px 16px', margin: '0 0 16px',
-          }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '14px', marginBottom: '16px' }}>
-              <div style={{
-                width: '52px', height: '52px', borderRadius: '12px',
-                background: '#F3F1EC', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                fontSize: '28px', flexShrink: 0,
-              }}>
+        {file && (
+          <div className="bg-white border border-border rounded-xl p-4 mb-4">
+            <div className="flex items-center gap-4 mb-4">
+              <div className="w-12 h-12 rounded-lg bg-surfaceAlt flex items-center justify-center text-2xl">
                 {getFileEmoji(file.original_name, file.mime_type)}
               </div>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{
-                  fontSize: '15px', fontWeight: 900, color: '#21201C',
-                  overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                }}>
+              <div className="flex-1 min-w-0">
+                <div className="text-sm font-black text-text truncate">
                   {link.title}
                 </div>
-                <div style={{ fontSize: '12px', color: '#AAA49C', fontWeight: 600, marginTop: '3px' }}>
+                <div className="text-[11px] text-textLight font-bold">
                   {file.original_name} · {formatFileSize(file.size_bytes)}
                 </div>
               </div>
             </div>
-
             <button
               onClick={handleDownload}
               disabled={!downloadUrl}
-              style={{
-                width: '100%', height: '52px',
-                background: downloadStarted ? '#417A55' : !downloadUrl ? '#E6E2D9' : '#D97757',
-                color: 'white', border: 'none', borderRadius: '12px',
-                fontSize: '15px', fontWeight: 900, cursor: downloadUrl ? 'pointer' : 'default',
-                transition: 'background 300ms ease',
-                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
-              }}
+              className={`w-full h-12 rounded-xl text-sm font-black flex items-center justify-center gap-2 transition-all ${
+                downloadStarted ? 'bg-success text-white' : !downloadUrl ? 'bg-border text-textLight' : 'bg-brand text-white'
+              }`}
             >
-              {!downloadUrl ? 'Preparing download...' :
-                downloadStarted ? '✅ Download started' : `⬇️ Download ${file.original_name}`}
+              {!downloadUrl ? 'Preparing...' : downloadStarted ? '✅ Downloaded' : '⬇️ Download Now'}
             </button>
-
-            {downloadStarted && (
-              <p style={{
-                fontSize: '12px', color: '#6B6860', textAlign: 'center',
-                margin: '10px 0 0', lineHeight: 1.5,
-              }}>
-                Check your Downloads folder. Having trouble?{' '}
-                <span
-                  onClick={handleDownload}
-                  style={{ color: '#D97757', fontWeight: 700, cursor: 'pointer' }}
-                >
-                  Download again
-                </span>
-              </p>
-            )}
           </div>
         )}
 
-        {/* 3. External link button (if provided) */}
-        {hasUnlockUrl && (
-          <div style={{
-            background: 'white', border: '1px solid #E6E2D9',
-            borderRadius: '16px', padding: '20px 16px', margin: '0 0 16px',
-            textAlign: 'center',
-          }}>
-            <div style={{
-              fontSize: '12px', fontWeight: 800, color: '#6B6860',
-              textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '12px',
-            }}>
-              🔗 Your resource
-            </div>
+        {email_config?.unlock_url && (
             <a
               href={email_config.unlock_url}
               target="_blank"
               rel="noopener noreferrer"
-              style={{
-                display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
-                width: '100%', height: '48px',
-                background: '#21201C', color: 'white', border: 'none', borderRadius: '12px',
-                fontSize: '15px', fontWeight: 900, cursor: 'pointer', textDecoration: 'none',
-              }}
+              className="w-full h-12 bg-text text-white rounded-xl text-sm font-black flex items-center justify-center gap-2 no-underline mb-4"
             >
-              Access Your Resource →
+              Access Resource →
             </a>
-            <p style={{
-              fontSize: '11px', color: '#AAA49C', marginTop: '8px', fontWeight: 600,
-              overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-            }}>
-              {email_config.unlock_url}
-            </p>
-          </div>
         )}
-
-        {/* 4. YouTube embed (if set) */}
-        {hasYouTube && (
-          <YouTubeEmbed url={link.youtube_url} />
-        )}
-
-        {/* Newsletter CTA */}
-        <div style={{
-          background: '#F3F1EC', borderRadius: '12px',
-          padding: '16px', marginBottom: '16px',
-        }}>
-          <p style={{ fontSize: '13px', color: '#6B6860', margin: '0', lineHeight: 1.65, fontWeight: 600 }}>
-            📧 You'll receive {email_config?.newsletter_name} emails at{' '}
-            <strong style={{ color: '#21201C' }}>{email}</strong>.
-            {email_config?.confirmation_message && (
-              <> {email_config.confirmation_message}</>
-            )}
-          </p>
-        </div>
-
-        {/* Creator profile CTA */}
-        <div style={{
-          display: 'flex', alignItems: 'center', gap: '12px',
-          padding: '14px 16px',
-          border: '1px solid #E6E2D9', borderRadius: '12px',
-        }}>
-          <CreatorAvatar creator={creator} size={40} />
-          <div style={{ flex: 1 }}>
-            <div style={{ fontSize: '13px', fontWeight: 800, color: '#21201C' }}>
-              {creator.name}
-            </div>
-            <div style={{ fontSize: '12px', color: '#6B6860', fontWeight: 600 }}>
-              See more resources →
-            </div>
-          </div>
-          <button
-            onClick={() => navigate(`/@${creator.username}`)}
-            style={{
-              background: 'white', border: '1.5px solid #E6E2D9',
-              borderRadius: '8px', padding: '8px 14px',
-              fontSize: '12px', fontWeight: 800, color: '#21201C', cursor: 'pointer',
-            }}
-          >
-            View profile
-          </button>
-        </div>
-
-        <style>{`
-          @keyframes popIn {
-            0%   { transform: scale(0.5); opacity: 0; }
-            100% { transform: scale(1);   opacity: 1; }
-          }
-        `}</style>
-      </PageWrapper>
+      </div>
     )
   }
 
-  // ── Render: Locked (default) ─────────────────────────────────────────
   return (
-    <PageWrapper>
-      <CreatorRow creator={creator} />
-      <ContentPreviewCard link={link} />
-
-      {/* Newsletter info card */}
-      <div style={{
-        background: '#EBF5EE', border: '1.5px solid #BBF7D0',
-        borderRadius: '14px', padding: '16px', marginBottom: '20px',
-      }}>
-        <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
-          <span style={{ fontSize: '20px', flexShrink: 0 }}>📧</span>
-          <div>
-            <div style={{ fontSize: '14px', fontWeight: 900, color: '#417A55', marginBottom: '4px' }}>
-              {email_config?.newsletter_name || 'Subscribe to unlock'}
-            </div>
-            {email_config?.newsletter_description && (
-              <div style={{ fontSize: '13px', color: '#417A55', lineHeight: 1.6, opacity: 0.85 }}>
-                {email_config.newsletter_description}
-              </div>
-            )}
-            {email_config?.incentive_text && (
-              <div style={{
-                fontSize: '12px', fontWeight: 700, color: '#417A55',
-                marginTop: '6px', opacity: 0.8,
-              }}>
-                ✓ {email_config.incentive_text}
-              </div>
-            )}
+    <div className="w-full">
+      <div className="bg-successBg border border-success/20 rounded-xl p-3 mb-4 flex gap-3 items-start">
+        <span className="text-xl">📧</span>
+        <div>
+          <div className="text-[13px] font-black text-success leading-tight mb-0.5">
+            {email_config?.newsletter_name || 'Subscribe to unlock'}
           </div>
+          {email_config?.newsletter_description && (
+            <p className="text-[11px] text-success/80 leading-normal">
+              {email_config.newsletter_description}
+            </p>
+          )}
         </div>
       </div>
 
-      {/* Email input */}
       <EmailInputField
         email={email}
         onChange={(val) => {
@@ -420,120 +217,15 @@ const EmailSubscribeUnlock = ({ link, currentUser, isLoggedIn, sessionKey }) => 
         disabled={isSubmitting}
       />
 
-      {/* Subscribe button */}
       <SubscribeButton
         onClick={handleSubscribe}
         isSubmitting={isSubmitting}
         emailConfig={email_config}
       />
 
-      {/* Trust line */}
-      <p style={{
-        fontSize: '11px', color: '#AAA49C', textAlign: 'center',
-        margin: '12px 0 0', lineHeight: 1.6, fontWeight: 600,
-      }}>
-        Free forever. No payment. Unsubscribe anytime.
+      <p className="text-[9px] text-textLight text-center mt-2 font-bold uppercase tracking-wider">
+        Free forever • No payment required
       </p>
-    </PageWrapper>
-  )
-}
-
-// ── Sub-components ────────────────────────────────────────────────────────
-
-const PageWrapper = ({ children }) => (
-  <div style={{
-    maxWidth: '560px', margin: '0 auto', padding: '24px 16px 80px',
-    fontFamily: 'Söhne, ui-sans-serif, system-ui, sans-serif', minHeight: '100vh',
-  }}>
-    {children}
-  </div>
-)
-
-const ContentPreviewCard = ({ link }) => {
-  const { file, title, description, email_config } = link
-  
-  // Determine content type indicators
-  const hasFile = !!file
-  const hasText = !!email_config?.unlock_text
-  const hasUrl = !!email_config?.unlock_url
-  const hasYouTube = !!link.youtube_url
-  
-  return (
-    <div style={{
-      background: 'white', border: '1px solid #E6E2D9',
-      borderRadius: '16px', overflow: 'hidden', marginBottom: '20px',
-    }}>
-      {/* Gradient top zone */}
-      <div style={{
-        height: '80px',
-        background: 'linear-gradient(135deg, #EBF5EE 0%, #D1FAE5 100%)',
-        display: 'flex', alignItems: 'center', padding: '0 16px', gap: '12px',
-      }}>
-        <span style={{ fontSize: '36px' }}>
-          {hasFile ? getFileEmoji(file.original_name, file.mime_type) : hasText ? '📝' : hasUrl ? '🔗' : '📄'}
-        </span>
-        <div>
-          <div style={{
-            fontSize: '10px', fontWeight: 900, color: '#417A55',
-            textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '3px',
-          }}>
-            📧 Email Subscribe
-          </div>
-          <div style={{ fontSize: '11px', fontWeight: 700, color: '#417A55', opacity: 0.8 }}>
-            {hasFile ? `${file.file_type?.toUpperCase()} · ${formatFileSize(file.size_bytes)}` :
-              hasText ? 'Text content' :
-                hasUrl ? 'External resource' :
-                  'Digital content'}
-          </div>
-        </div>
-      </div>
-
-      <div style={{ padding: '14px 16px' }}>
-        <h2 style={{ fontSize: '17px', fontWeight: 900, color: '#21201C', margin: '0 0 6px', lineHeight: 1.3 }}>
-          {title}
-        </h2>
-        {description && (
-          <p style={{ fontSize: '13px', color: '#6B6860', margin: '0', lineHeight: 1.65 }}>
-            {description}
-          </p>
-        )}
-        
-        {/* Content type indicators */}
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginTop: '10px' }}>
-          {hasFile && (
-            <span style={{
-              fontSize: '11px', fontWeight: 700, color: '#417A55', background: '#EBF5EE',
-              padding: '3px 8px', borderRadius: '6px',
-            }}>
-              📎 {file.original_name}
-            </span>
-          )}
-          {hasText && (
-            <span style={{
-              fontSize: '11px', fontWeight: 700, color: '#6366F1', background: '#EEF2FF',
-              padding: '3px 8px', borderRadius: '6px',
-            }}>
-              📝 Text content
-            </span>
-          )}
-          {hasUrl && (
-            <span style={{
-              fontSize: '11px', fontWeight: 700, color: '#D97757', background: '#FAF0EB',
-              padding: '3px 8px', borderRadius: '6px',
-            }}>
-              🔗 External link
-            </span>
-          )}
-          {hasYouTube && (
-            <span style={{
-              fontSize: '11px', fontWeight: 700, color: '#6B6860', background: '#F3F1EC',
-              padding: '3px 8px', borderRadius: '6px',
-            }}>
-              ▶️ Video content
-            </span>
-          )}
-        </div>
-      </div>
     </div>
   )
 }
@@ -542,13 +234,11 @@ const EmailInputField = ({
   email, onChange, onBlur, onKeyDown,
   error, isLoading, isLoggedIn, inputRef, disabled,
 }) => (
-  <div style={{ marginBottom: '12px' }}>
-    <label style={{
-      display: 'block', fontSize: '12px', fontWeight: 700, color: '#6B6860', marginBottom: '6px',
-    }}>
+  <div className="mb-3">
+    <label className="block text-[11px] font-black text-textMid uppercase tracking-wider mb-1.5 ml-1">
       Your email address
     </label>
-    <div style={{ position: 'relative' }}>
+    <div className="relative">
       <input
         ref={inputRef}
         type="email"
@@ -558,51 +248,16 @@ const EmailInputField = ({
         onKeyDown={onKeyDown}
         placeholder="you@example.com"
         disabled={disabled}
-        autoComplete="email"
-        inputMode="email"
-        style={{
-          width: '100%', height: '52px', boxSizing: 'border-box',
-          border: `1.5px solid ${error ? '#C0392B' : '#E6E2D9'}`,
-          borderRadius: '12px', padding: '0 44px 0 16px',
-          fontSize: '15px', color: '#21201C', fontFamily: 'Söhne, ui-sans-serif, system-ui, sans-serif',
-          outline: 'none', transition: 'border-color 150ms ease',
-          background: disabled ? '#F3F1EC' : 'white',
-        }}
-        onFocus={(e) => {
-          if (!error) e.target.style.borderColor = '#D97757'
-        }}
+        className={`w-full h-12 bg-white border ${error ? 'border-error' : 'border-border'} rounded-xl px-4 text-sm outline-none focus:border-brand transition-colors ${disabled ? 'bg-surfaceAlt' : ''}`}
       />
       {isLoading && (
-        <div style={{
-          position: 'absolute', right: '14px', top: '50%', transform: 'translateY(-50%)',
-          width: '18px', height: '18px', border: '2px solid #E6E2D9',
-          borderTopColor: '#417A55', borderRadius: '50%',
-          animation: 'spin 0.8s linear infinite',
-        }} />
+        <div className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 border-2 border-border border-t-brand rounded-full animate-spin" />
       )}
       {isLoggedIn && !isLoading && (
-        <div style={{
-          position: 'absolute', right: '14px', top: '50%', transform: 'translateY(-50%)',
-          fontSize: '16px',
-        }}>
-          ✅
-        </div>
+        <div className="absolute right-4 top-1/2 -translate-y-1/2 text-sm">✅</div>
       )}
     </div>
-    {error && (
-      <p style={{
-        fontSize: '11px', fontWeight: 700, color: '#C0392B',
-        margin: '5px 0 0', lineHeight: 1.4,
-      }}>
-        {error}
-      </p>
-    )}
-    {isLoggedIn && !error && (
-      <p style={{ fontSize: '11px', color: '#6B6860', margin: '5px 0 0', fontWeight: 600 }}>
-        Using your AdGate account email.
-      </p>
-    )}
-    <style>{`@keyframes spin { to { transform: rotate(360deg) translateY(-50%); } }`}</style>
+    {error && <p className="text-[11px] font-bold text-error mt-1.5 ml-1">{error}</p>}
   </div>
 )
 
@@ -610,62 +265,17 @@ const SubscribeButton = ({ onClick, isSubmitting, emailConfig, label }) => (
   <button
     onClick={onClick}
     disabled={isSubmitting}
-    style={{
-      width: '100%', height: '52px',
-      background: isSubmitting ? '#F3F1EC' : '#417A55',
-      color: isSubmitting ? '#AAA49C' : 'white',
-      border: 'none', borderRadius: '12px',
-      fontSize: '15px', fontWeight: 900, cursor: isSubmitting ? 'default' : 'pointer',
-      transition: 'all 200ms ease',
-      display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
-    }}
+    className="w-full h-12 bg-brand text-white rounded-xl text-sm font-black flex items-center justify-center gap-2 active:scale-[0.98] transition-all disabled:opacity-50 disabled:active:scale-100"
   >
     {isSubmitting ? (
       <>
-        <span style={{
-          display: 'inline-block', width: '18px', height: '18px',
-          border: '2px solid #E6E2D9', borderTopColor: '#AAA49C',
-          borderRadius: '50%', animation: 'spin 0.8s linear infinite',
-        }} />
-        Subscribing...
+        <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+        Unlocking...
       </>
     ) : (
-      label || `Subscribe to ${emailConfig?.newsletter_name || 'newsletter'} — Unlock free →`
+      label || `Unlock Resource →`
     )}
   </button>
-)
-
-const YouTubeEmbed = ({ url }) => {
-  const getEmbedUrl = (u) => {
-    const match = u.match(/(?:v=|youtu\.be\/)([a-zA-Z0-9_-]{11})/)
-    return match ? `https://www.youtube.com/embed/${match[1]}` : null
-  }
-  const embedUrl = getEmbedUrl(url)
-  if (!embedUrl) return null
-  return (
-    <div style={{ borderRadius: '12px', overflow: 'hidden', marginBottom: '16px' }}>
-      <iframe
-        src={embedUrl}
-        width="100%"
-        height="220"
-        frameBorder="0"
-        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-        allowFullScreen
-        style={{ display: 'block' }}
-      />
-    </div>
-  )
-}
-
-const CreatorAvatar = ({ creator, size = 36 }) => (
-  <div style={{
-    width: size, height: size, borderRadius: '50%',
-    background: creator.avatar_color || '#D97757',
-    display: 'flex', alignItems: 'center', justifyContent: 'center',
-    fontSize: size * 0.4, fontWeight: 900, color: 'white', flexShrink: 0,
-  }}>
-    {creator.initial}
-  </div>
 )
 
 export default EmailSubscribeUnlock

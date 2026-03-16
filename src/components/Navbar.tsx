@@ -47,6 +47,7 @@ export const Navbar = () => {
     const location = useLocation();
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [isMenuOpen, setIsMenuOpen] = useState(false);
+    const isExplore = location.pathname === '/explore';
     const [authScreen, setAuthScreen] = useState<'signin' | 'signup'>('signin');
     const navigate = useNavigate();
 
@@ -98,10 +99,13 @@ export const Navbar = () => {
             <nav className="sticky top-0 z-40 bg-bg/90 backdrop-blur-md border-b border-border h-16 w-full shadow-sm px-4 sm:px-8 flex items-center justify-between">
                 <Link to="/" className="flex items-center gap-2 z-50">
                     <div className="w-8 h-8 rounded-[14px] bg-brand flex items-center justify-center text-white font-black text-[12px] leading-none shrink-0 cursor-pointer">
-                        AG
+                        UC
                     </div>
                     <div className="flex flex-col sm:flex-row sm:items-center sm:gap-4">
-                        <span className="font-black text-[18px] tracking-tight text-text">AdGate</span>
+                        <span className={`font-black text-[17px] tracking-tighter text-text ${isExplore ? 'hidden sm:block' : ''}`}>UnlockTheContent</span>
+                        {isExplore && (
+                            <span className="text-[11px] font-bold text-textMid flex sm:hidden hover:text-text transition-colors mt-0.5">Explore Resources</span>
+                        )}
                         {isMarketingPage && (
                             <span className="text-[11px] font-bold text-textMid flex sm:hidden hover:text-text transition-colors mt-0.5">← Back to Home</span>
                         )}
@@ -109,7 +113,7 @@ export const Navbar = () => {
                 </Link>
 
                 {/* Desktop Nav */}
-                <div className="hidden sm:flex items-center gap-6 absolute left-1/2 -translate-x-1/2">
+                <div className="hidden md:flex items-center gap-6 absolute left-1/2 -translate-x-1/2">
                     {isMarketingPage && (
                         <Link to="/" className="text-[11px] font-bold text-textMid hover:text-text transition-colors mr-2">← Back to Home</Link>
                     )}
@@ -175,7 +179,7 @@ export const Navbar = () => {
                     )}
                 </div>
 
-                {/* Mobile right side: chat icon + hamburger */}
+                {/* Mobile right side: chat icon + hamburger (or dashboard for explore) */}
                 <div className="sm:hidden flex items-center gap-1 z-50">
                     {isLoggedIn && (
                         <button
@@ -187,14 +191,20 @@ export const Navbar = () => {
                             <ChatNavBadge count={totalUnread} />
                         </button>
                     )}
-                    <button
-                        className="w-10 h-10 flex items-center justify-center text-text"
-                        onClick={() => setIsMenuOpen(!isMenuOpen)}
-                        aria-label="Toggle navigation menu"
-                        aria-expanded={isMenuOpen}
-                    >
-                        {isMenuOpen ? <X size={24} /> : <Menu size={24} />}
-                    </button>
+                    {isExplore ? (
+                        <Link to="/dashboard" className="btn-primary h-9 px-3 text-[12px] flex items-center shadow-sm">
+                            Dashboard
+                        </Link>
+                    ) : (
+                        <button
+                            className="w-10 h-10 flex items-center justify-center text-text"
+                            onClick={() => setIsMenuOpen(!isMenuOpen)}
+                            aria-label="Toggle navigation menu"
+                            aria-expanded={isMenuOpen}
+                        >
+                            {isMenuOpen ? <X size={24} /> : <Menu size={24} />}
+                        </button>
+                    )}
                 </div>
             </nav>
 

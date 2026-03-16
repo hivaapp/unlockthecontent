@@ -1,22 +1,28 @@
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { getCreatorByUsername, getLinksByCreator } from '../lib/mockData';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Globe, ChevronLeft } from 'lucide-react';
+import { socialIcons } from '../assets/socialIcons';
 import { useMessaging } from '../context/MessagingContext';
 import { useToast } from '../context/ToastContext';
 import { BottomSheet } from '../components/ui/BottomSheet';
 import { AuthBottomSheet } from '../components/AuthBottomSheet';
+import { getCreatorProfile } from '../services/profileService';
 
 const getFileEmoji = (type: string) => {
     const t = type?.toUpperCase();
     switch (t) {
-        case 'ZIP': return '📦';
+        case 'ZIP': 
+        case 'ARCHIVE': return '📦';
         case 'PDF': return '📄';
-        case 'DOC': return '📝';
-        case 'IMAGES': return '🖼️';
-        case 'LINK': return '🔗';
+        case 'DOC': 
+        case 'DOCUMENT': return '📝';
+        case 'IMAGES': 
+        case 'IMAGE': return '🖼️';
+        case 'VIDEO': 
         case 'MP4': return '🎥';
+        case 'SPREADSHEET': return '📊';
+        case 'LINK': return '🔗';
         default: return '📁';
     }
 };
@@ -40,68 +46,80 @@ export const CreatorProfile = () => {
     const username = handle?.startsWith('@') ? handle.slice(1) : handle;
     const navigate = useNavigate();
     const { currentUser, isLoggedIn } = useAuth();
-    let sendRequest: any = null;
-    let hasPendingRequestTo: any = null;
-    try {
-        const msgCtx = useMessaging();
-        sendRequest = msgCtx.sendRequest;
-        hasPendingRequestTo = msgCtx.hasPendingRequestTo;
-    } catch { /* ignore */ }
-    
     const { showToast } = useToast();
-
-    // Check if viewing own profile
-    const isOwner = isLoggedIn && currentUser?.username === username;
     
-    // For own profile, use currentUser to get real-time edits, else mock data
-    const profileCreator = isOwner ? currentUser : getCreatorByUsername(username!);
-    
-    if (!profileCreator) {
-        return <CreatorNotFound username={username} />;
-    }
-
-    const { 
-        name, 
-        bio, 
-        avatarColor, 
-        initial,
-        website,
-        location,
-        joinedDate,
-        isVerified,
-        // @ts-ignore
-        socialHandles = {},
-        // @ts-ignore
-        stats = { totalLinks: 0, totalUnlocks: 0, totalFollowerPairingCampaigns: 0, totalPairsFormed: 0, treesPlanted: 0 }
-    } = profileCreator;
-
-    // Use getLinksByCreator. On own profile we don't fetch directly, we just do it via mockLinks anyway
-    // Wait, on own profile, `currentUser` might not have `.links` array mapped if it was just edited
-    // But getLinksByCreator expects creatorId. `currentUser`'s ID is what we pass.
-    const allLinks = getLinksByCreator(profileCreator.id);
-    
-    // Separate links by tab
-    const resources = allLinks.filter(l => l.unlockType !== 'follower_pairing');
-    const campaigns = allLinks.filter(l => l.unlockType === 'follower_pairing');
-
+    const [profile, setProfile] = useState<any>(null);
+    const [isLoading, setIsLoading] = useState(true);
     const [activeTab, setActiveTab] = useState<'resources' | 'pairing'>('resources');
     const [showMessageSheet, setShowMessageSheet] = useState(false);
     const [isAuthSheetOpen, setIsAuthSheetOpen] = useState(false);
     const [messageText, setMessageText] = useState('');
     const [isSending, setIsSending] = useState(false);
+
+    let sendRequest: any = null;
+    let hasPendingRequestTo: any = null;
+    try {
+        const msgCtx = useMessaging();
+        sendRequest = msgCtx?.sendRequest;
+        hasPendingRequestTo = msgCtx?.hasPendingRequestTo;
+    } catch { /* ignore */ }
+
+    // Fetch Profile
+    useEffect(() => {
+        const fetchProfile = async () => {
+            setIsLoading(true);
+            try {
+                const data = await getCreatorProfile(username);
+                setProfile(data);
+            } catch (error) {
+                console.error('Error fetching creator profile:', error);
+                setProfile(null);
+            } finally {
+                setIsLoading(false);
+            }
+        };
+
+        if (username) fetchProfile();
+    }, [username]);
+
+    // Check if viewing own profile
+    const isOwner = isLoggedIn && currentUser?.username === username;
     
+    if (!isLoading && !profile) {
+        return <CreatorNotFound username={username} />;
+    }
+
+    const { 
+        name = username, 
+        bio = '', 
+        avatarColor = '', 
+        initial = '?',
+        website = '',
+        location = '',
+        joinedDate = '',
+        isVerified = false,
+        socialHandles = {},
+        stats = { totalLinks: 0, totalUnlocks: 0, totalFollowerPairingCampaigns: 0, totalPairsFormed: 0, treesPlanted: 0 },
+        links = []
+    } = profile || {};
+
+    const allLinks = links || [];
+    const resources = allLinks.filter((l: any) => l.mode !== 'follower_pairing');
+    const campaigns = allLinks.filter((l: any) => l.mode === 'follower_pairing');
+
     // Check if request is already sent
-    const requestAlreadySent = isLoggedIn && currentUser && profileCreator && hasPendingRequestTo ? hasPendingRequestTo(currentUser.id, profileCreator.id) : false;
+    const requestAlreadySent = isLoggedIn && currentUser && profile && hasPendingRequestTo ? hasPendingRequestTo(currentUser.id, profile.id) : false;
 
     const handleSendMessage = () => {
         if (!isLoggedIn) {
             setIsAuthSheetOpen(true);
             return;
         }
-        if (!messageText.trim() || !currentUser || !profileCreator || !sendRequest) return;
+        if (!messageText.trim() || !currentUser || !profile || !sendRequest) return;
         setIsSending(true);
-        setTimeout(() => {
-            sendRequest(profileCreator.id, messageText, {
+        
+        try {
+            sendRequest(profile.id, messageText, {
                 id: currentUser.id,
                 name: currentUser.name,
                 username: currentUser.username,
@@ -111,11 +129,15 @@ export const CreatorProfile = () => {
                 isCreator: currentUser.isCreator || false,
                 joinedDate: currentUser.joinedDate || new Date().toISOString()
             });
-            setIsSending(false);
+            showToast('Message request sent!', 'success');
             setShowMessageSheet(false);
             setMessageText('');
-            showToast('Message request sent!', 'success');
-        }, 600);
+        } catch (err) {
+            console.error(err);
+            showToast('Failed to send message.', 'error');
+        } finally {
+            setIsSending(false);
+        }
     };
 
     // Parse date safely
@@ -128,17 +150,7 @@ export const CreatorProfile = () => {
 
     const hasSocials = Object.values(socialHandles).some(val => !!val);
 
-    const getPlatformIconColor = (p: string) => {
-        switch (p) {
-            case 'instagram': return '#E1306C';
-            case 'youtube': return '#FF0000';
-            case 'twitter': return '#000000';
-            case 'linkedin': return '#0A66C2';
-            case 'tiktok': return '#000000';
-            case 'discord': return '#5865F2';
-            default: return '#555';
-        }
-    };
+
 
     const getSocialUrl = (platform: string, handle: string | null) => {
         if (!handle) return null;
@@ -147,21 +159,38 @@ export const CreatorProfile = () => {
             instagram: `https://instagram.com/${clean}`,
             youtube: `https://youtube.com/@${clean}`,
             twitter: `https://twitter.com/${clean}`,
+            threads: `https://threads.net/@${clean}`,
             linkedin: `https://linkedin.com/in/${clean}`,
             tiktok: `https://tiktok.com/@${clean}`,
             discord: `https://discord.gg/${clean}`,
+            telegram: `https://t.me/${clean}`,
+            twitch: `https://twitch.tv/${clean}`,
         };
         return urls[platform] || null;
     };
 
     const platformIcons: Record<string, React.ReactNode> = {
-        instagram: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><rect x="2" y="2" width="20" height="20" rx="5" ry="5"></rect><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"></path><line x1="17.5" y1="6.5" x2="17.51" y2="6.5"></line></svg>,
-        youtube: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><path d="M22.54 6.42a2.78 2.78 0 0 0-1.94-2C18.88 4 12 4 12 4s-6.88 0-8.6.46a2.78 2.78 0 0 0-1.94 2A29 29 0 0 0 1 11.75a29 29 0 0 0 .46 5.33 2.78 2.78 0 0 0 1.94 2c1.72.46 8.6.46 8.6.46s6.88 0 8.6-.46a2.78 2.78 0 0 0 1.94-2 29 29 0 0 0 .46-5.33 29 29 0 0 0-.46-5.33z"></path><polygon points="9.75 15.02 15.5 11.75 9.75 8.48 9.75 15.02"></polygon></svg>,
-        twitter: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><path d="M22 4s-.7 2.1-2 3.4c1.6 10-9.4 17.3-18 11.6 2.2.1 4.4-.6 6-2C3 15.5.5 9.6 3 5c2.2 2.6 5.6 4.1 9 4-.9-4.2 4-6.6 7-3.8 1.1 0 3-1.2 3-1.2z"></path></svg>,
-        linkedin: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><path d="M16 8a6 6 0 0 1 6 6v7h-4v-7a2 2 0 0 0-2-2 2 2 0 0 0-2 2v7h-4v-7a6 6 0 0 1 6-6z"></path><rect x="2" y="9" width="4" height="12"></rect><circle cx="4" cy="4" r="2"></circle></svg>,
-        tiktok: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><path d="M9 12a4 4 0 1 0 4 4V4a5 5 0 0 0 5 5"></path></svg>,
-        discord: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><path d="M15 11h.01M9 11h.01M6.2 16.5A13 13 0 0 1 3 13V8.5C3 6 5.4 4 8 4h8c2.6 0 5 2 5 4.5V13c0 1.2-.5 2.5-1.2 3.5M12 21c-3.1 0-6-1.5-8-4a11.8 11.8 0 0 1-1-4M19 19l-2-2"></path></svg>,
+        instagram: <img src={socialIcons.instagram} className="w-4 h-4 object-contain" alt="" />,
+        youtube: <img src={socialIcons.youtube} className="w-4 h-4 object-contain" alt="" />,
+        twitter: <img src={socialIcons.twitter} className="w-4 h-4 object-contain" alt="" />,
+        threads: <img src={socialIcons.threads} className="w-4 h-4 object-contain" alt="" />,
+        linkedin: <img src={socialIcons.linkedin} className="w-4 h-4 object-contain" alt="" />,
+        tiktok: <img src={socialIcons.tiktok} className="w-4 h-4 object-contain" alt="" />,
+        twitch: <img src={socialIcons.twitch} className="w-4 h-4 object-contain" alt="" />,
+        discord: <img src={socialIcons.discord} className="w-4 h-4 object-contain" alt="" />,
+        telegram: <img src={socialIcons.telegram} className="w-4 h-4 object-contain" alt="" />,
     };
+
+    if (isLoading) {
+        return (
+            <div className="w-full min-h-screen bg-[#FAF9F7] flex flex-col items-center pt-20 px-6">
+                <div className="w-24 h-24 rounded-full bg-border/40 animate-pulse mb-6" />
+                <div className="h-6 w-48 bg-border/40 animate-pulse rounded mb-3" />
+                <div className="h-4 w-32 bg-border/40 animate-pulse rounded mb-8" />
+                <div className="w-full max-w-[600px] h-32 bg-border/20 animate-pulse rounded-[14px]" />
+            </div>
+        );
+    }
 
     return (
         <div className="w-full min-h-screen bg-[#FAF9F7] animate-fadeIn pb-20">
@@ -268,14 +297,13 @@ export const CreatorProfile = () => {
                             </a>
                         )}
 
-                        {/* Social Handles */}
                         <div className="flex flex-row lg:flex-col flex-wrap gap-[10px] mt-[16px]">
-                            {['instagram', 'youtube', 'twitter', 'linkedin', 'tiktok', 'discord'].map(p => {
+                            {['instagram', 'youtube', 'twitter', 'threads', 'linkedin', 'tiktok', 'twitch', 'discord', 'telegram'].map(p => {
                                 const h = (socialHandles as Record<string, string>)[p];
                                 if (!h) return null;
                                 return (
                                     <a key={p} href={getSocialUrl(p, h) || '#'} target="_blank" rel="noopener noreferrer" className="h-[34px] bg-white border-[1.5px] border-[#E8E8E8] rounded-[20px] px-[14px] flex items-center gap-[8px] hover:border-brand/30 transition-colors w-max lg:w-full lg:rounded-[10px]">
-                                        <span style={{ color: getPlatformIconColor(p) }}>{platformIcons[p]}</span>
+                                        <span>{platformIcons[p]}</span>
                                         <span className="text-[12px] font-bold text-[#333] truncate">@{h.replace('@','')}</span>
                                     </a>
                                 );
@@ -357,7 +385,7 @@ export const CreatorProfile = () => {
                                         )}
                                     </div>
                                 ) : (
-                                    resources.map(r => {
+                                    resources.map((r: any) => {
                                         const ut = r.unlockType || 'custom_sponsor';
                                         let bgClass = '';
                                         let badgeColor = '';
@@ -380,9 +408,9 @@ export const CreatorProfile = () => {
                                             <Link key={r.id} to={`/r/${r.slug}`} className="w-full bg-white border border-[#F0F0F0] rounded-[14px] overflow-hidden group hover:border-[#DDDDDD] transition-colors block">
                                                 <div className={`h-[90px] w-full ${bgClass} relative flex flex-col justify-end p-[12px_14px]`}>
                                                     <div className="absolute inset-0 flex items-center justify-center opacity-30 text-[48px] overflow-hidden pointer-events-none group-hover:scale-110 transition-transform duration-700">{getFileEmoji(r.fileType || 'file')}</div>
-                                                    <div className="relative z-10 flex items-center gap-2">
-                                                        <span className="text-[20px] leading-none text-white drop-shadow-sm">{getFileEmoji(r.fileType || 'file')}</span>
-                                                        <span className="text-[10px] font-[800] text-white drop-shadow-sm uppercase tracking-wide">{r.fileType || 'Resource'}</span>
+                                            <div className="relative z-10 flex items-center gap-2">
+                                                        <span className="text-[20px] leading-none text-white drop-shadow-sm">{getFileEmoji(r.file?.file_type || r.fileType || 'file')}</span>
+                                                        <span className="text-[10px] font-[800] text-white drop-shadow-sm uppercase tracking-wide">{r.file?.file_type || r.fileType || 'Resource'}</span>
                                                     </div>
                                                     <div className={`absolute top-[12px] right-[12px] px-2 py-0.5 border rounded-[6px] text-[10px] shadow-sm z-10 leading-relaxed uppercase tracking-widest ${badgeColor}`}>
                                                         {ut === 'custom_sponsor' ? '✨ Sponsored' : ut === 'email_subscribe' ? '🆓 Email' : ut === 'social_follow' ? '🆓 Social' : '🆓 Free'}
@@ -390,7 +418,7 @@ export const CreatorProfile = () => {
                                                 </div>
                                                 <div className="p-[14px] flex flex-col">
                                                     <h3 className="text-[14px] font-[900] text-[#111] leading-[1.3] max-h-[36px] overflow-hidden line-clamp-2">{r.title}</h3>
-                                                    <span className="text-[11px] font-[700] text-[#AAAAAA] mt-[8px]">👁 {r.viewCount || 0} views • 🔓 {r.unlockCount || 0} unlocks</span>
+                                                    <span className="text-[11px] font-[700] text-[#AAAAAA] mt-[8px]">👁 {r.viewCount || r.view_count || 0} views • 🔓 {r.unlockCount || r.unlock_count || 0} unlocks</span>
                                                     
                                                     <button className="w-full h-[38px] mt-[12px] rounded-[8px] text-[13px] font-[800] text-white transition-colors" style={{ backgroundColor: typeColor }}>
                                                         {utText}
@@ -414,8 +442,8 @@ export const CreatorProfile = () => {
                                         )}
                                     </div>
                                 ) : (
-                                    campaigns.map(c => {
-                                        const config = c.followerPairingConfig;
+                                    campaigns.map((c: any) => {
+                                        const config = c.followerPairingConfig || c.pairing_config;
                                         if (!config) return null;
                                         const isOpen = config.isAcceptingParticipants;
                                         return (
@@ -435,9 +463,9 @@ export const CreatorProfile = () => {
                                                 <p className="text-[13px] font-[600] text-[#555] leading-[1.65] line-clamp-3 mb-3">{config.description}</p>
                                                 
                                                 <div className="flex items-center gap-3 text-[11px] font-[700] text-[#B45309] mb-[16px]">
-                                                    <span className="flex items-center gap-1">⏱️ {config.durationDays} days</span>
-                                                    <span className="flex items-center gap-1">👥 {config.activePairs || 0} pairs</span>
-                                                    <span className="flex items-center gap-1">✅ {config.completedPairs || 0} completed</span>
+                                                    <span className="flex items-center gap-1">⏱️ {config.durationDays || config.duration_days} days</span>
+                                                    <span className="flex items-center gap-1">👥 {config.activePairs || config.active_pairs || 0} pairs</span>
+                                                    <span className="flex items-center gap-1">✅ {config.completedPairs || config.completed_pairs || 0} completed</span>
                                                 </div>
 
                                                 {isOpen ? (

@@ -44,7 +44,7 @@ export const MoreActionSheet = ({ isOpen, onClose, link, onDelete, onDisable, on
                     <div className="w-8 h-8 rounded-full bg-surfaceAlt flex items-center justify-center text-textMid shrink-0">
                         <ChartBar size={16} strokeWidth={2.5} />
                     </div>
-                    <span className="text-[15px] font-bold">View Analytics</span>
+                    <span className="text-[15px] font-bold">View Subscribers & Analytics</span>
                 </button>
 
                 <button

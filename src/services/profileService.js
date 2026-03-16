@@ -133,3 +133,28 @@ export const searchPeople = async (query, currentUserId = null) => {
   // Filter out the current user from results
   return (data || []).filter(u => u.id !== currentUserId)
 }
+
+// ── Get Top Creators (Leaderboard) ───────────────────────────────────────
+
+export const getTopCreators = async (limit = 10) => {
+  const { data, error } = await supabase
+    .from('users')
+    .select(`
+      id,
+      name,
+      username,
+      avatar_color,
+      initial,
+      is_creator,
+      is_verified,
+      active_pairing_links_count
+    `)
+    .eq('is_creator', true)
+    .order('active_pairing_links_count', { ascending: false, nullsFirst: false })
+    .order('name', { ascending: true })
+    .limit(limit)
+  
+  if (error) throw error
+  
+  return data || []
+}

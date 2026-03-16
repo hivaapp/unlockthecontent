@@ -190,8 +190,9 @@ export function CustomSponsorForm({ value, onChange, onErrorStateChange, isAuthe
         setUploadStage(null);
     };
 
+    const urlPattern = /^https?:\/\/(www\.)?[-a-zA-Z0-9@:%._+~#=]{1,256}\.[a-zA-Z0-9()]{1,6}\b([-a-zA-Z0-9()@:%_+.~#?&//=]*)$/;
     const brandError = showErrors && !data.brandName;
-    const urlError = showErrors && !!data.redirectUrl && (!data.redirectUrl.startsWith("http://") && !data.redirectUrl.startsWith("https://"));
+    const urlError = showErrors && !!data.redirectUrl && !urlPattern.test(data.redirectUrl);
     const ackError = showErrors && !acknowledged;
 
     useEffect(() => {

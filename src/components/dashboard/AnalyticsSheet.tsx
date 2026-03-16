@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { BottomSheet } from '../ui/BottomSheet';
 import { Share2, ArrowDownRight, UserCheck, Download } from 'lucide-react';
+import { socialIcons } from '../../assets/socialIcons';
 import { useToast } from '../../context/ToastContext';
 import { getEmailLinkAnalytics } from '../../services/analyticsService';
 import { getSubscriberList, exportSubscribersCSV } from '../../services/emailSubscribeService';
@@ -237,13 +238,12 @@ export const AnalyticsSheet = ({ isOpen, onClose, link }: AnalyticsSheetProps) =
                                     <div className="bg-white rounded-[14px] border border-border p-4 shadow-[0_1px_3px_rgba(0,0,0,0.06)] z-10 relative flex flex-col gap-3">
                                         <div className="flex items-center justify-between">
                                             <div className="flex items-center gap-3">
-                                                <div className="w-10 h-10 rounded-full bg-surfaceAlt flex items-center justify-center font-black text-[16px] border border-border/50">
-                                                    {target.type === 'custom' ? target.customIcon || '🔗' : 
-                                                     target.platform === 'youtube' ? '▶️' : 
-                                                     target.platform === 'twitter' ? '🐦' : 
-                                                     target.platform === 'instagram' ? '📸' : 
-                                                     target.platform === 'tiktok' ? '📱' : 
-                                                     target.platform === 'discord' ? '💬' : '👥'}
+                                                <div className="w-10 h-10 rounded-full bg-surfaceAlt flex items-center justify-center border border-border/50 overflow-hidden p-1.5">
+                                                    {target.type === 'custom' ? (
+                                                        <span className="text-[16px]">{target.customIcon || '🔗'}</span>
+                                                    ) : (
+                                                        <img src={socialIcons[target.platform as keyof typeof socialIcons]} className="w-full h-full object-contain" alt="" />
+                                                    )}
                                                 </div>
                                                 <div className="flex flex-col">
                                                     <span className="text-[14px] font-bold text-text leading-tight">
@@ -381,25 +381,6 @@ const EmailAnalyticsSection = ({ link }: { link: DashboardLink }) => {
                 />
             </div>
 
-            {/* Daily chart (Simple visualization for now) */}
-            {analytics?.dailyChart && Object.keys(analytics.dailyChart).length > 0 && (
-                <div className="mb-6 p-4 rounded-[12px] bg-white border border-border">
-                    <div className="text-[12px] font-bold text-textMid mb-3 uppercase tracking-wide">Daily Growth (Last 30 Days)</div>
-                    <div className="flex items-end gap-1 h-[80px]">
-                        {Object.entries(analytics.dailyChart).map(([date, count]: [string, any]) => {
-                            const max = Math.max(...Object.values(analytics.dailyChart as Record<string, number>));
-                            const height = max > 0 ? `${(count / max) * 100}%` : '0%';
-                            return (
-                                <div key={date} className="flex-1 bg-brand rounded-t-[4px] min-w-[4px] relative group" style={{ height }}>
-                                    <div className="absolute opacity-0 group-hover:opacity-100 bottom-full left-1/2 -translate-x-1/2 mb-1 bg-text text-white text-[10px] py-1 px-2 rounded-[4px] pointer-events-none whitespace-nowrap z-10 transition-opacity">
-                                        {count} on {date}
-                                    </div>
-                                </div>
-                            );
-                        })}
-                    </div>
-                </div>
-            )}
 
             {/* Subscriber list */}
             <div className="flex flex-col">

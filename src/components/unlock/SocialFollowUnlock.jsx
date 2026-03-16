@@ -12,13 +12,11 @@ import {
   PLATFORM_INFO,
 } from '../../services/socialFollowService'
 import { getFileEmoji, formatFileSize } from '../../services/uploadService'
-import CreatorRow from '../shared/CreatorRow'
+import { socialIcons } from '../../assets/socialIcons'
 
-const SocialFollowUnlock = ({ link, currentUser, isLoggedIn, sessionKey }) => {
+const SocialFollowUnlock = ({ link, currentUser, isLoggedIn, sessionKey, onUnlockSuccess }) => {
   const navigate = useNavigate()
 
-  // ── Internal states ──────────────────────────────────────────────────
-  // 'locked' → 'unlocking' → 'unlocked'
   const [screen, setScreen] = useState('locked')
   const [visitedIds, setVisitedIds] = useState([])
   const [downloadUrl, setDownloadUrl] = useState(null)
@@ -38,41 +36,28 @@ const SocialFollowUnlock = ({ link, currentUser, isLoggedIn, sessionKey }) => {
   const allVisited = visitedCount >= totalTargets && totalTargets > 0
   const progressPercent = totalTargets > 0 ? (visitedCount / totalTargets) * 100 : 0
 
-  // ── Helpers for unlock content ────────────────────────────────────────
-  // Social follow links store unlock_text and unlock_url on social_configs,
-  // mirroring email_configs.unlock_text and email_configs.unlock_url.
-  const hasUnlockText = !!socialConfig?.unlock_text
-  const hasUnlockUrl = !!socialConfig?.unlock_url
-  const hasFile = !!file
-  const hasYouTube = !!link.youtube_url
-
-  // ── Restore state from sessionStorage ─────────────────────────────────
   useEffect(() => {
     if (hasCompletedSocialUnlock(link.id)) {
       setScreen('already_unlocked')
+      if (onUnlockSuccess) onUnlockSuccess()
     }
     const stored = getVisitedTargets(link.id)
     setVisitedIds(stored)
   }, [link.id])
 
-  // ── Auto-trigger unlock when all targets visited ──────────────────────
   useEffect(() => {
     if (allVisited && screen === 'locked' && !isUnlocking) {
       handleUnlock()
     }
   }, [allVisited, screen])
 
-  // ── Handle clicking a follow target ───────────────────────────────────
   const handleTargetClick = (target) => {
     const url = getTargetUrl(target)
-    // Open in new tab
     window.open(url, '_blank', 'noopener,noreferrer')
-    // Mark as visited immediately
     const updatedVisited = markTargetVisited(link.id, target.id)
     setVisitedIds([...updatedVisited])
   }
 
-  // ── Handle unlock ────────────────────────────────────────────────────
   const handleUnlock = async () => {
     if (isUnlocking) return
     setIsUnlocking(true)
@@ -91,6 +76,7 @@ const SocialFollowUnlock = ({ link, currentUser, isLoggedIn, sessionKey }) => {
       setDownloadUrl(result.downloadUrl)
       setAlreadyUnlocked(result.alreadyUnlocked)
       setScreen('unlocked')
+      if (onUnlockSuccess) onUnlockSuccess()
     } catch (err) {
       setError(err.message || 'Something went wrong. Please try again.')
     } finally {
@@ -98,7 +84,6 @@ const SocialFollowUnlock = ({ link, currentUser, isLoggedIn, sessionKey }) => {
     }
   }
 
-  // ── Trigger download ─────────────────────────────────────────────────
   const handleDownload = () => {
     if (!downloadUrl) return
     const a = document.createElement('a')
@@ -111,440 +96,125 @@ const SocialFollowUnlock = ({ link, currentUser, isLoggedIn, sessionKey }) => {
     setDownloadStarted(true)
   }
 
-  // ── Render: Already unlocked (session refresh) ───────────────────────
   if (screen === 'already_unlocked') {
     return (
-      <PageWrapper>
-        <CreatorRow creator={creator} />
-        <ContentPreviewCard link={link} socialConfig={socialConfig} />
-
-        <div style={{
-          background: '#EBF5EE', border: '1.5px solid #BBF7D0',
-          borderRadius: '14px', padding: '20px 16px',
-          textAlign: 'center', marginTop: '20px',
-        }}>
-          <div style={{ fontSize: '32px', marginBottom: '8px' }}>✅</div>
-          <h3 style={{ fontSize: '16px', fontWeight: 900, color: '#417A55', margin: '0 0 6px' }}>
-            Already unlocked
-          </h3>
-          <p style={{ fontSize: '13px', color: '#417A55', margin: '0 0 16px', lineHeight: 1.6, opacity: 0.8 }}>
-            You already completed all follows. Click below to re-access the content.
+      <div className="w-full">
+        <div className="bg-successBg border border-success/20 rounded-xl p-4 mb-4 text-center">
+          <div className="text-xl mb-1">✅</div>
+          <h3 className="text-success font-black mb-1">Already unlocked</h3>
+          <p className="text-[12px] text-success/80 mb-3 leading-relaxed">
+            You already followed all accounts.
           </p>
           <button
             onClick={handleUnlock}
             disabled={isUnlocking}
-            style={{
-              width: '100%', height: '48px',
-              background: isUnlocking ? '#F3F1EC' : '#417A55',
-              color: isUnlocking ? '#AAA49C' : 'white',
-              border: 'none', borderRadius: '12px',
-              fontSize: '14px', fontWeight: 900, cursor: isUnlocking ? 'default' : 'pointer',
-              transition: 'all 200ms ease',
-              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
-            }}
+            className="w-full h-10 bg-success text-white rounded-xl text-sm font-black flex items-center justify-center gap-2"
           >
-            {isUnlocking ? (
-              <>
-                <span style={{
-                  display: 'inline-block', width: '16px', height: '16px',
-                  border: '2px solid #E6E2D9', borderTopColor: '#AAA49C',
-                  borderRadius: '50%', animation: 'spin 0.8s linear infinite',
-                }} />
-                Loading...
-              </>
-            ) : (
-              'Re-access content →'
-            )}
+            {isUnlocking ? 'Loading...' : 'Access Content →'}
           </button>
         </div>
-        <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
-      </PageWrapper>
+      </div>
     )
   }
 
-  // ── Render: Unlocked (success) ───────────────────────────────────────
   if (screen === 'unlocked') {
     return (
-      <PageWrapper>
-        <CreatorRow creator={creator} />
-
-        {/* Success celebration */}
-        <div style={{ textAlign: 'center', padding: '24px 16px 16px' }}>
-          <div style={{
-            fontSize: '52px', marginBottom: '8px',
-            animation: 'popIn 400ms cubic-bezier(0.34, 1.56, 0.64, 1)',
-          }}>
-            🎉
-          </div>
-          <h2 style={{ fontSize: '22px', fontWeight: 900, color: '#21201C', margin: '0 0 6px' }}>
-            {alreadyUnlocked ? 'Welcome back!' : 'Content unlocked!'}
-          </h2>
-          <p style={{ fontSize: '14px', color: '#6B6860', margin: '0', lineHeight: 1.65 }}>
-            {alreadyUnlocked
-              ? 'You already followed all accounts.'
-              : `You followed ${totalTargets} account${totalTargets !== 1 ? 's' : ''}. Enjoy!`
-            }
-          </p>
+      <div className="w-full animate-pop-in">
+        <div className="text-center mb-4">
+          <div className="text-3xl mb-1">🎉</div>
+          <h2 className="text-lg font-black text-text mb-0.5">Content unlocked!</h2>
+          <p className="text-[12px] text-textMid">Enjoy your resource.</p>
         </div>
 
-        {/* ── Content Delivery (same order as email: text → file → link → video) ── */}
-
-        {/* 1. Unlock text (if provided by creator) */}
-        {hasUnlockText && (
-          <div style={{
-            background: 'white', border: '1px solid #E6E2D9',
-            borderRadius: '16px', padding: '20px 16px', margin: '0 0 16px',
-          }}>
-            <div style={{
-              fontSize: '12px', fontWeight: 800, color: '#6B6860',
-              textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '10px',
-            }}>
-              📝 Your content
-            </div>
-            <div style={{
-              fontSize: '14px', color: '#21201C', lineHeight: 1.7,
-              fontWeight: 600, whiteSpace: 'pre-wrap', wordBreak: 'break-word',
-            }}>
-              {socialConfig.unlock_text}
-            </div>
-          </div>
-        )}
-
-        {/* 2. Download card (if file attached) */}
-        {hasFile && (
-          <div style={{
-            background: 'white', border: '1px solid #E6E2D9',
-            borderRadius: '16px', padding: '20px 16px', margin: '0 0 16px',
-          }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '14px', marginBottom: '16px' }}>
-              <div style={{
-                width: '52px', height: '52px', borderRadius: '12px',
-                background: '#F3F1EC', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                fontSize: '28px', flexShrink: 0,
-              }}>
+        {file && (
+          <div className="bg-white border border-border rounded-xl p-4 mb-4">
+            <div className="flex items-center gap-4 mb-4">
+              <div className="w-12 h-12 rounded-lg bg-surfaceAlt flex items-center justify-center text-2xl">
                 {getFileEmoji(file.original_name, file.mime_type)}
               </div>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{
-                  fontSize: '15px', fontWeight: 900, color: '#21201C',
-                  overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                }}>
-                  {link.title}
-                </div>
-                <div style={{ fontSize: '12px', color: '#AAA49C', fontWeight: 600, marginTop: '3px' }}>
+              <div className="flex-1 min-w-0">
+                <div className="text-sm font-black text-text truncate">{link.title}</div>
+                <div className="text-[11px] text-textLight font-bold">
                   {file.original_name} · {formatFileSize(file.size_bytes)}
                 </div>
               </div>
             </div>
-
             <button
               onClick={handleDownload}
               disabled={!downloadUrl}
-              style={{
-                width: '100%', height: '52px',
-                background: downloadStarted ? '#417A55' : !downloadUrl ? '#E6E2D9' : '#D97757',
-                color: 'white', border: 'none', borderRadius: '12px',
-                fontSize: '15px', fontWeight: 900, cursor: downloadUrl ? 'pointer' : 'default',
-                transition: 'background 300ms ease',
-                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
-              }}
+              className={`w-full h-12 rounded-xl text-sm font-black flex items-center justify-center gap-2 transition-all ${
+                downloadStarted ? 'bg-success text-white' : !downloadUrl ? 'bg-border text-textLight' : 'bg-brand text-white'
+              }`}
             >
-              {!downloadUrl ? 'Preparing download...' :
-                downloadStarted ? '✅ Download started' : `⬇️ Download ${file.original_name}`}
+              {!downloadUrl ? 'Preparing...' : downloadStarted ? '✅ Downloaded' : '⬇️ Download Now'}
             </button>
-
-            {downloadStarted && (
-              <p style={{
-                fontSize: '12px', color: '#6B6860', textAlign: 'center',
-                margin: '10px 0 0', lineHeight: 1.5,
-              }}>
-                Check your Downloads folder. Having trouble?{' '}
-                <span
-                  onClick={handleDownload}
-                  style={{ color: '#D97757', fontWeight: 700, cursor: 'pointer' }}
-                >
-                  Download again
-                </span>
-              </p>
-            )}
           </div>
         )}
 
-        {/* 3. External link button (if provided) */}
-        {hasUnlockUrl && (
-          <div style={{
-            background: 'white', border: '1px solid #E6E2D9',
-            borderRadius: '16px', padding: '20px 16px', margin: '0 0 16px',
-            textAlign: 'center',
-          }}>
-            <div style={{
-              fontSize: '12px', fontWeight: 800, color: '#6B6860',
-              textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '12px',
-            }}>
-              🔗 Your resource
-            </div>
+        {socialConfig?.unlock_url && (
             <a
               href={socialConfig.unlock_url}
               target="_blank"
               rel="noopener noreferrer"
-              style={{
-                display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
-                width: '100%', height: '48px',
-                background: '#21201C', color: 'white', border: 'none', borderRadius: '12px',
-                fontSize: '15px', fontWeight: 900, cursor: 'pointer', textDecoration: 'none',
-              }}
+              className="w-full h-12 bg-text text-white rounded-xl text-sm font-black flex items-center justify-center gap-2 no-underline"
             >
-              Access Your Resource →
+              Access Resource →
             </a>
-            <p style={{
-              fontSize: '11px', color: '#AAA49C', marginTop: '8px', fontWeight: 600,
-              overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-            }}>
-              {socialConfig.unlock_url}
-            </p>
-          </div>
         )}
-
-        {/* 4. YouTube embed (if set) */}
-        {hasYouTube && (
-          <YouTubeEmbed url={link.youtube_url} />
-        )}
-
-        {/* Social CTA */}
-        <div style={{
-          background: '#EFF6FF', borderRadius: '12px',
-          padding: '16px', marginBottom: '16px',
-        }}>
-          <p style={{ fontSize: '13px', color: '#2563EB', margin: '0', lineHeight: 1.65, fontWeight: 600 }}>
-            👥 Thank you for following! Stay connected for great content.
-          </p>
-        </div>
-
-        {/* Creator profile CTA */}
-        <div style={{
-          display: 'flex', alignItems: 'center', gap: '12px',
-          padding: '14px 16px',
-          border: '1px solid #E6E2D9', borderRadius: '12px',
-        }}>
-          <CreatorAvatar creator={creator} size={40} />
-          <div style={{ flex: 1 }}>
-            <div style={{ fontSize: '13px', fontWeight: 800, color: '#21201C' }}>
-              {creator.name}
-            </div>
-            <div style={{ fontSize: '12px', color: '#6B6860', fontWeight: 600 }}>
-              See more resources →
-            </div>
-          </div>
-          <button
-            onClick={() => navigate(`/@${creator.username}`)}
-            style={{
-              background: 'white', border: '1.5px solid #E6E2D9',
-              borderRadius: '8px', padding: '8px 14px',
-              fontSize: '12px', fontWeight: 800, color: '#21201C', cursor: 'pointer',
-            }}
-          >
-            View profile
-          </button>
-        </div>
-
-        <style>{`
-          @keyframes popIn {
-            0%   { transform: scale(0.5); opacity: 0; }
-            100% { transform: scale(1);   opacity: 1; }
-          }
-        `}</style>
-      </PageWrapper>
+      </div>
     )
   }
 
-  // ── Render: Locked (default) ─────────────────────────────────────────
   return (
-    <PageWrapper>
-      <CreatorRow creator={creator} />
-      <ContentPreviewCard link={link} socialConfig={socialConfig} />
-
-      {/* Follow instruction card */}
-      <div style={{
-        background: '#EFF6FF', border: '1.5px solid #93C5FD',
-        borderRadius: '14px', padding: '16px', marginBottom: '20px',
-      }}>
-        <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
-          <span style={{ fontSize: '20px', flexShrink: 0 }}>👥</span>
-          <div>
-            <div style={{ fontSize: '14px', fontWeight: 900, color: '#2563EB', marginBottom: '4px' }}>
-              {socialConfig?.custom_heading || 'Follow to unlock'}
-            </div>
-            {socialConfig?.follow_description && (
-              <div style={{ fontSize: '13px', color: '#2563EB', lineHeight: 1.6, opacity: 0.85 }}>
-                {socialConfig.follow_description}
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-
-      {/* Progress indicator */}
-      <div style={{ marginBottom: '16px' }}>
-        <div style={{
-          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          marginBottom: '8px',
-        }}>
-          <span style={{ fontSize: '13px', fontWeight: 800, color: '#21201C' }}>
-            {visitedCount} of {totalTargets} followed
-          </span>
-          {allVisited && (
-            <span style={{
-              fontSize: '11px', fontWeight: 800, color: '#417A55',
-              background: '#EBF5EE', padding: '2px 8px', borderRadius: '6px',
-            }}>
-              All done ✓
-            </span>
-          )}
-        </div>
-        <div style={{
-          height: '6px', background: '#F3F1EC', borderRadius: '3px',
-          overflow: 'hidden',
-        }}>
-          <div style={{
-            height: '100%',
-            width: `${progressPercent}%`,
-            background: allVisited ? '#417A55' : '#2563EB',
-            borderRadius: '3px',
-            transition: 'width 400ms cubic-bezier(0.34, 1.56, 0.64, 1), background 300ms ease',
-          }} />
-        </div>
-      </div>
-
-      {/* Follow target cards */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '20px' }}>
-        {followTargets.map((target) => {
-          const isVisited = visitedIds.includes(target.id)
-          return (
-            <FollowTargetCard
-              key={target.id}
-              target={target}
-              isVisited={isVisited}
-              onClick={() => handleTargetClick(target)}
-            />
-          )
-        })}
-      </div>
-
-      {/* Unlocking spinner */}
-      {isUnlocking && (
-        <div style={{
-          textAlign: 'center', padding: '20px',
-        }}>
-          <div style={{
-            display: 'inline-block', width: '28px', height: '28px',
-            border: '3px solid #E6E2D9', borderTopColor: '#2563EB',
-            borderRadius: '50%', animation: 'spin 0.8s linear infinite',
-          }} />
-          <p style={{ fontSize: '13px', color: '#6B6860', marginTop: '10px', fontWeight: 700 }}>
-            Unlocking content...
-          </p>
-        </div>
-      )}
-
-      {/* Error display */}
-      {error && (
-        <div style={{
-          background: '#FDECEA', border: '1px solid #F5C6CB',
-          borderRadius: '12px', padding: '12px 16px', marginBottom: '16px',
-        }}>
-          <p style={{ fontSize: '13px', color: '#C0392B', margin: '0', fontWeight: 700 }}>
-            {error}
-          </p>
-        </div>
-      )}
-
-      {/* Trust line */}
-      <p style={{
-        fontSize: '11px', color: '#AAA49C', textAlign: 'center',
-        margin: '12px 0 0', lineHeight: 1.6, fontWeight: 600,
-      }}>
-        Tap each account above to visit. Content unlocks automatically when all are visited.
-      </p>
-
-      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
-    </PageWrapper>
-  )
-}
-
-// ── Sub-components ────────────────────────────────────────────────────────
-
-const PageWrapper = ({ children }) => (
-  <div style={{
-    maxWidth: '560px', margin: '0 auto', padding: '24px 16px 80px',
-    fontFamily: 'Söhne, ui-sans-serif, system-ui, sans-serif', minHeight: '100vh',
-  }}>
-    {children}
-  </div>
-)
-
-const ContentPreviewCard = ({ link, socialConfig }) => {
-  const { file, title, description } = link
-  const hasFile = !!file
-  const hasYouTube = !!link.youtube_url
-
-  return (
-    <div style={{
-      background: 'white', border: '1px solid #E6E2D9',
-      borderRadius: '16px', overflow: 'hidden', marginBottom: '20px',
-    }}>
-      {/* Gradient top zone */}
-      <div style={{
-        height: '80px',
-        background: 'linear-gradient(135deg, #EFF6FF 0%, #DBEAFE 100%)',
-        display: 'flex', alignItems: 'center', padding: '0 16px', gap: '12px',
-      }}>
-        <span style={{ fontSize: '36px' }}>
-          {hasFile ? getFileEmoji(file.original_name, file.mime_type) : '👥'}
-        </span>
+    <div className="w-full">
+      <div className="bg-blue-50 border border-blue-200 rounded-xl p-3 mb-4 flex gap-3 items-start">
+        <span className="text-xl">👥</span>
         <div>
-          <div style={{
-            fontSize: '10px', fontWeight: 900, color: '#2563EB',
-            textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '3px',
-          }}>
-            👥 Social Follow
+          <div className="text-[13px] font-black text-blue-600 leading-tight mb-0.5">
+            {socialConfig?.custom_heading || 'Follow to unlock'}
           </div>
-          <div style={{ fontSize: '11px', fontWeight: 700, color: '#2563EB', opacity: 0.8 }}>
-            {hasFile ? `${file.file_type?.toUpperCase()} · ${formatFileSize(file.size_bytes)}` :
-              hasYouTube ? 'Video content' : 'Digital content'}
-          </div>
-        </div>
-      </div>
-
-      <div style={{ padding: '14px 16px' }}>
-        <h2 style={{ fontSize: '17px', fontWeight: 900, color: '#21201C', margin: '0 0 6px', lineHeight: 1.3 }}>
-          {title}
-        </h2>
-        {description && (
-          <p style={{ fontSize: '13px', color: '#6B6860', margin: '0', lineHeight: 1.65 }}>
-            {description}
-          </p>
-        )}
-
-        {/* Content type indicators */}
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginTop: '10px' }}>
-          {hasFile && (
-            <span style={{
-              fontSize: '11px', fontWeight: 700, color: '#2563EB', background: '#EFF6FF',
-              padding: '3px 8px', borderRadius: '6px',
-            }}>
-              📎 {file.original_name}
-            </span>
-          )}
-          {hasYouTube && (
-            <span style={{
-              fontSize: '11px', fontWeight: 700, color: '#6B6860', background: '#F3F1EC',
-              padding: '3px 8px', borderRadius: '6px',
-            }}>
-              ▶️ Video content
-            </span>
+          {socialConfig?.follow_description && (
+            <p className="text-[11px] text-blue-600/80 leading-normal">
+              {socialConfig.follow_description}
+            </p>
           )}
         </div>
       </div>
+
+      <div className="mb-3">
+        <div className="flex justify-between items-center mb-1 px-1">
+          <span className="text-[10px] font-black text-textMid uppercase tracking-wider">
+            Progress: {visitedCount}/{totalTargets}
+          </span>
+          {allVisited && <span className="text-[9px] font-black text-success uppercase tracking-wider">Complete ✓</span>}
+        </div>
+        <div className="h-1.5 bg-surfaceAlt rounded-full overflow-hidden">
+          <div 
+            className={`h-full transition-all duration-500 rounded-full ${allVisited ? 'bg-success' : 'bg-blue-500'}`}
+            style={{ width: `${progressPercent}%` }}
+          />
+        </div>
+      </div>
+
+      <div className="flex flex-col gap-2 mb-2">
+        {followTargets.map((target) => (
+          <FollowTargetCard
+            key={target.id}
+            target={target}
+            isVisited={visitedIds.includes(target.id)}
+            onClick={() => handleTargetClick(target)}
+          />
+        ))}
+      </div>
+
+      {isUnlocking && (
+        <div className="text-center py-4">
+          <div className="w-6 h-6 border-2 border-border border-t-blue-500 rounded-full animate-spin inline-block" />
+          <p className="text-[11px] font-bold text-textMid mt-2">Unlocking...</p>
+        </div>
+      )}
+
+      {error && <div className="bg-errorBg text-error text-[11px] font-bold p-3 rounded-lg mb-4 text-center">{error}</div>}
     </div>
   )
 }
@@ -557,109 +227,42 @@ const FollowTargetCard = ({ target, isVisited, onClick }) => {
   return (
     <button
       onClick={onClick}
-      style={{
-        width: '100%',
-        minHeight: '64px',
-        background: isVisited ? '#F0FDF4' : 'white',
-        border: `1.5px solid ${isVisited ? '#BBF7D0' : '#E6E2D9'}`,
-        borderRadius: '14px',
-        padding: '14px 16px',
-        cursor: 'pointer',
-        display: 'flex',
-        alignItems: 'center',
-        gap: '14px',
-        transition: 'all 200ms ease',
-        textAlign: 'left',
-        fontFamily: 'Söhne, ui-sans-serif, system-ui, sans-serif',
-      }}
+      className={`w-full h-14 flex items-center gap-3 px-3 rounded-xl border transition-all text-left ${
+        isVisited ? 'bg-successBg border-success/20' : 'bg-white border-border hover:border-brand/50'
+      }`}
     >
-      {/* Icon */}
-      <div style={{
-        width: '44px', height: '44px', borderRadius: '12px',
-        background: isVisited ? '#DCFCE7' : (platformInfo?.color ? `${platformInfo.color}12` : '#F3F1EC'),
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        fontSize: '22px', flexShrink: 0,
-        transition: 'background 200ms ease',
-      }}>
-        {isVisited ? '✅' : icon}
+      <div className={`w-9 h-9 rounded-lg flex items-center justify-center transition-colors overflow-hidden ${
+        isVisited ? 'bg-success/10' : 'bg-surfaceAlt'
+      }`}>
+        {isVisited ? (
+          <span className="text-lg">✅</span>
+        ) : (target.type === 'platform' && socialIcons[target.platform]) ? (
+          <img 
+            src={socialIcons[target.platform]} 
+            alt={target.platform}
+            className="w-5 h-5 object-contain"
+          />
+        ) : (
+          <span className="text-lg">{icon}</span>
+        )}
       </div>
-
-      {/* Label and status */}
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{
-          fontSize: '14px', fontWeight: 800,
-          color: isVisited ? '#417A55' : '#21201C',
-          overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-          transition: 'color 200ms ease',
-        }}>
+      <div className="flex-1 min-w-0">
+        <div className={`text-[13px] font-black truncate ${isVisited ? 'text-success' : 'text-text'}`}>
           {label}
         </div>
         {target.instruction_text && (
-          <div style={{
-            fontSize: '12px', color: isVisited ? '#417A55' : '#6B6860',
-            fontWeight: 600, marginTop: '2px', opacity: 0.8,
-            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-          }}>
+          <div className="text-[10px] font-bold text-textLight truncate opacity-80">
             {target.instruction_text}
           </div>
         )}
-        {isVisited && (
-          <div style={{
-            fontSize: '11px', fontWeight: 700, color: '#417A55',
-            marginTop: '3px',
-          }}>
-            Visited ✓
-          </div>
-        )}
       </div>
-
-      {/* Arrow / Check indicator */}
-      <div style={{
-        width: '32px', height: '32px', borderRadius: '8px',
-        background: isVisited ? '#417A55' : '#F3F1EC',
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        fontSize: '14px', flexShrink: 0,
-        color: isVisited ? 'white' : '#AAA49C',
-        fontWeight: 900,
-        transition: 'all 200ms ease',
-      }}>
+      <div className={`w-7 h-7 rounded-lg flex items-center justify-center text-xs transition-all ${
+        isVisited ? 'bg-success text-white' : 'bg-surfaceAlt text-textLight'
+      }`}>
         {isVisited ? '✓' : '→'}
       </div>
     </button>
   )
 }
-
-const YouTubeEmbed = ({ url }) => {
-  const getEmbedUrl = (u) => {
-    const match = u.match(/(?:v=|youtu\.be\/)([a-zA-Z0-9_-]{11})/)
-    return match ? `https://www.youtube.com/embed/${match[1]}` : null
-  }
-  const embedUrl = getEmbedUrl(url)
-  if (!embedUrl) return null
-  return (
-    <div style={{ borderRadius: '12px', overflow: 'hidden', marginBottom: '16px' }}>
-      <iframe
-        src={embedUrl}
-        width="100%"
-        height="220"
-        frameBorder="0"
-        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-        allowFullScreen
-        style={{ display: 'block' }}
-      />
-    </div>
-  )
-}
-
-const CreatorAvatar = ({ creator, size = 36 }) => (
-  <div style={{
-    width: size, height: size, borderRadius: '50%',
-    background: creator.avatar_color || '#D97757',
-    display: 'flex', alignItems: 'center', justifyContent: 'center',
-    fontSize: size * 0.4, fontWeight: 900, color: 'white', flexShrink: 0,
-  }}>
-    {creator.initial}
-  </div>
-)
 
 export default SocialFollowUnlock

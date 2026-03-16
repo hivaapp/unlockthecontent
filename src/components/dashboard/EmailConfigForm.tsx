@@ -16,16 +16,6 @@ interface EmailConfigFormProps {
     onErrorStateChange: (hasErrors: boolean) => void;
 }
 
-const PLATFORMS = [
-    { id: 'direct', label: 'Direct' },
-    { id: 'mailchimp', label: 'Mailchimp' },
-    { id: 'convertkit', label: 'ConvertKit' },
-    { id: 'beehiiv', label: 'Beehiiv' },
-    { id: 'substack', label: 'Substack' },
-    { id: 'klaviyo', label: 'Klaviyo' },
-    { id: 'other', label: 'Other' },
-] as const;
-
 export const EmailConfigForm = ({ value, onChange, onErrorStateChange }: EmailConfigFormProps) => {
     const [data, setData] = useState<EmailConfigData>(value || {
         newsletterName: '',
@@ -87,38 +77,6 @@ export const EmailConfigForm = ({ value, onChange, onErrorStateChange }: EmailCo
                 />
                 <span className="text-[11px] text-textLight text-right">{data.incentiveText.length}/200</span>
             </div>
-
-            <div className="flex flex-col gap-1.5">
-                <label className="text-[12px] font-[700] text-textMid">Where emails go</label>
-                <div className="flex items-center gap-2 overflow-x-auto hide-scrollbar pb-1 -mx-4 px-4 sm:mx-0 sm:px-0">
-                    {PLATFORMS.map(p => (
-                        <button
-                            key={p.id}
-                            type="button"
-                            onClick={() => {
-                                handleChange('platform', p.id);
-                                handleChange('platformDisplayName', p.label);
-                            }}
-                            className={`flex-shrink-0 h-[36px] px-3.5 rounded-[18px] text-[12px] font-[700] transition-colors border ${data.platform === p.id 
-                                ? 'bg-[#166534] text-white border-[#166534]' 
-                                : 'bg-white text-textMid border-[#E8E8E8]'}`}
-                        >
-                            {p.label}
-                        </button>
-                    ))}
-                </div>
-                {data.platform === 'direct' ? (
-                    <div className="bg-[#EDFAF3] p-3 rounded-[10px] mt-1">
-                        <span className="text-[12px] font-[600] text-[#166534]">AdGate stores subscriber emails. Download them anytime from your dashboard.</span>
-                    </div>
-                ) : (
-                    <div className="bg-[#EEF2FF] p-3 rounded-[10px] mt-1">
-                        <span className="text-[12px] font-[600] text-[#6366F1]">We'll note which platform your subscribers go to. You'll need to export and import them manually for now — direct integration coming soon.</span>
-                    </div>
-                )}
-            </div>
-
-
 
             <div className="flex flex-col gap-1.5 relative">
                 <label className="text-[12px] font-[700] text-textMid">Message shown after subscribing</label>

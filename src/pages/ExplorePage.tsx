@@ -1,10 +1,28 @@
 import { useState, useMemo, useEffect, useLayoutEffect } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { Search, Grid, List as ListIcon, ChevronRight, Sparkles, X, Mail, Share2, Handshake } from 'lucide-react';
-import { mockExploreResources, mockSearchUsers, type ExploreResource } from '../lib/mockData';
 import { getAvatarColor } from '../lib/utils';
-import { useAuth } from '../context/AuthContext';
 import { AuthBottomSheet } from '../components/AuthBottomSheet';
+import { getExploreLinks, searchUsers } from '../services/linksService';
+import { getTopCreators } from '../services/profileService';
+
+export interface ExploreResource {
+    id: string;
+    slug: string;
+    title: string;
+    creatorName: string;
+    creatorHandle: string;
+    creatorAvatar: string;
+    verified: boolean;
+    fileType: string;
+    unlockCount: string | number;
+    category: string;
+    adSource?: string;
+    isCustomSponsor?: boolean;
+    sponsorName?: string;
+    requiresClick?: boolean;
+    unlockType?: string;
+}
 
 const CATEGORIES = ['All', 'Dev', 'Design', 'Creators'];
 const SORTS = ['Most Unlocked', 'Newest', 'Trending', 'Sponsored First'];
@@ -34,10 +52,85 @@ export const ExplorePage = () => {
     const setViewMode = (view: 'grid' | 'list') => updateParams({ view: view === 'grid' ? '' : view });
     const setSearchQuery = (q: string) => updateParams({ q });
 
-    const [visibleCount, setVisibleCount] = useState(6);
+    const [resources, setResources] = useState<ExploreResource[]>([]);
+    const [topCreators, setTopCreators] = useState<any[]>([]);
+    const [searchedUsers, setSearchedUsers] = useState<any[]>([]);
+    const [isLoading, setIsLoading] = useState(true);
+    const [totalCount, setTotalCount] = useState(0);
+
+    const [visibleCount, setVisibleCount] = useState(12);
     const [isLoadingMore, setIsLoadingMore] = useState(false);
     const [isAuthSheetOpen, setIsAuthSheetOpen] = useState(false);
-    const { isLoggedIn } = useAuth();
+
+    // Fetch resources
+    useEffect(() => {
+        const fetchResources = async () => {
+            setIsLoading(true);
+            try {
+                const sortKey = sortBy === 'Newest' ? 'created_at' : sortBy === 'Trending' ? 'view_count' : 'unlock_count';
+                const { links, total } = await getExploreLinks({
+                    search: searchQuery,
+                    sortBy: sortKey as any,
+                    pageSize: 50 // Fetch more for local filtering/pagination
+                });
+
+                const formatted: ExploreResource[] = links.map((l: any) => ({
+                    id: l.id,
+                    slug: l.slug,
+                    title: l.title,
+                    creatorName: l.creator?.name || 'Unknown',
+                    creatorHandle: l.creator?.username || 'unknown',
+                    creatorAvatar: l.creator?.initial || '?',
+                    verified: l.creator?.is_verified || false,
+                    fileType: l.file?.file_type?.toUpperCase() || 'LINK',
+                    unlockCount: l.unlock_count || 0,
+                    category: 'All', // We don't have explicit category in DB yet, so we'll filter by title/desc locally
+                    unlockType: l.unlock_type || (l.mode === 'follower_pairing' ? 'follower_pairing' : undefined),
+                    sponsorName: l.sponsor_config?.brand_name,
+                    requiresClick: l.sponsor_config?.requires_click,
+                }));
+
+                setResources(formatted);
+                setTotalCount(total);
+            } catch (error) {
+                console.error('Error fetching resources:', error);
+            } finally {
+                setIsLoading(false);
+            }
+        };
+
+        fetchResources();
+    }, [searchQuery, sortBy]);
+
+    // Fetch top creators
+    useEffect(() => {
+        const fetchTopCreators = async () => {
+            try {
+                const creators = await getTopCreators(10);
+                setTopCreators(creators);
+            } catch (error) {
+                console.error('Error fetching top creators:', error);
+            }
+        };
+        fetchTopCreators();
+    }, []);
+
+    // Fetch searched users
+    useEffect(() => {
+        if (!searchQuery.trim()) {
+            setSearchedUsers([]);
+            return;
+        }
+        const fetchUsers = async () => {
+            try {
+                const users = await searchUsers(searchQuery);
+                setSearchedUsers(users);
+            } catch (error) {
+                console.error('Error searching users:', error);
+            }
+        };
+        fetchUsers();
+    }, [searchQuery]);
 
     useLayoutEffect(() => {
         const handleScroll = () => {
@@ -55,40 +148,29 @@ export const ExplorePage = () => {
     }, []);
 
     const filteredResources = useMemo(() => {
-        let res = [...mockExploreResources];
+        let res = [...resources];
         if (selectedCategory !== 'All') {
-            if (selectedCategory === 'Dev') {
-                res = res.filter(r => r.category === 'Dev' || r.title.toLowerCase().includes('dev') || r.title.toLowerCase().includes('code'));
-            } else if (selectedCategory === 'Design') {
-                res = res.filter(r => r.category === 'Design' || r.title.toLowerCase().includes('design') || r.title.toLowerCase().includes('figma'));
-            } else if (selectedCategory === 'Creators') {
-                res = res.filter(r => r.category === 'Creators' || r.title.toLowerCase().includes('creator') || r.title.toLowerCase().includes('video'));
-            } else {
-                res = res.filter(r => r.category === selectedCategory);
-            }
+            const q = selectedCategory.toLowerCase();
+            res = res.filter(r => 
+                r.title.toLowerCase().includes(q) || 
+                (r.category && r.category.toLowerCase().includes(q))
+            );
         }
-        if (searchQuery.trim()) {
-            res = res.filter(r => r.title.toLowerCase().includes(searchQuery.toLowerCase()) || r.creatorHandle?.toLowerCase().includes(searchQuery.toLowerCase()) || r.sponsorName?.toLowerCase().includes(searchQuery.toLowerCase()));
-        }
-        // Mock sort implementation
-        if (sortBy === 'Newest') res.reverse();
         if (sortBy === 'Sponsored First') {
-            res.sort((a, b) => ((!b.unlockType || b.unlockType === 'custom_sponsor') ? 1 : 0) - ((!a.unlockType || a.unlockType === 'custom_sponsor') ? 1 : 0));
+            res.sort((a, b) => {
+                const aIsSponsor = !!(a.sponsorName || a.unlockType === 'custom_sponsor');
+                const bIsSponsor = !!(b.sponsorName || b.unlockType === 'custom_sponsor');
+                if (aIsSponsor && !bIsSponsor) return -1;
+                if (!aIsSponsor && bIsSponsor) return 1;
+                return 0;
+            });
         }
         return res;
-    }, [selectedCategory, searchQuery, sortBy]);
+    }, [resources, selectedCategory]);
 
     const visibleResources = filteredResources.slice(0, visibleCount);
 
-    const filteredUsers = useMemo(() => {
-        if (!searchQuery.trim()) return [];
-        const q = searchQuery.toLowerCase();
-        return mockSearchUsers.filter(u => 
-            u.name.toLowerCase().includes(q) || 
-            u.username.toLowerCase().includes(q) ||
-            (u.bio && u.bio.toLowerCase().includes(q))
-        );
-    }, [searchQuery]);
+    const filteredUsers = searchedUsers;
 
     const handleLoadMore = () => {
         setIsLoadingMore(true);
@@ -102,10 +184,15 @@ export const ExplorePage = () => {
 
     const getFileEmoji = (type: string) => {
         switch (type) {
-            case 'ZIP': return '📦';
+            case 'ZIP': 
+            case 'ARCHIVE': return '📦';
             case 'PDF': return '📄';
-            case 'DOC': return '📝';
-            case 'IMAGES': return '🖼️';
+            case 'DOC': 
+            case 'DOCUMENT': return '📝';
+            case 'IMAGES': 
+            case 'IMAGE': return '🖼️';
+            case 'VIDEO': return '🎥';
+            case 'SPREADSHEET': return '📊';
             case 'LINK': return '🔗';
             default: return '📁';
         }
@@ -116,7 +203,7 @@ export const ExplorePage = () => {
 
             <div className="w-full max-w-[800px] px-4 pt-8 sm:pt-12 pb-6">
                 <h1 className="text-[28px] sm:text-[36px] font-black leading-tight text-text mb-2">Explore Free Resources</h1>
-                <p className="text-[15px] font-semibold text-textMid">Discover files, prompts, and guides — free with a quick ad click.</p>
+                <p className="text-[15px] font-semibold text-textMid">Discover {totalCount > 0 ? `${totalCount} ` : ''}files, prompts, and guides — free with a quick ad click.</p>
             </div>
 
             {/* Sticky Search bar on scroll simulation */}
@@ -204,13 +291,13 @@ export const ExplorePage = () => {
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                         {filteredUsers.map(user => (
                             <Link to={`/@${user.username}`} key={user.id} className="bg-white rounded-[14px] border border-border p-4 hover:border-brand transition-colors flex items-center gap-3">
-                                <div className="w-12 h-12 rounded-full flex items-center justify-center shrink-0" style={{ backgroundColor: user.avatarColor }}>
+                                <div className="w-12 h-12 rounded-full flex items-center justify-center shrink-0" style={{ backgroundColor: user.avatar_color }}>
                                     <span className="text-white font-black text-[16px]">{user.initial}</span>
                                 </div>
                                 <div className="flex-1 min-w-0">
                                     <div className="font-extrabold text-[15px] text-text flex items-center gap-1.5 truncate">
                                         {user.name}
-                                        {user.isCreator && (
+                                        {user.is_creator && (
                                             <svg width="14" height="14" viewBox="0 0 24 24" fill="#2563EB" className="shrink-0">
                                                 <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z" />
                                             </svg>
@@ -222,15 +309,11 @@ export const ExplorePage = () => {
                                     onClick={(e) => {
                                         e.preventDefault();
                                         e.stopPropagation();
-                                        if (isLoggedIn) {
-                                            window.location.href = `/@${user.username}`;
-                                        } else {
-                                            setIsAuthSheetOpen(true);
-                                        }
+                                        window.location.href = `/@${user.username}`;
                                     }}
                                     className="h-[36px] px-4 rounded-full bg-brand text-white font-extrabold text-[13px] flex items-center justify-center shrink-0 transition-transform hover:scale-105 active:scale-95"
                                 >
-                                    Message
+                                    View
                                 </button>
                             </Link>
                         ))}
@@ -239,8 +322,13 @@ export const ExplorePage = () => {
             )}
 
             {/* Resources Container */}
-            <div className="w-full max-w-[800px] px-4 flex flex-col items-center">
-                {(() => {
+            <div className="w-full max-w-[800px] px-4 flex flex-col items-center min-h-[400px]">
+                {isLoading ? (
+                    <div className="w-full py-20 flex flex-col items-center">
+                        <div className="w-10 h-10 border-4 border-brand/20 border-t-brand rounded-full animate-spin mb-4" />
+                        <p className="text-[14px] font-bold text-textMid">Fetching resources...</p>
+                    </div>
+                ) : (() => {
                     const renderResourceGrid = (resources: ExploreResource[]) => (
                         <div className="w-full grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4 mb-8">
                             {resources.map(r => (
@@ -389,32 +477,51 @@ export const ExplorePage = () => {
             </div>
 
             {/* Creator Leaderboard Section */}
-            <div className="w-full bg-white border-y border-border py-8 mt-12 overflow-hidden flex flex-col items-center">
-                <div className="w-full max-w-[800px] px-4">
-                    <h2 className="text-[20px] font-black text-text mb-6">Top Creators This Week</h2>
-                    <div className="flex gap-4 overflow-x-auto pb-4 scrollbar-hide snap-x">
-                        {[1, 2, 3, 4, 5].map(i => {
-                            const handle = ['alexcreator', 'marcdev', 'sarahm', 'designguy', 'creativeco'][i - 1];
-                            return (
-                            <div 
-                                key={i} 
-                                onClick={() => window.location.href = `/@${handle}`}
-                                className="w-[140px] shrink-0 bg-surfaceAlt border border-border rounded-[16px] p-4 flex flex-col items-center text-center snap-start snap-always cursor-pointer hover:border-brand/30 transition-colors"
-                            >
-                                <div className="w-12 h-12 rounded-full text-white flex items-center justify-center font-black text-[20px] mb-2" style={{ backgroundColor: getAvatarColor(handle) }}>{['A', 'M', 'S', 'D', 'C'][i - 1]}</div>
-                                <span className="text-[13px] font-black leading-tight mb-0.5 line-clamp-1">{i === 1 || i === 3 ? '✨ ' : ''}{['Alex Creator', 'Marc Dev', 'Sarah M.', 'Design Guy', 'Creative Co'][i - 1]}</span>
-                                <span className="text-[11px] font-bold text-textMid mb-2 truncate max-w-full">@{['alexcreator', 'marcdev', 'sarahm', 'designguy', 'creativeco'][i - 1]}</span>
-                                {i === 1 || i === 3 ? (
-                                    <span className="text-[12px] font-black text-[#4C1D95] bg-[#EDE9FE] px-2 py-0.5 rounded-[14px] mb-3">2 sponsored links</span>
-                                ) : (
-                                    <span className="text-[12px] font-black text-success bg-success/10 px-2 py-0.5 rounded-[14px] mb-3">{[1204, 950, 840, 710, 650][i - 1]} unlocks</span>
-                                )}
-                                <span className="mt-auto text-[12px] font-bold text-brand hover:underline">View Profile</span>
-                            </div>
-                        )})}
+            {/* Top Creators Leaderboard */}
+            {(topCreators.length > 0 || isLoading) && (
+                <div className="w-full bg-white border-y border-border py-8 mt-12 overflow-hidden flex flex-col items-center">
+                    <div className="w-full max-w-[800px] px-4">
+                        <h2 className="text-[20px] font-black text-text mb-6">Top Creators This Week</h2>
+                        <div className="flex gap-4 overflow-x-auto pb-4 scrollbar-hide snap-x">
+                            {isLoading ? (
+                                // Skeleton for top creators
+                                Array.from({ length: 5 }).map((_, i) => (
+                                    <div key={i} className="w-[140px] shrink-0 bg-surfaceAlt border border-border rounded-[16px] p-4 flex flex-col items-center snap-start animate-pulse">
+                                        <div className="w-12 h-12 rounded-full bg-border/50 mb-2" />
+                                        <div className="h-4 w-20 bg-border/50 rounded mb-2" />
+                                        <div className="h-3 w-16 bg-border/50 rounded" />
+                                    </div>
+                                ))
+                            ) : (
+                                topCreators.map((creator) => (
+                                    <div 
+                                        key={creator.id} 
+                                        onClick={() => window.location.href = `/@${creator.username}`}
+                                        className="w-[140px] shrink-0 bg-surfaceAlt border border-border rounded-[16px] p-4 flex flex-col items-center text-center snap-start snap-always cursor-pointer hover:border-brand/30 transition-colors"
+                                    >
+                                        <div className="w-12 h-12 rounded-full text-white flex items-center justify-center font-black text-[20px] mb-2" style={{ backgroundColor: creator.avatar_color || getAvatarColor(creator.username) }}>
+                                            {creator.initial || creator.name.charAt(0).toUpperCase()}
+                                        </div>
+                                        <span className="text-[13px] font-black leading-tight mb-0.5 line-clamp-1">
+                                            {creator.is_verified && '✨ '}
+                                            {creator.name}
+                                        </span>
+                                        <span className="text-[11px] font-bold text-textMid mb-2 truncate max-w-full">@{creator.username}</span>
+                                        
+                                        {creator.active_pairing_links_count > 0 && (
+                                            <span className="text-[12px] font-black text-success bg-success/10 px-2 py-0.5 rounded-[14px] mb-3">
+                                                {creator.active_pairing_links_count} pairings
+                                            </span>
+                                        )}
+                                        
+                                        <span className="mt-auto text-[12px] font-bold text-brand hover:underline">View Profile</span>
+                                    </div>
+                                ))
+                            )}
+                        </div>
                     </div>
                 </div>
-            </div>
+            )}
 
             {/* Standard Footer */}
             <footer className="w-full bg-white border-t border-border py-12 px-4 flex flex-col items-center mt-12">

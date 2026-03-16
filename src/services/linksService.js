@@ -282,6 +282,10 @@ export const getExploreLinks = async ({
         avatar_color,
         initial,
         is_verified
+      ),
+      sponsor_config:sponsor_configs (
+        brand_name,
+        requires_click
       )
     `, { count: 'exact' })
     .eq('is_active', true)
@@ -307,6 +311,7 @@ export const getExploreLinks = async ({
   const sortMap = {
     unlock_count: { column: 'unlock_count', ascending: false },
     created_at:   { column: 'created_at',   ascending: false },
+    view_count:   { column: 'view_count',   ascending: false },
     title:        { column: 'title',         ascending: true  },
   }
   const sort = sortMap[sortBy] || sortMap.unlock_count

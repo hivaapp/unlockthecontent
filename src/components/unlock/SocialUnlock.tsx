@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import { Twitter, Instagram, Linkedin, Youtube, ExternalLink, Check } from 'lucide-react';
+import { ExternalLink, Check } from 'lucide-react';
+import { socialIcons } from '../../assets/socialIcons';
 import type { SocialConfigData, SocialFollowTarget } from '../dashboard/SocialConfigForm';
 import { useParams } from 'react-router-dom';
 
@@ -10,21 +11,31 @@ interface SocialUnlockProps {
 
 const getPlatformIcon = (platform: string | null) => {
     switch (platform) {
-        case 'twitter': return <Twitter size={24} className="text-white" />;
-        case 'instagram': return <Instagram size={24} className="text-white" />;
-        case 'linkedin': return <Linkedin size={24} className="text-white" />;
-        case 'youtube': return <Youtube size={24} className="text-white" />;
+        case 'twitter': return <img src={socialIcons.twitter} className="w-8 h-8 object-contain" alt="Twitter" />;
+        case 'instagram': return <img src={socialIcons.instagram} className="w-8 h-8 object-contain" alt="Instagram" />;
+        case 'linkedin': return <img src={socialIcons.linkedin} className="w-8 h-8 object-contain" alt="LinkedIn" />;
+        case 'youtube': return <img src={socialIcons.youtube} className="w-8 h-8 object-contain" alt="YouTube" />;
+        case 'tiktok': return <img src={socialIcons.tiktok} className="w-8 h-8 object-contain" alt="TikTok" />;
+        case 'twitch': return <img src={socialIcons.twitch} className="w-8 h-8 object-contain" alt="Twitch" />;
+        case 'discord': return <img src={socialIcons.discord} className="w-8 h-8 object-contain" alt="Discord" />;
+        case 'telegram': return <img src={socialIcons.telegram} className="w-8 h-8 object-contain" alt="Telegram" />;
+        case 'threads': return <img src={socialIcons.threads} className="w-8 h-8 object-contain" alt="Threads" />;
         default: return <ExternalLink size={24} className="text-white" />;
     }
 };
 
 const getPlatformColor = (platform: string | null) => {
     switch (platform) {
-        case 'twitter': return 'bg-[#1DA1F2]';
+        case 'twitter': return 'bg-[#000000]';
         case 'instagram': return 'bg-gradient-to-tr from-[#FD1D1D] to-[#833AB4]';
         case 'linkedin': return 'bg-[#0A66C2]';
         case 'youtube': return 'bg-[#FF0000]';
-        default: return 'bg-[#000]';
+        case 'tiktok': return 'bg-[#000000]';
+        case 'twitch': return 'bg-[#9146FF]';
+        case 'discord': return 'bg-[#5865F2]';
+        case 'telegram': return 'bg-[#26A5E4]';
+        case 'threads': return 'bg-[#000000]';
+        default: return 'bg-[#333]';
     }
 };
 
@@ -149,7 +160,7 @@ export const SocialUnlock = ({ config, onComplete }: SocialUnlockProps) => {
 
                     return (
                         <div key={target.id} className="flex flex-col items-center relative z-10 gap-1.5" style={{ width: '32px' }}>
-                            <div className={`w-[32px] h-[32px] rounded-full flex items-center justify-center transition-all duration-300
+                             <div className={`w-[32px] h-[32px] rounded-full flex items-center justify-center transition-all duration-300 overflow-hidden
                                 ${isCompleted ? 'bg-[#EDFAF3] border-[2px] border-[#166534]' : 
                                   isCurrent ? 'bg-white border-[2px] border-[#2563EB] shadow-[0_0_0_3px_rgba(37,99,235,0.12)]' : 
                                   'bg-[#F6F6F6] border-[1.5px] border-[#E8E8E8]'}
@@ -157,9 +168,13 @@ export const SocialUnlock = ({ config, onComplete }: SocialUnlockProps) => {
                                 {isCompleted ? (
                                     <Check size={14} className="text-[#166534]" strokeWidth={4} />
                                 ) : (
-                                    <span className={`text-[13px] font-[800] ${isCurrent ? 'text-[#2563EB]' : 'text-[#BBBBBB]'}`}>
-                                        {idx + 1}
-                                    </span>
+                                    target.type === 'platform' ? (
+                                        <img src={socialIcons[target.platform as keyof typeof socialIcons]} className="w-5 h-5 object-contain" alt="" />
+                                    ) : (
+                                        <span className={`text-[13px] font-[800] ${isCurrent ? 'text-[#2563EB]' : 'text-[#BBBBBB]'}`}>
+                                            {target.customIcon || idx + 1}
+                                        </span>
+                                    )
                                 )}
                             </div>
                             <span className="text-[9px] font-[700] text-[#888] truncate w-[50px] text-center">
@@ -196,11 +211,11 @@ export const SocialUnlock = ({ config, onComplete }: SocialUnlockProps) => {
 
                 {t.type === 'platform' ? (
                     <div className="flex flex-col items-center mb-6">
-                        <div className={`w-[64px] h-[64px] rounded-full ${getPlatformColor(t.platform)} flex items-center justify-center mb-3 shadow-md`}>
+                        <div className={`w-[72px] h-[72px] rounded-[20px] bg-surfaceAlt flex items-center justify-center mb-4 border border-border shadow-sm`}>
                            {getPlatformIcon(t.platform)}
                         </div>
-                        <span className="text-[14px] font-[700] text-[#333]">{t.handle}</span>
-                        <span className="text-[11px] text-[#888] truncate max-w-[200px]">{t.profileUrl}</span>
+                        <span className="text-[15px] font-[900] text-[#111]">{t.handle}</span>
+                        <span className="text-[12px] font-[600] text-[#888] tracking-tight">{t.platform?.charAt(0).toUpperCase()}{t.platform?.slice(1)}</span>
                     </div>
                 ) : (
                     <div className="flex flex-col items-center mb-6">

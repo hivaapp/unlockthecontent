@@ -1,9 +1,0 @@
-src/pages/MyChatsHub.tsx(731,227): error TS2304: Cannot find name 'setActionSession'.
-src/pages/MyChatsHub.tsx(731,248): error TS2304: Cannot find name 'setShowActionSheet'.
-src/pages/MyChatsHub.tsx(739,227): error TS2304: Cannot find name 'setActionSession'.
-src/pages/MyChatsHub.tsx(739,248): error TS2304: Cannot find name 'setShowActionSheet'.
-src/pages/MyChatsHub.tsx(748,207): error TS2304: Cannot find name 'setActionSession'.
-src/pages/MyChatsHub.tsx(748,228): error TS2304: Cannot find name 'setShowActionSheet'.
-src/pages/MyChatsHub.tsx(774,34): error TS2304: Cannot find name 'showActionSheet'.
-src/pages/MyChatsHub.tsx(774,66): error TS2304: Cannot find name 'setShowActionSheet'.
-src/pages/MyChatsHub.tsx(776,102): error TS2304: Cannot find name 'setShowActionSheet'.

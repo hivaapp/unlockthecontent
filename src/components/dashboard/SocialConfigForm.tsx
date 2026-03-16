@@ -1,16 +1,19 @@
 import { useState, useEffect } from 'react';
 import { X, Menu } from 'lucide-react';
+import { socialIcons } from '../../assets/socialIcons';
+import { validateSocialInput } from '../../lib/socialValidation';
 
 export interface SocialFollowTarget {
     id: string;
     type: 'platform' | 'custom';
-    platform: 'instagram' | 'twitter' | 'tiktok' | 'youtube' | 'linkedin' | 'twitch' | 'discord' | 'telegram' | 'threads' | 'bluesky' | null;
+    platform: 'instagram' | 'twitter' | 'tiktok' | 'youtube' | 'linkedin' | 'twitch' | 'discord' | 'telegram' | 'threads' | null;
     handle: string | null;
     profileUrl: string | null;
     customLabel: string | null;
     customUrl: string | null;
     customIcon: string | null;
     instructionText: string | null;
+    error?: string | null;
 }
 
 export interface SocialConfigData {
@@ -28,16 +31,15 @@ interface SocialConfigFormProps {
 }
 
 const PLATFORMS = [
-    { id: 'instagram', label: 'Instagram', icon: '📸' },
-    { id: 'twitter', label: 'Twitter', icon: '🐦' },
-    { id: 'tiktok', label: 'TikTok', icon: '📱' },
-    { id: 'youtube', label: 'YouTube', icon: '▶️' },
-    { id: 'linkedin', label: 'LinkedIn', icon: '💼' },
-    { id: 'twitch', label: 'Twitch', icon: '📺' },
-    { id: 'discord', label: 'Discord', icon: '💬' },
-    { id: 'telegram', label: 'Telegram', icon: '✈️' },
-    { id: 'threads', label: 'Threads', icon: '🧵' },
-    { id: 'bluesky', label: 'Bluesky', icon: '🦋' }
+    { id: 'instagram', label: 'Instagram', icon: socialIcons.instagram },
+    { id: 'twitter', label: 'Twitter', icon: socialIcons.twitter },
+    { id: 'tiktok', label: 'TikTok', icon: socialIcons.tiktok },
+    { id: 'youtube', label: 'YouTube', icon: socialIcons.youtube },
+    { id: 'linkedin', label: 'LinkedIn', icon: socialIcons.linkedin },
+    { id: 'twitch', label: 'Twitch', icon: socialIcons.twitch },
+    { id: 'discord', label: 'Discord', icon: socialIcons.discord },
+    { id: 'telegram', label: 'Telegram', icon: socialIcons.telegram },
+    { id: 'threads', label: 'Threads', icon: socialIcons.threads }
 ] as const;
 
 export const SocialConfigForm = ({ value, onChange, onErrorStateChange }: SocialConfigFormProps) => {
@@ -63,7 +65,8 @@ export const SocialConfigForm = ({ value, onChange, onErrorStateChange }: Social
         // Deep validation of targets
         for (const t of targets) {
             if (t.type === 'platform') {
-                if (!t.platform || !t.handle || !t.profileUrl || !t.profileUrl.startsWith('https://')) {
+                const validation = validateSocialInput(t.platform || '', t.handle || t.profileUrl || '');
+                if (!validation.isValid || !t.handle || !t.profileUrl) {
                     hasErrors = true;
                     break;
                 }
@@ -108,7 +111,8 @@ export const SocialConfigForm = ({ value, onChange, onErrorStateChange }: Social
             customLabel: type === 'custom' ? '' : null,
             customUrl: type === 'custom' ? '' : null,
             customIcon: type === 'custom' ? '🔗' : null,
-            instructionText: ''
+            instructionText: '',
+            error: null
         };
         setData(prev => ({
             ...prev,
@@ -196,10 +200,14 @@ export const SocialConfigForm = ({ value, onChange, onErrorStateChange }: Social
                             >
                                 <div className="flex items-start justify-between">
                                     <div className="flex items-center gap-2">
-                                        <div className="w-[28px] h-[28px] rounded-[8px] flex items-center justify-center bg-[#F6F6F6]">
-                                            <span className="text-[20px] leading-none">
-                                                {target.type === 'platform' ? pInfo?.icon : target.customIcon}
-                                            </span>
+                                        <div className="w-[28px] h-[28px] rounded-[8px] flex items-center justify-center bg-[#F6F6F6] overflow-hidden p-1">
+                                            {target.type === 'platform' ? (
+                                                <img src={pInfo?.icon as string} className="w-full h-full object-contain" alt="" />
+                                            ) : (
+                                                <span className="text-[20px] leading-none">
+                                                    {target.customIcon}
+                                                </span>
+                                            )}
                                         </div>
                                         <span className="text-[13px] font-[800] text-[#333]">
                                             {target.type === 'platform' ? pInfo?.label : target.customLabel || 'Custom Link'}
@@ -247,31 +255,63 @@ export const SocialConfigForm = ({ value, onChange, onErrorStateChange }: Social
                                                             key={p.id}
                                                             type="button"
                                                             onClick={() => updateTarget(target.id, { platform: p.id as any })}
-                                                            className={`h-[52px] rounded-[10px] flex items-center justify-center gap-1.5 transition-all outline-none border-[1.5px] ${target.platform === p.id 
+                                                            className={`h-[52px] rounded-[10px] flex items-center justify-center gap-1.5 transition-all outline-none border-[1.5px] p-2 ${target.platform === p.id 
                                                                 ? 'bg-[#EFF6FF] border-[#2563EB] text-[#2563EB]' 
                                                                 : 'bg-white border-[#E8E8E8] text-[#111]'}`}
                                                         >
-                                                            <span className="text-[16px]">{p.icon}</span>
+                                                            <img src={p.icon as string} className="w-5 h-5 object-contain" alt="" />
                                                             <span className="text-[11px] font-[700] truncate">{p.label}</span>
                                                         </button>
                                                     ))}
                                                 </div>
                                                 <input
-                                                    className="w-full h-[44px] rounded-[6px] border border-[#E6E2D9] px-3 text-[14px]"
-                                                    placeholder="@handle"
+                                                    className={`w-full h-[44px] rounded-[6px] border px-3 text-[14px] transition-colors ${target.error ? 'border-red-500 focus:border-red-500 ring-1 ring-red-100' : 'border-[#E6E2D9] focus:border-[#D97757]'}`}
+                                                    placeholder="@handle or profile URL"
                                                     value={target.handle || ''}
-                                                    onChange={e => updateTarget(target.id, { handle: e.target.value })}
+                                                    onChange={e => {
+                                                        const val = e.target.value;
+                                                        const platform = target.platform || '';
+                                                        const validation = validateSocialInput(platform, val);
+                                                        
+                                                        updateTarget(target.id, { 
+                                                            handle: validation.isValid ? validation.handle : val,
+                                                            profileUrl: validation.isValid ? validation.profileUrl : target.profileUrl,
+                                                            error: validation.isValid ? null : validation.error
+                                                        });
+                                                    }}
                                                 />
+                                                {target.error && (
+                                                    <span className="text-[11px] font-bold text-red-500 -mt-2 ml-1">{target.error}</span>
+                                                )}
                                                 <div className="flex gap-2">
                                                     <input
-                                                        className="flex-1 h-[44px] rounded-[6px] border border-[#E6E2D9] px-3 text-[14px]"
-                                                        placeholder="https://..."
+                                                        className={`flex-1 h-[44px] rounded-[6px] border px-3 text-[14px] transition-colors ${target.error && target.profileUrl?.startsWith('http') ? 'border-red-200' : 'border-[#E6E2D9]'}`}
+                                                        placeholder="Full profile URL (https://...)"
                                                         value={target.profileUrl || ''}
-                                                        onChange={e => updateTarget(target.id, { profileUrl: e.target.value })}
+                                                        onChange={e => {
+                                                            const val = e.target.value;
+                                                            const platform = target.platform || '';
+                                                            const validation = validateSocialInput(platform, val);
+                                                            
+                                                            updateTarget(target.id, { 
+                                                                profileUrl: val,
+                                                                handle: validation.isValid ? validation.handle : target.handle,
+                                                                error: validation.isValid ? null : (val.startsWith('http') ? validation.error : null)
+                                                            });
+                                                        }}
                                                     />
                                                     <button 
-                                                        onClick={() => { if (target.profileUrl?.startsWith('https://')) window.open(target.profileUrl, '_blank') }}
-                                                        className="h-[44px] px-3 border border-[#E8E8E8] rounded-[6px] text-[13px] font-[700]"
+                                                        type="button"
+                                                        onClick={() => { 
+                                                            const platform = target.platform || '';
+                                                            const validation = validateSocialInput(platform, target.handle || target.profileUrl || '');
+                                                            if (validation.isValid) {
+                                                                window.open(validation.profileUrl, '_blank');
+                                                            } else if (target.profileUrl?.startsWith('https://')) {
+                                                                window.open(target.profileUrl, '_blank');
+                                                            }
+                                                        }}
+                                                        className="h-[44px] px-3 border border-[#E8E8E8] rounded-[6px] text-[13px] font-[700] hover:bg-surfaceAlt transition-colors"
                                                     >Test Link</button>
                                                 </div>
                                             </>
@@ -371,9 +411,9 @@ export const SocialConfigForm = ({ value, onChange, onErrorStateChange }: Social
                                     <button
                                         key={p.id}
                                         onClick={() => addTarget('platform', p.id)}
-                                        className="h-[52px] rounded-[10px] flex items-center justify-center gap-1.5 transition-all outline-none border border-[#E8E8E8] hover:border-[#BBBBBB] bg-white text-[#111]"
+                                        className="h-[52px] rounded-[10px] flex items-center justify-center gap-1.5 transition-all outline-none border border-[#E8E8E8] hover:border-[#BBBBBB] bg-white text-[#111] p-2"
                                     >
-                                        <span className="text-[16px]">{p.icon}</span>
+                                        <img src={p.icon as string} className="w-5 h-5 object-contain" alt="" />
                                         <span className="text-[11px] font-[700] truncate">{p.label}</span>
                                     </button>
                                 ))}

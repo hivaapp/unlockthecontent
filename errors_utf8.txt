@@ -1,5 +1,0 @@
-﻿src/components/dashboard/AccountabilityConfigForm.tsx(107,73): error TS2345: Argument of type 'number' is not assignable to parameter of type '7 | 14 | 21 | 30'.
-src/components/dashboard/AccountabilityConfigForm.tsx(127,77): error TS2345: Argument of type 'string' is not assignable to parameter of type '"daily" | "every_other_day" | "weekly"'.
-src/context/AuthContext.tsx(104,25): error TS2339: Property 'totalEarned' does not exist on type 'User'.
-src/context/AuthContext.tsx(105,29): error TS2339: Property 'thisMonth' does not exist on type 'User'.
-src/context/AuthContext.tsx(106,29): error TS2339: Property 'availableToWithdraw' does not exist on type 'User'.

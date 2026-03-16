@@ -2,9 +2,11 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { ChevronLeft, Check } from 'lucide-react';
+import { socialIcons } from '../assets/socialIcons';
 import { ConfirmationBottomSheet } from '../components/ui/ConfirmationBottomSheet';
 import { DashboardLayout } from '../components/dashboard/DashboardLayout';
 import { useToast } from '../context/ToastContext';
+import { validateSocialInput } from '../lib/socialValidation';
 import type { User } from '../lib/mockData';
 
 const COLORS = ['#E8312A', '#2563EB', '#166534', '#6366F1', '#B45309', '#0F172A'];
@@ -13,35 +15,33 @@ const SOCIAL_PLATFORMS = [
     { id: 'instagram', name: 'Instagram' },
     { id: 'youtube', name: 'YouTube' },
     { id: 'twitter', name: 'Twitter' },
-    { id: 'linkedin', name: 'LinkedIn' },
+    { id: 'threads', name: 'Threads' },
     { id: 'tiktok', name: 'TikTok' },
-    { id: 'discord', name: 'Discord' }
+    { id: 'linkedin', name: 'LinkedIn' },
+    { id: 'twitch', name: 'Twitch' },
+    { id: 'discord', name: 'Discord' },
+    { id: 'telegram', name: 'Telegram' }
 ];
 
 const getSocialIcon = (platform: string) => {
     switch (platform) {
-        case 'instagram': return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-[18px] h-[18px] text-[#E1306C]"><rect x="2" y="2" width="20" height="20" rx="5" ry="5"></rect><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"></path><line x1="17.5" y1="6.5" x2="17.51" y2="6.5"></line></svg>;
-        case 'youtube': return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-[18px] h-[18px] text-[#FF0000]"><path d="M22.54 6.42a2.78 2.78 0 0 0-1.94-2C18.88 4 12 4 12 4s-6.88 0-8.6.46a2.78 2.78 0 0 0-1.94 2A29 29 0 0 0 1 11.75a29 29 0 0 0 .46 5.33 2.78 2.78 0 0 0 1.94 2c1.72.46 8.6.46 8.6.46s6.88 0 8.6-.46a2.78 2.78 0 0 0 1.94-2 29 29 0 0 0 .46-5.33 29 29 0 0 0-.46-5.33z"></path><polygon points="9.75 15.02 15.5 11.75 9.75 8.48 9.75 15.02"></polygon></svg>;
-        case 'twitter': return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-[18px] h-[18px] text-black"><path d="M22 4s-.7 2.1-2 3.4c1.6 10-9.4 17.3-18 11.6 2.2.1 4.4-.6 6-2C3 15.5.5 9.6 3 5c2.2 2.6 5.6 4.1 9 4-.9-4.2 4-6.6 7-3.8 1.1 0 3-1.2 3-1.2z"></path></svg>;
-        case 'linkedin': return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-[18px] h-[18px] text-[#0A66C2]"><path d="M16 8a6 6 0 0 1 6 6v7h-4v-7a2 2 0 0 0-2-2 2 2 0 0 0-2 2v7h-4v-7a6 6 0 0 1 6-6z"></path><rect x="2" y="9" width="4" height="12"></rect><circle cx="4" cy="4" r="2"></circle></svg>;
-        case 'tiktok': return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-[18px] h-[18px] text-black"><path d="M9 12a4 4 0 1 0 4 4V4a5 5 0 0 0 5 5"></path></svg>;
-        case 'discord': return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-[18px] h-[18px] text-[#5865F2]"><path d="M15 11h.01M9 11h.01M6.2 16.5A13 13 0 0 1 3 13V8.5C3 6 5.4 4 8 4h8c2.6 0 5 2 5 4.5V13c0 1.2-.5 2.5-1.2 3.5M12 21c-3.1 0-6-1.5-8-4a11.8 11.8 0 0 1-1-4M19 19l-2-2"></path></svg>;
+        case 'instagram': return <img src={socialIcons.instagram} className="w-[18px] h-[18px] object-contain" alt="" />;
+        case 'youtube': return <img src={socialIcons.youtube} className="w-[18px] h-[18px] object-contain" alt="" />;
+        case 'twitter': return <img src={socialIcons.twitter} className="w-[18px] h-[18px] object-contain" alt="" />;
+        case 'threads': return <img src={socialIcons.threads} className="w-[18px] h-[18px] object-contain" alt="" />;
+        case 'linkedin': return <img src={socialIcons.linkedin} className="w-[18px] h-[18px] object-contain" alt="" />;
+        case 'tiktok': return <img src={socialIcons.tiktok} className="w-[18px] h-[18px] object-contain" alt="" />;
+        case 'twitch': return <img src={socialIcons.twitch} className="w-[18px] h-[18px] object-contain" alt="" />;
+        case 'discord': return <img src={socialIcons.discord} className="w-[18px] h-[18px] object-contain" alt="" />;
+        case 'telegram': return <img src={socialIcons.telegram} className="w-[18px] h-[18px] object-contain" alt="" />;
         default: return null;
     }
 }
 
 const getSocialUrl = (platform: string, handle: string | null) => {
     if (!handle) return null;
-    const clean = handle.replace('@', '').trim();
-    const urls: Record<string, string> = {
-        instagram: `https://instagram.com/${clean}`,
-        youtube: `https://youtube.com/@${clean}`,
-        twitter: `https://twitter.com/${clean}`,
-        linkedin: `https://linkedin.com/in/${clean}`,
-        tiktok: `https://tiktok.com/@${clean}`,
-        discord: `https://discord.gg/${clean}`,
-    };
-    return urls[platform] || null;
+    const validation = validateSocialInput(platform, handle);
+    return validation.isValid ? validation.profileUrl : null;
 };
 
 export const EditProfileContent = ({ isDesktop }: { isDesktop?: boolean }) => {
@@ -59,6 +59,7 @@ export const EditProfileContent = ({ isDesktop }: { isDesktop?: boolean }) => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const initialHandles = (currentUser as any)?.socialHandles || {};
     const [socialHandles, setSocialHandles] = useState<Record<string, string>>(initialHandles);
+    const [socialErrors, setSocialErrors] = useState<Record<string, string>>({});
 
     const [saving, setSaving] = useState(false);
     const [hasChanges, setHasChanges] = useState(false);
@@ -80,8 +81,8 @@ export const EditProfileContent = ({ isDesktop }: { isDesktop?: boolean }) => {
     const handleSave = async () => {
         if (!hasChanges) return;
         setSaving(true);
-        await new Promise(r => setTimeout(r, 1000));
-        await updateProfile({
+        try {
+            await updateProfile({
             name: displayName,
             username,
             bio,
@@ -90,10 +91,16 @@ export const EditProfileContent = ({ isDesktop }: { isDesktop?: boolean }) => {
             avatarColor: selectedColor,
             socialHandles,
         } as Partial<User>);
-        setSaving(false);
-        setHasChanges(false);
-        addToast("Profile updated.", "success");
-        if (!isDesktop) navigate(-1);
+            setSaving(false);
+            setHasChanges(false);
+            addToast("Profile updated.", "success");
+            // Explicitly navigate back to dashboard account tab
+            navigate('/dashboard?tab=account');
+        } catch (err) {
+            console.error('Failed to update profile:', err);
+            addToast("Failed to update profile", "error");
+            setSaving(false);
+        }
     };
 
     const handleDelete = () => {
@@ -106,7 +113,17 @@ export const EditProfileContent = ({ isDesktop }: { isDesktop?: boolean }) => {
     };
 
     const updateHandle = (platform: string, value: string) => {
-        setSocialHandles(prev => ({ ...prev, [platform]: value }));
+        const validation = validateSocialInput(platform, value);
+        
+        setSocialHandles(prev => ({ 
+            ...prev, 
+            [platform]: validation.isValid ? validation.handle : value 
+        }));
+
+        setSocialErrors(prev => ({
+            ...prev,
+            [platform]: (value && !validation.isValid) ? (validation.error || 'Invalid') : ''
+        }));
     };
 
     const usernameValid = /^[a-z0-9_]*$/.test(username);
@@ -123,8 +140,8 @@ export const EditProfileContent = ({ isDesktop }: { isDesktop?: boolean }) => {
                 <h1 className="text-[17px] font-black text-[#111] absolute left-1/2 -translate-x-1/2">Edit Profile</h1>
                 <button 
                     onClick={handleSave} 
-                    disabled={!hasChanges || saving || !usernameValid}
-                    className={`text-[14px] font-extrabold transition-colors ${!hasChanges || saving || !usernameValid ? 'text-[#AAAAAA]' : 'text-[#E8312A]'}`}
+                    disabled={!hasChanges || saving || !usernameValid || Object.values(socialErrors).some(e => !!e)}
+                    className={`text-[14px] font-extrabold transition-colors ${!hasChanges || saving || !usernameValid || Object.values(socialErrors).some(e => !!e) ? 'text-[#AAAAAA]' : 'text-[#E8312A]'}`}
                 >
                     {saving ? 'Saving...' : 'Save'}
                 </button>
@@ -198,8 +215,11 @@ export const EditProfileContent = ({ isDesktop }: { isDesktop?: boolean }) => {
                                         placeholder="@handle or paste profile URL" 
                                         value={val} 
                                         onChange={e => updateHandle(platform.id, e.target.value)} 
-                                        className="w-full h-[36px] border-[1.5px] border-[#E8E8E8] rounded-[8px] px-3 font-semibold text-[13px] text-[#333] focus:border-[#E8312A] outline-none transition-colors" 
+                                        className={`w-full h-[36px] border-[1.5px] rounded-[8px] px-3 font-semibold text-[13px] text-[#333] outline-none transition-colors ${socialErrors[platform.id] ? 'border-red-500 focus:border-red-500' : 'border-[#E8E8E8] focus:border-[#E8312A]'}`} 
                                     />
+                                    {socialErrors[platform.id] && (
+                                        <span className="text-[10px] font-bold text-red-500 mt-1">{socialErrors[platform.id]}</span>
+                                    )}
                                 </div>
                                 {url && (
                                     <a href={url} target="_blank" rel="noopener noreferrer" className="text-[12px] font-bold text-[#E8312A] hover:underline whitespace-nowrap pt-[20px] pr-1">
@@ -270,10 +290,18 @@ export const EditProfileContent = ({ isDesktop }: { isDesktop?: boolean }) => {
 }
 
 export const EditProfile = () => {
+    const navigate = useNavigate();
     return (
         <div className="fixed inset-0 z-[100] bg-white lg:static lg:bg-transparent lg:z-0 w-full h-full overflow-y-auto lg:overflow-visible animate-slideInRight lg:animate-none">
             <div className="hidden lg:block w-full h-full">
-                <DashboardLayout currentTab="account" onTabChange={() => {}}>
+                <DashboardLayout 
+                    currentTab="account" 
+                    onTabChange={(tab) => {
+                        if (tab === 'chats') navigate('/chats');
+                        else if (tab === 'explore') navigate('/explore');
+                        else navigate(`/dashboard?tab=${tab}`);
+                    }}
+                >
                     <EditProfileContent isDesktop={true} />
                 </DashboardLayout>
             </div>

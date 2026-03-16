@@ -24,10 +24,10 @@ export const SignIn = () => {
             <div className="w-full max-w-[400px] bg-white rounded-[24px] p-6 sm:p-8 shadow-sm border border-border">
                 <div className="flex flex-col items-center mb-8">
                     <div className="w-12 h-12 bg-brand rounded-[16px] text-white flex items-center justify-center font-black text-[18px] mb-4 shadow-[0_4px_16px_rgba(217,119,87,0.3)]">
-                        AG
+                        UC
                     </div>
                     <h1 className="text-[24px] font-black text-text mb-2 text-center">Welcome back</h1>
-                    <p className="text-[14px] font-bold text-textMid text-center">Sign in to your AdGate account</p>
+                    <p className="text-[14px] font-bold text-textMid text-center">Sign in to your UnlockTheContent account</p>
                 </div>
 
                 <form onSubmit={handleSubmit} className="flex flex-col gap-4">

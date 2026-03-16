@@ -211,7 +211,7 @@ export const Landing = () => {
     };
 
     const copyToClipboard = () => {
-        navigator.clipboard.writeText(`https://adgate.vip/r/${generatedSlug}`);
+        navigator.clipboard.writeText(`https://unlockthecontent.com/r/${generatedSlug}`);
         setIsCopied(true);
         setTimeout(() => setIsCopied(false), 2000);
     };
@@ -431,7 +431,7 @@ export const Landing = () => {
                                         <>
                                             <div className="flex-1 h-[56px] rounded-[14px] border-2 px-4 flex items-center relative overflow-hidden transition-colors bg-brandTint border-brand/30">
                                                 <span className="text-[14px] sm:text-[15px] font-[900] text-black bg-[#F3F1EC] px-3 sm:px-4 py-2 sm:py-[10px] rounded-lg border-2 border-[#E6E2D9] tracking-tight">
-                                    adgate.vip/r/{generatedSlug}
+                                    unlockthecontent.com/r/{generatedSlug}
                                 </span>            </div>
                                             <button onClick={copyToClipboard} className={`h-[56px] w-[56px] rounded-[14px] flex items-center justify-center text-white transition-colors shrink-0 shadow-sm ${isCopied ? 'bg-success' : 'bg-brand hover:bg-brand-hover'}`}>
                                                 {isCopied ? <Check size={24} /> : <LinkIcon size={24} />}
@@ -688,7 +688,7 @@ export const Landing = () => {
                                 {isLoggedIn ? (
                                     <>
                                         <div className="flex-1 h-[40px] rounded-[10px] px-3 flex items-center relative overflow-hidden transition-colors bg-[#F3F1EC]">
-                                            <span className="font-bold font-mono text-[13px] truncate text-text">adgate.vip/r/{generatedSlug}</span>
+                                            <span className="font-bold font-mono text-[13px] truncate text-text">unlockthecontent.com/r/{generatedSlug}</span>
                                         </div>
                                         <button onClick={copyToClipboard} className={`w-[40px] h-[40px] rounded-full flex items-center justify-center text-white transition-colors shrink-0 shadow-sm ${isCopied ? 'bg-success' : 'bg-[#E8312A]'}`}>
                                             {isCopied ? <Check size={18} /> : <LinkIcon size={18} />}
@@ -756,9 +756,9 @@ export const Landing = () => {
                 <div className="w-full max-w-[1000px] flex flex-col md:flex-row justify-between items-center gap-6">
                     <div className="flex items-center gap-2 opacity-80">
                         <div className="w-6 h-6 rounded-[14px] bg-text text-white flex items-center justify-center font-black text-[10px] leading-none shrink-0">
-                            AG
+                            UC
                         </div>
-                        <span className="font-black text-[16px] tracking-tight text-text">AdGate</span>
+                        <span className="font-black text-[16px] tracking-tight text-text">UnlockTheContent</span>
                     </div>
 
                     <div className="flex items-center gap-6 text-[13px] font-bold text-textMid">
@@ -769,7 +769,7 @@ export const Landing = () => {
                     </div>
 
                     <div className="text-[12px] font-bold text-textLight">
-                        © {new Date().getFullYear()} AdGate Inc. All rights reserved.
+                        © {new Date().getFullYear()} UnlockTheContent Inc. All rights reserved.
                     </div>
                 </div>
             </footer>

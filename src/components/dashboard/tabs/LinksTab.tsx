@@ -361,6 +361,7 @@ export const LinksTab = ({ searchQuery, setSearchQuery }: { searchQuery: string,
                                     link={link}
                                     onEdit={() => setEditLinkData(link)}
                                     onMore={() => setMoreActionLink(link)}
+                                    onAnalytics={() => setAnalyticsLink(link)}
                                     isPending={pendingIds.has(link.id)}
                                 />
                             </div>

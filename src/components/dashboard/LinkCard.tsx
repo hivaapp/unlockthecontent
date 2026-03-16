@@ -6,10 +6,11 @@ interface LinkCardProps {
     link: DashboardLink;
     onEdit: () => void;
     onMore: () => void;
+    onAnalytics?: () => void;
     isPending?: boolean;
 }
 
-export const LinkCard = ({ link, onEdit, onMore, isPending }: LinkCardProps) => {
+export const LinkCard = ({ link, onEdit, onMore, onAnalytics, isPending }: LinkCardProps) => {
     const { showToast } = useToast();
     const isDisabled = link.status === 'disabled';
 
@@ -97,7 +98,10 @@ export const LinkCard = ({ link, onEdit, onMore, isPending }: LinkCardProps) => 
 
             {/* 4. Stats Row */}
             {(!link.unlockType || link.unlockType === 'custom_sponsor') ? (
-                <div className={`grid w-full mt-1 border border-border rounded-[14px] grid-cols-3 bg-surfaceAlt`}>
+                <button 
+                    onClick={(e) => { e.stopPropagation(); onAnalytics?.(); }}
+                    className="grid w-full mt-1 border border-border rounded-[14px] grid-cols-3 bg-surfaceAlt hover:bg-border transition-colors group border-0 text-left cursor-pointer overflow-hidden"
+                >
                     <div className="flex flex-col justify-center items-center py-2 border-r border-border">
                         <span className="text-[10px] sm:text-[11px] font-bold text-textLight uppercase tracking-wider mb-0.5">Views</span>
                         <span className="text-[14px] font-black text-text leading-none">{link.views.toLocaleString()}</span>
@@ -106,49 +110,58 @@ export const LinkCard = ({ link, onEdit, onMore, isPending }: LinkCardProps) => 
                         <span className="text-[10px] sm:text-[11px] font-bold text-textLight uppercase tracking-wider mb-0.5">Watches</span>
                         <span className="text-[14px] font-black text-brand leading-none">{link.customAd?.videoWatches?.toLocaleString() || link.unlocks.toLocaleString()}</span>
                     </div>
-                    <div className="flex flex-col justify-center items-center py-2 rounded-r-[14px]">
+                    <div className="flex flex-col justify-center items-center py-2">
                         <span className="text-[10px] sm:text-[11px] font-bold text-textLight uppercase tracking-wider mb-0.5">Clicks</span>
                         <span className="text-[14px] font-black text-[#6366F1] leading-none">{(link.clicks || 0) > 0 ? (link.clicks || 0).toLocaleString() : link.unlocks.toLocaleString()}</span>
                     </div>
-                </div>
+                </button>
             ) : link.unlockType === 'email_subscribe' ? (
-                <div className={`grid w-full mt-1 border border-border rounded-[14px] grid-cols-2 bg-surfaceAlt`}>
+                <button 
+                    onClick={(e) => { e.stopPropagation(); onAnalytics?.(); }}
+                    className="grid w-full mt-1 border border-border rounded-[14px] grid-cols-2 bg-surfaceAlt hover:bg-border transition-colors group border-0 text-left cursor-pointer overflow-hidden"
+                >
                     <div className="flex flex-col justify-center items-center py-2 border-r border-border">
                         <span className="text-[10px] sm:text-[11px] font-bold text-textLight uppercase tracking-wider mb-0.5">Views</span>
                         <span className="text-[14px] font-black text-text leading-none">{link.views.toLocaleString()}</span>
                     </div>
-                    <div className="flex flex-col justify-center items-center py-2 bg-surfaceAlt rounded-r-[14px]">
-                        <span className="text-[10px] sm:text-[11px] font-bold text-textLight uppercase tracking-wider mb-0.5">Subscribers</span>
+                    <div className="flex flex-col justify-center items-center py-2">
+                        <span className="text-[10px] sm:text-[11px] font-bold text-textLight uppercase tracking-wider mb-0.5 group-hover:text-brand transition-colors">Emails</span>
                         <span className="text-[14px] font-black text-brand leading-none">{link.unlocks.toLocaleString()}</span>
                     </div>
-                </div>
+                </button>
             ) : link.unlockType === 'social_follow' ? (
-                <div className={`grid w-full mt-1 border border-border rounded-[14px] grid-cols-3 bg-surfaceAlt`}>
+                <button 
+                    onClick={(e) => { e.stopPropagation(); onAnalytics?.(); }}
+                    className="grid w-full mt-1 border border-border rounded-[14px] grid-cols-3 bg-surfaceAlt hover:bg-border transition-colors group border-0 text-left cursor-pointer overflow-hidden"
+                >
                     <div className="flex flex-col justify-center items-center py-2 border-r border-border">
                         <span className="text-[10px] sm:text-[11px] font-bold text-textLight uppercase tracking-wider mb-0.5">Completions</span>
                         <span className="text-[14px] font-black text-brand leading-none">{link.unlocks?.toLocaleString()}</span>
                         <span className="text-[9px] font-bold text-textMid mt-[2px]">All Targets</span>
                     </div>
-                    <div className="flex flex-col justify-center items-center py-2 border-r border-border bg-surfaceAlt">
+                    <div className="flex flex-col justify-center items-center py-2 border-r border-border">
                         <span className="text-[10px] sm:text-[11px] font-bold text-textLight uppercase tracking-wider mb-0.5">Avg Rate</span>
                         <span className="text-[14px] font-black text-text leading-none">{link.views ? Math.round((link.unlocks / link.views) * 100) : 0}%</span>
                     </div>
-                    <div className="flex flex-col justify-center items-center py-2 bg-surfaceAlt rounded-r-[14px]">
+                    <div className="flex flex-col justify-center items-center py-2">
                         <span className="text-[10px] sm:text-[11px] font-bold text-textLight uppercase tracking-wider mb-0.5">Targets</span>
                         <span className="text-[14px] font-black text-text leading-none">{link.socialConfig?.followTargets ? (link.socialConfig.followTargets as any[]).length : 1}</span>
                     </div>
-                </div>
+                </button>
             ) : (
-                <div className={`grid w-full mt-1 border border-border rounded-[14px] grid-cols-2 bg-surfaceAlt`}>
+                <button 
+                    onClick={(e) => { e.stopPropagation(); onAnalytics?.(); }}
+                    className="grid w-full mt-1 border border-border rounded-[14px] grid-cols-2 bg-surfaceAlt hover:bg-border transition-colors group border-0 text-left cursor-pointer overflow-hidden"
+                >
                     <div className="flex flex-col justify-center items-center py-2 border-r border-border">
                         <span className="text-[10px] sm:text-[11px] font-bold text-textLight uppercase tracking-wider mb-0.5">Views</span>
                         <span className="text-[14px] font-black text-text leading-none">{link.views.toLocaleString()}</span>
                     </div>
-                    <div className="flex flex-col justify-center items-center py-2 bg-surfaceAlt rounded-r-[14px]">
-                        <span className="text-[10px] sm:text-[11px] font-bold text-textLight uppercase tracking-wider mb-0.5">Matched</span>
+                    <div className="flex flex-col justify-center items-center py-2">
+                        <span className="text-[10px] sm:text-[11px] font-bold text-textLight uppercase tracking-wider mb-0.5 group-hover:text-brand transition-colors">Matched</span>
                         <span className="text-[14px] font-black text-brand leading-none">{link.unlocks.toLocaleString()}</span>
                     </div>
-                </div>
+                </button>
             )}
 
             {/* 5. Actions Row */}

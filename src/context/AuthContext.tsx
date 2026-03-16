@@ -276,7 +276,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
         // If a referral code was provided, store it temporarily in localStorage.
         if (referralCode) {
-            localStorage.setItem('adgate_referral_code', referralCode);
+            localStorage.setItem('unlockthecontent_referral_code', referralCode);
         }
 
         return {

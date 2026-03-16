@@ -250,3 +250,81 @@ export const exportSubscribersCSV = async (linkId: string, linkTitle: string) =>
     .eq('link_id', linkId)
     .is('exported_at', null)
 }
+
+// ── Get all unique subscribers for a creator ────────────────────────────
+
+export const getAllUniqueSubscribers = async (creatorId: string, { page = 0, pageSize = 50 } = {} as any) => {
+  // We use a group by or distinct on email to get unique subscribers across all links
+  // Supabase doesn't support SELECT DISTINCT ON (email) easily with count, 
+  // so we'll fetch them all and handle deduplication if needed, or better, 
+  // use a query that gets the most recent record for each email.
+  
+  const { data, error } = await supabase
+    .from('email_subscribers')
+    .select('id, email, subscribed_at, content_accessed')
+    .eq('creator_id', creatorId)
+    .order('subscribed_at', { ascending: false })
+    // Note: Simple distinct by email is tricky in current Supabase JS without RPC
+    // For now, we'll fetch and the UI can handle display, or we can use a more advanced query
+    
+  if (error) throw error
+
+  // Deduplicate by email in JS for simplicity/correctness for now
+  const uniqueMap = new Map();
+  data?.forEach(sub => {
+    if (!uniqueMap.has(sub.email)) {
+      uniqueMap.set(sub.email, sub);
+    }
+  });
+
+  const uniqueSubscribers = Array.from(uniqueMap.values());
+  const paginated = uniqueSubscribers.slice(page * pageSize, (page + 1) * pageSize);
+
+  return { 
+    subscribers: paginated, 
+    total: uniqueSubscribers.length 
+  };
+}
+
+// ── Export all unique subscribers for a creator ─────────────────────────
+
+export const exportAllSubscribersCSV = async (creatorId: string) => {
+  const { data, error } = await supabase
+    .from('email_subscribers')
+    .select('email, subscribed_at, content_accessed')
+    .eq('creator_id', creatorId)
+    .order('subscribed_at', { ascending: false })
+
+  if (error) throw error
+  if (!data || data.length === 0) throw new Error('No subscribers found.')
+
+  // Deduplicate
+  const uniqueEmails = new Set();
+  const rows = [];
+  
+  for (const sub of data) {
+    if (!uniqueEmails.has(sub.email)) {
+      uniqueEmails.add(sub.email);
+      rows.push([
+        sub.email,
+        new Date(sub.subscribed_at).toLocaleDateString('en-IN'),
+        sub.content_accessed ? 'Yes' : 'No'
+      ]);
+    }
+  }
+
+  const headers = ['Email', 'First Subscribed At', 'Any Content Accessed']
+  const csvContent = [headers, ...rows]
+    .map(row => row.map(cell => `"${cell}"`).join(','))
+    .join('\n')
+
+  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `all-subscribers-${Date.now()}.csv`
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+  URL.revokeObjectURL(url)
+}

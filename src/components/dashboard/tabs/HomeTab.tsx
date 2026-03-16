@@ -1,12 +1,40 @@
 
+import { useState, useEffect } from 'react';
 import { useAuth } from '../../../context/AuthContext';
 import { CountUp } from '../../ui/CountUp';
-import { Copy, Plus, ArrowRight } from 'lucide-react';
+import { Copy, Plus, ArrowRight, UserCheck, Download } from 'lucide-react';
 import { useToast } from '../../../context/ToastContext';
+import { getAllUniqueSubscribers } from '../../../services/emailSubscribeService';
+import { GlobalSubscribersSheet } from '../GlobalSubscribersSheet';
+import { getCreatorLinks } from '../../../services/linksService';
 
 export const HomeTab = ({ onTabChange }: { onTabChange: (tab: 'home' | 'links' | 'chats' | 'account') => void }) => {
     const { currentUser: user } = useAuth();
     const { showToast } = useToast();
+    const [subscriberCount, setSubscriberCount] = useState<number | null>(null);
+    const [totalViews, setTotalViews] = useState<number>(0);
+    const [isSubscribersSheetOpen, setIsSubscribersSheetOpen] = useState(false);
+
+    useEffect(() => {
+        if (user?.id) {
+            loadStats();
+        }
+    }, [user?.id]);
+
+    const loadStats = async () => {
+        try {
+            // Fetch subscriber count
+            const subData = await getAllUniqueSubscribers(user!.id, { pageSize: 1 });
+            setSubscriberCount(subData.total);
+
+            // Fetch total views from links
+            const links = await getCreatorLinks(user!.id);
+            const views = links.reduce((acc, link) => acc + (link.view_count || 0), 0);
+            setTotalViews(views);
+        } catch (err) {
+            console.error('Failed to load home stats:', err);
+        }
+    };
 
     // Mock Data
     const latestLink = { url: 'adga.te/r/design-system', exists: true };
@@ -23,7 +51,7 @@ export const HomeTab = ({ onTabChange }: { onTabChange: (tab: 'home' | 'links' |
     };
 
     return (
-        <div className="flex flex-col gap-6 px-4 pt-4 sm:pt-8 w-full">
+        <div className="flex flex-col gap-6 px-4 pt-4 sm:pt-8 w-full pb-8">
             {/* Greeting Strip */}
             <div className="w-full h-[88px] rounded-[18px] bg-gradient-to-r from-[#D97757] to-[#C4663F] p-5 flex items-center justify-between shadow-sm relative overflow-hidden">
                 <div className="absolute -top-10 -right-10 w-32 h-32 bg-white/10 rounded-full blur-2xl" />
@@ -38,22 +66,44 @@ export const HomeTab = ({ onTabChange }: { onTabChange: (tab: 'home' | 'links' |
                 </div>
             </div>
 
-            {/* Stats Row */}
-            <div className="grid grid-cols-2 gap-[10px] w-full">
-                <div className="card h-auto p-4 flex gap-1 flex-col shadow-none">
-                    <span className="text-[20px] leading-none mb-1">👀</span>
-                    <span className="text-[24px] font-black leading-none text-text">
-                        <CountUp end={1284} />
-                    </span>
-                    <span className="text-[11px] font-bold text-textMid">Total Views</span>
+            {/* Stats Grid */}
+            <div className="flex flex-col gap-3">
+                <div className="grid grid-cols-2 gap-3">
+                    <div className="card h-auto p-4 flex gap-1 flex-col shadow-none bg-surfaceAlt border-0">
+                        <span className="text-[20px] leading-none mb-1">👀</span>
+                        <span className="text-[24px] font-black leading-none text-text">
+                            <CountUp end={totalViews || 1284} />
+                        </span>
+                        <span className="text-[11px] font-bold text-textMid uppercase tracking-wide">Total Views</span>
+                    </div>
+                    <button 
+                        onClick={() => setIsSubscribersSheetOpen(true)}
+                        className="card h-auto p-4 flex gap-1 flex-col shadow-none bg-brand/5 border-brand/10 hover:bg-brand/10 transition-colors text-left border cursor-pointer"
+                    >
+                        <span className="text-[20px] leading-none mb-1">📧</span>
+                        <span className="text-[24px] font-black leading-none text-brand">
+                            <CountUp end={subscriberCount !== null ? subscriberCount : 842} />
+                        </span>
+                        <span className="text-[11px] font-bold text-brand uppercase tracking-wide flex items-center gap-1">
+                            Subscribers <ArrowRight size={10} />
+                        </span>
+                    </button>
                 </div>
-                <div className="card h-auto p-4 flex gap-1 flex-col shadow-none">
-                    <span className="text-[20px] leading-none mb-1">▶️</span>
-                    <span className="text-[24px] font-black leading-none text-text">
-                        <CountUp end={842} />
-                    </span>
-                    <span className="text-[11px] font-bold text-textMid">Video Watches</span>
-                </div>
+                
+                {subscriberCount !== null && subscriberCount > 0 && (
+                    <button 
+                        onClick={() => setIsSubscribersSheetOpen(true)}
+                        className="w-full flex items-center justify-between p-3 rounded-[12px] bg-white border border-border hover:border-brand/40 transition-all group"
+                    >
+                        <div className="flex items-center gap-3">
+                            <div className="w-8 h-8 rounded-full bg-brandTint flex items-center justify-center text-brand">
+                                <UserCheck size={16} />
+                            </div>
+                            <span className="text-[13px] font-bold text-text">Export all captured emails</span>
+                        </div>
+                        <Download size={16} className="text-textLight group-hover:text-brand transition-colors" />
+                    </button>
+                )}
             </div>
 
             {/* Quick Share Strip */}
@@ -116,7 +166,7 @@ export const HomeTab = ({ onTabChange }: { onTabChange: (tab: 'home' | 'links' |
             </div>
 
             {/* Tips Cards */}
-            <div className="flex flex-col w-full mb-8">
+            <div className="flex flex-col w-full mb-4">
                 <h3 className="text-[14px] font-extrabold text-text mb-3">Creator Tips</h3>
 
                 <div className="flex sm:grid sm:grid-cols-2 gap-4 overflow-x-auto pb-4 -mx-4 px-4 sm:mx-0 sm:px-0 sm:pb-0 hide-scrollbar snap-x snap-mandatory">
@@ -133,6 +183,11 @@ export const HomeTab = ({ onTabChange }: { onTabChange: (tab: 'home' | 'links' |
                     </div>
                 </div>
             </div>
+
+            <GlobalSubscribersSheet 
+                isOpen={isSubscribersSheetOpen} 
+                onClose={() => setIsSubscribersSheetOpen(false)} 
+            />
         </div>
     );
 };
