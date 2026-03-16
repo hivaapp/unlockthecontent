@@ -150,7 +150,6 @@ const ResourceUnlockPage = () => {
             background: 'white',
             border: '1px solid #E6E2D9',
             borderRadius: '12px',
-            marginRight: '8px',
             marginRight: '12px',
             cursor: 'pointer',
             transition: 'all 0.2s',
