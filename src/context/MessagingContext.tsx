@@ -1,7 +1,10 @@
-import { createContext, useContext, useState, useCallback } from 'react';
+import { createContext, useContext, useState, useCallback, useEffect } from 'react';
 import type { ReactNode } from 'react';
+import { useAuth } from './AuthContext';
+import * as messageService from '../services/messageService';
+import { supabase } from '../lib/supabase';
 
-// --- Types ---
+// --- Types (Kept same as original for UI compatibility) ---
 export interface MessageSender {
   id: string;
   name: string;
@@ -10,9 +13,7 @@ export interface MessageSender {
   avatarColor: string;
   trustScore: number;
   isCreator: boolean;
-  joinedDate: string;
-  bio?: string;
-  socialHandles?: Record<string, string | null>;
+  joinedDate?: string;
 }
 
 export interface MessageRequest {
@@ -32,8 +33,8 @@ export interface DMParticipant {
   initial: string;
   avatarColor: string;
   isCreator?: boolean;
-  bio?: string;
   trustScore?: number;
+  bio?: string;
   joinedDate?: string;
 }
 
@@ -60,131 +61,17 @@ export interface DirectConversation {
   messages: DMMessage[];
 }
 
-// --- Mock Data ---
-export const mockMessageRequests: MessageRequest[] = [
-  {
-    requestId: "req_001",
-    status: "pending",
-    sender: {
-      id: "user_viewer_001",
-      name: "Rahul Sharma",
-      username: "rahulsharma",
-      initial: "R",
-      avatarColor: "#2563EB",
-      trustScore: 82,
-      isCreator: false,
-      joinedDate: "2024-06-15",
-    },
-    recipientId: "creator_001",
-    openingMessage: "Hey James! I have been following your productivity content for months. Your time-blocking framework completely changed how I work. I wanted to ask you about how you handle deep work sessions when you have a lot of meetings in a day.",
-    sentAt: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
-    respondedAt: null,
-  },
-  {
-    requestId: "req_002",
-    status: "pending",
-    sender: {
-      id: "user_viewer_002",
-      name: "Preethi Nair",
-      username: "preethinks",
-      initial: "P",
-      avatarColor: "#166534",
-      trustScore: 91,
-      isCreator: true,
-      joinedDate: "2024-03-20",
-    },
-    recipientId: "creator_001",
-    openingMessage: "Hi James, I am a fellow creator in the productivity space. I run a newsletter on focus and deep work for remote workers. Would love to explore a collaboration or content swap if you are open to it.",
-    sentAt: new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString(),
-    respondedAt: null,
-  },
-  {
-    requestId: "req_003",
-    status: "approved",
-    sender: {
-      id: "user_viewer_003",
-      name: "Karan Dev",
-      username: "karandev",
-      initial: "K",
-      avatarColor: "#6366F1",
-      trustScore: 76,
-      isCreator: false,
-      joinedDate: "2024-08-01",
-    },
-    recipientId: "creator_001",
-    openingMessage: "James! Quick question about your Notion setup from the last video. Do you use a separate workspace for personal vs work or keep everything in one?",
-    sentAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
-    respondedAt: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString(),
-  },
-];
-
-export const mockDirectConversations: DirectConversation[] = [
-  {
-    conversationId: "dm_001",
-    requestId: "req_003",
-    participants: [
-      {
-        id: "creator_001",
-        name: "James Productivity",
-        username: "jamesproductivity",
-        initial: "J",
-        avatarColor: "#E8312A",
-        isCreator: true,
-        bio: "I help people build better systems for work and life.",
-        trustScore: 95,
-        joinedDate: "2024-01-15",
-      },
-      {
-        id: "user_viewer_003",
-        name: "Karan Dev",
-        username: "karandev",
-        initial: "K",
-        avatarColor: "#6366F1",
-        isCreator: false,
-        bio: "Developer & productivity enthusiast.",
-        trustScore: 76,
-        joinedDate: "2024-08-01",
-      }
-    ],
-    createdAt: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString(),
-    lastMessage: {
-      content: "Yeah I keep everything in one workspace. Databases with filtered views do the heavy lifting.",
-      senderId: "creator_001",
-      timestamp: new Date(Date.now() - 3 * 60 * 60 * 1000).toISOString(),
-    },
-    unreadCount: 1,
-    messages: [
-      {
-        messageId: "dm_msg_001",
-        senderId: "user_viewer_003",
-        content: "James! Quick question about your Notion setup from the last video. Do you use a separate workspace for personal vs work or keep everything in one?",
-        timestamp: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
-        type: "text",
-        isOpeningMessage: true,
-      },
-      {
-        messageId: "dm_msg_002",
-        senderId: "creator_001",
-        content: "Great question! Yeah I keep everything in one workspace. Databases with filtered views do the heavy lifting.",
-        timestamp: new Date(Date.now() - 3 * 60 * 60 * 1000).toISOString(),
-        type: "text",
-      }
-    ]
-  }
-];
-
-// --- Context ---
 interface MessagingContextType {
   requests: MessageRequest[];
   conversations: DirectConversation[];
   getPendingRequests: (userId: string) => MessageRequest[];
   getTotalPendingCount: (userId: string) => number;
   getTotalDMUnread: (userId: string) => number;
-  sendRequest: (recipientId: string, openingMessage: string, sender: MessageSender) => string;
-  approveRequest: (requestId: string, currentUserProfile: DMParticipant) => void;
-  declineRequest: (requestId: string) => void;
-  sendMessage: (conversationId: string, content: string, senderId: string) => void;
-  markConversationRead: (conversationId: string) => void;
+  sendRequest: (recipientId: string, openingMessage: string, sender: MessageSender) => Promise<string>;
+  approveRequest: (requestId: string, currentUserProfile: DMParticipant) => Promise<void>;
+  declineRequest: (requestId: string) => Promise<void>;
+  sendMessage: (conversationId: string, content: string, senderId: string) => Promise<void>;
+  markConversationRead: (conversationId: string) => Promise<void>;
   hasPendingRequestTo: (senderId: string, recipientId: string) => boolean;
   removeConversation: (conversationId: string) => void;
 }
@@ -192,125 +79,198 @@ interface MessagingContextType {
 const MessagingContext = createContext<MessagingContextType | undefined>(undefined);
 
 export const MessagingProvider = ({ children }: { children: ReactNode }) => {
-  const [requests, setRequests] = useState<MessageRequest[]>(mockMessageRequests);
-  const [conversations, setConversations] = useState<DirectConversation[]>(mockDirectConversations);
+  const { currentUser } = useAuth();
+  const [requests, setRequests] = useState<MessageRequest[]>([]);
+  const [conversations, setConversations] = useState<DirectConversation[]>([]);
+
+  // Converters
+  const convertRequest = (r: any): MessageRequest => ({
+    requestId: r.id,
+    status: r.status,
+    sender: {
+      id: r.sender.id,
+      name: r.sender.name,
+      username: r.sender.username,
+      initial: r.sender.initial || r.sender.name[0],
+      avatarColor: r.sender.avatar_color || '#E8312A',
+      trustScore: r.sender.trust_score || 85,
+      isCreator: r.sender.is_creator || false,
+    },
+    recipientId: r.recipient_id,
+    openingMessage: r.opening_message,
+    sentAt: r.created_at,
+    respondedAt: r.responded_at,
+  });
+
+  const convertConversation = (c: any, currentUserId: string): DirectConversation => {
+    const pA = c.participant_a;
+    const pB = c.participant_b;
+    const unreadCount = c.participant_a_id === currentUserId ? c.unread_count_a : c.unread_count_b;
+
+    return {
+      conversationId: c.id,
+      requestId: c.request_id,
+      participants: [
+        {
+          id: pA.id,
+          name: pA.name,
+          username: pA.username,
+          initial: pA.initial || pA.name[0],
+          avatarColor: pA.avatar_color || '#2563EB',
+          trustScore: pA.trust_score,
+        },
+        {
+          id: pB.id,
+          name: pB.name,
+          username: pB.username,
+          initial: pB.initial || pB.name[0],
+          avatarColor: pB.avatar_color || '#166534',
+          trustScore: pB.trust_score,
+        }
+      ],
+      createdAt: c.created_at,
+      lastMessage: {
+        content: c.last_message_content || 'Chat started',
+        senderId: c.last_message_sender_id || '',
+        timestamp: c.last_message_at || c.created_at,
+      },
+      unreadCount: unreadCount || 0,
+      messages: [],
+    };
+  };
+
+  const loadData = useCallback(async () => {
+    if (!currentUser) return;
+    try {
+      const [reqs, convs] = await Promise.all([
+        messageService.getRequests(currentUser.id),
+        messageService.getConversations(currentUser.id)
+      ]);
+      setRequests(reqs.map(convertRequest));
+      setConversations(convs.map(c => convertConversation(c, currentUser.id)));
+    } catch (err) {
+      console.error("Failed to load messaging data", err);
+    }
+  }, [currentUser]);
+
+  useEffect(() => {
+    loadData();
+
+    if (!currentUser) return;
+
+    // Realtime subscriptions
+    const reqSub = supabase.channel(`public:message_requests:recipient_id=eq.${currentUser.id}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'message_requests' }, () => {
+        loadData();
+      }).subscribe();
+
+    const reqSubSender = supabase.channel(`public:message_requests:sender_id=eq.${currentUser.id}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'message_requests' }, () => {
+        loadData();
+      }).subscribe();
+
+    const convSubA = supabase.channel(`public:direct_conversations:participant_a_id=eq.${currentUser.id}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'direct_conversations' }, () => {
+        loadData();
+      }).subscribe();
+
+    const convSubB = supabase.channel(`public:direct_conversations:participant_b_id=eq.${currentUser.id}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'direct_conversations' }, () => {
+        loadData();
+      }).subscribe();
+
+    return () => {
+      supabase.removeChannel(reqSub);
+      supabase.removeChannel(reqSubSender);
+      supabase.removeChannel(convSubA);
+      supabase.removeChannel(convSubB);
+    };
+  }, [currentUser, loadData]);
 
   const getPendingRequests = useCallback((userId: string) =>
     requests.filter(r => r.recipientId === userId && r.status === 'pending'),
-    [requests]
-  );
+  [requests]);
 
   const getTotalPendingCount = useCallback((userId: string) =>
-    requests.filter(r => r.recipientId === userId && r.status === 'pending').length,
-    [requests]
-  );
+    getPendingRequests(userId).length,
+  [getPendingRequests]);
 
   const getTotalDMUnread = useCallback((userId: string) =>
     conversations
       .filter(c => c.participants.some(p => p.id === userId))
-      .reduce((sum, c) => sum + c.unreadCount, 0),
-    [conversations]
-  );
+      .reduce((sum, c) => sum + (c.unreadCount || 0), 0),
+  [conversations]);
 
   const hasPendingRequestTo = useCallback((senderId: string, recipientId: string) =>
     requests.some(r => r.sender.id === senderId && r.recipientId === recipientId && r.status === 'pending'),
-    [requests]
-  );
+  [requests]);
 
-  const sendRequest = useCallback((recipientId: string, openingMessage: string, sender: MessageSender) => {
-    const newRequest: MessageRequest = {
-      requestId: `req_${Date.now()}`,
-      status: 'pending',
-      sender,
-      recipientId,
-      openingMessage,
-      sentAt: new Date().toISOString(),
-      respondedAt: null,
-    };
-    setRequests(prev => [newRequest, ...prev]);
-    return newRequest.requestId;
-  }, []);
-
-  const approveRequest = useCallback((requestId: string, currentUserProfile: DMParticipant) => {
-    let theRequest: MessageRequest | undefined;
-    setRequests(prev => prev.map(r => {
-      if (r.requestId === requestId) {
-        theRequest = r;
-        return { ...r, status: 'approved' as const, respondedAt: new Date().toISOString() };
-      }
-      return r;
-    }));
-
-    if (theRequest) {
-      const req = theRequest;
-      const newConversation: DirectConversation = {
-        conversationId: `dm_${Date.now()}`,
-        requestId,
-        participants: [
-          currentUserProfile,
-          {
-            id: req.sender.id,
-            name: req.sender.name,
-            username: req.sender.username,
-            initial: req.sender.initial,
-            avatarColor: req.sender.avatarColor,
-            isCreator: req.sender.isCreator,
-            trustScore: req.sender.trustScore,
-            joinedDate: req.sender.joinedDate,
-          },
-        ],
-        createdAt: new Date().toISOString(),
-        lastMessage: {
-          content: req.openingMessage,
-          senderId: req.sender.id,
-          timestamp: req.sentAt,
-        },
-        unreadCount: 0,
-        messages: [{
-          messageId: `dm_msg_${Date.now()}`,
-          senderId: req.sender.id,
-          content: req.openingMessage,
-          timestamp: req.sentAt,
-          type: 'text',
-          isOpeningMessage: true,
-        }]
-      };
-      setConversations(prev => [newConversation, ...prev]);
+  const sendRequest = useCallback(async (recipientId: string, openingMessage: string, _sender: MessageSender) => {
+    if (!currentUser) return '';
+    try {
+      const dbReq = await messageService.createMessageRequest(currentUser.id, recipientId, openingMessage);
+      // We optimistically refetch instead of manual injection to get correct payload with joins
+      loadData();
+      return dbReq.id;
+    } catch (err) {
+      console.error(err);
+      throw err;
     }
-  }, []);
+  }, [currentUser, loadData]);
 
-  const declineRequest = useCallback((requestId: string) => {
-    setRequests(prev => prev.map(r =>
-      r.requestId === requestId
-        ? { ...r, status: 'declined' as const, respondedAt: new Date().toISOString() }
-        : r
-    ));
-  }, []);
+  const approveRequest = useCallback(async (requestId: string, _currentUserProfile: DMParticipant) => {
+    if (!currentUser) return;
+    try {
+      const theRequest = requests.find(r => r.requestId === requestId);
+      if (!theRequest) return;
+      
+      await messageService.updateRequestStatus(requestId, 'approved');
+      const conv = await messageService.createConversation(requestId, currentUser.id, theRequest.sender.id);
+      
+      // Send the opening message as the first message in the direct_messages table
+      await messageService.sendMessage(conv.id, theRequest.sender.id, theRequest.openingMessage, true);
+      
+      loadData();
+    } catch (err) {
+      console.error(err);
+      throw err;
+    }
+  }, [currentUser, requests, loadData]);
 
-  const sendMessage = useCallback((conversationId: string, content: string, senderId: string) => {
-    const newMessage: DMMessage = {
-      messageId: `dm_msg_${Date.now()}`,
-      senderId,
-      content,
-      timestamp: new Date().toISOString(),
-      type: 'text',
-    };
-    setConversations(prev => prev.map(c =>
-      c.conversationId === conversationId
-        ? {
-          ...c,
-          messages: [...c.messages, newMessage],
-          lastMessage: { content, senderId, timestamp: newMessage.timestamp }
-        }
-        : c
-    ));
-  }, []);
+  const declineRequest = useCallback(async (requestId: string) => {
+    try {
+      await messageService.updateRequestStatus(requestId, 'declined');
+      loadData();
+    } catch (err) {
+      console.error(err);
+      throw err;
+    }
+  }, [loadData]);
 
-  const markConversationRead = useCallback((conversationId: string) => {
-    setConversations(prev => prev.map(c =>
-      c.conversationId === conversationId ? { ...c, unreadCount: 0 } : c
-    ));
-  }, []);
+  const sendMessageLocal = useCallback(async (conversationId: string, content: string, senderId: string) => {
+    try {
+      await messageService.sendMessage(conversationId, senderId, content);
+      loadData();
+    } catch (err) {
+      console.error(err);
+      throw err;
+    }
+  }, [loadData]);
+
+  const markConversationReadLocal = useCallback(async (conversationId: string) => {
+    if (!currentUser) return;
+    const convInfo = conversations.find(c => c.conversationId === conversationId);
+    if (!convInfo) return;
+    
+    // We need to know if the current user is participant_a or participant_b on the db level.
+    // Fortunately we can query the row or just figure it out.
+    const { data: convData } = await supabase.from('direct_conversations').select('participant_a_id').eq('id', conversationId).single();
+    if (!convData) return;
+
+    const unreadField = convData.participant_a_id === currentUser.id ? 'unread_count_a' : 'unread_count_b';
+    await messageService.markConversationAsRead(conversationId, unreadField);
+    loadData();
+  }, [currentUser, conversations, loadData]);
 
   const removeConversation = useCallback((conversationId: string) => {
     setConversations(prev => prev.filter(c => c.conversationId !== conversationId));
@@ -321,7 +281,7 @@ export const MessagingProvider = ({ children }: { children: ReactNode }) => {
       requests, conversations,
       getPendingRequests, getTotalPendingCount, getTotalDMUnread,
       sendRequest, approveRequest, declineRequest,
-      sendMessage, markConversationRead, hasPendingRequestTo,
+      sendMessage: sendMessageLocal, markConversationRead: markConversationReadLocal, hasPendingRequestTo,
       removeConversation,
     }}>
       {children}

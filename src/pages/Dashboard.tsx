@@ -32,7 +32,7 @@ export const Dashboard = () => {
     return (
         <DashboardLayout currentTab={tabParam} onTabChange={handleTabChange as any}>
             {tabParam === 'home' && <LinksTab searchQuery={linksSearchQuery} setSearchQuery={setLinksSearchQuery} />}
-            {tabParam === 'analytics' && <HomeTab onTabChange={handleTabChange as any} />}
+            {tabParam === 'analytics' && <HomeTab />}
             {tabParam === 'account' && <AccountTab />}
         </DashboardLayout>
     );

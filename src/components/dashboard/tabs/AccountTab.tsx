@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { useAuth } from '../../../context/AuthContext';
 import { useChatSessions } from '../../../context/ChatSessionsContext';
-import { ChevronRight, ChevronLeft, Copy, LogOut, AlertTriangle, MessageCircle } from 'lucide-react';
+import { ChevronRight, ChevronLeft, Copy, LogOut, AlertTriangle, MessageCircle, CreditCard, Sparkles } from 'lucide-react';
+import { supabase } from '../../../lib/supabase';
 import { useToast } from '../../../context/ToastContext';
 import { ConfirmationBottomSheet } from '../../ui/ConfirmationBottomSheet';
 import { useProgress } from '../../../context/ProgressContext';
@@ -10,7 +11,8 @@ import { getAvatarColor } from '../../../lib/utils';
 import type { User } from '../../../lib/mockData';
 
 export const AccountTab = () => {
-    const { currentUser, logout } = useAuth();
+    const { currentUser, logout, session } = useAuth();
+    const isEmailUser = session?.user?.app_metadata?.provider === 'email';
     const { addToast } = useToast();
     const { startProgress, stopProgress } = useProgress();
     const navigate = useNavigate();
@@ -24,10 +26,13 @@ export const AccountTab = () => {
     const [isLogoutConfirmOpen, setIsLogoutConfirmOpen] = useState(false);
     const [activeScreen, setActiveScreen] = useState<string | null>(null);
 
-    const publicUrl = `adgate.link/@${currentUser?.username || 'creator'}`;
+    const host = window.location.host;
+    const publicUrl = `${host}/@${currentUser?.username || 'creator'}`;
 
     const handleCopyPublic = () => {
-        navigator.clipboard.writeText(`https://${publicUrl}`);
+        const origin = window.location.origin;
+        const fullUrl = `${origin}/@${currentUser?.username || 'creator'}`;
+        navigator.clipboard.writeText(fullUrl);
         addToast('Public profile link copied', 'success');
     };
 
@@ -46,7 +51,7 @@ export const AccountTab = () => {
 
     if (activeScreen) {
         return (
-            <div className="w-full flex-1 flex flex-col pt-4 bg-bg animate-slideInRight pb-24 absolute inset-0 z-20 min-h-screen">
+            <div className="w-full flex-1 flex flex-col pt-4 bg-bg animate-slideInRight pb-24 absolute inset-0 z-20 min-h-screen overflow-y-auto">
                 <div className="px-4 flex items-center mb-6 mt-[env(safe-area-inset-top)] shrink-0">
                     <button onClick={goBack} className="w-10 h-10 flex items-center justify-center -ml-2 rounded-full hover:bg-surfaceAlt">
                         <ChevronLeft size={24} />
@@ -56,6 +61,7 @@ export const AccountTab = () => {
                         {activeScreen === 'password' && 'Change Password'}
                         {activeScreen === 'edit_profile' && 'Edit Profile'}
                         {activeScreen === 'delete' && 'Delete Account'}
+                        {activeScreen === 'subscription' && 'Plan & Subscription'}
                     </h2>
                 </div>
                 <div className="px-4 flex-1">
@@ -63,6 +69,7 @@ export const AccountTab = () => {
                     {activeScreen === 'password' && <ScreenPassword onSave={goBack} />}
                     {activeScreen === 'edit_profile' && <ScreenEditProfile user={currentUser} onSave={goBack} />}
                     {activeScreen === 'delete' && <ScreenDelete />}
+                    {activeScreen === 'subscription' && <ScreenSubscription user={currentUser} onSave={goBack} />}
                 </div>
             </div>
         );
@@ -137,6 +144,33 @@ export const AccountTab = () => {
                 </div>
             </div>
 
+            {/* Plan Section */}
+            <div className="flex flex-col gap-2">
+                <span className="text-[12px] font-extrabold text-textMid tracking-widest uppercase px-1">Current Plan</span>
+                <div 
+                    onClick={() => navigateTo('subscription')}
+                    className="w-full bg-white border border-border rounded-[16px] p-4 shadow-sm flex items-center justify-between cursor-pointer hover:bg-surfaceAlt transition-all group active:scale-[0.98]"
+                >
+                    <div className="flex items-center gap-4">
+                        <div className={`w-12 h-12 rounded-full flex items-center justify-center text-[20px] ${currentUser?.isProUser ? 'bg-brandTint text-brand' : 'bg-surfaceAlt text-textMid'}`}>
+                            {currentUser?.isProUser ? <Sparkles size={24} /> : '👤'}
+                        </div>
+                        <div className="flex flex-col">
+                            <span className="text-[16px] font-black text-text">{currentUser?.isProUser ? 'AdGate Pro' : 'Free Plan'}</span>
+                            <span className="text-[13px] font-bold text-textMid">
+                                {currentUser?.isProUser 
+                                    ? (currentUser.subscriptionPeriodEnd ? `Valid until ${new Date(currentUser.subscriptionPeriodEnd).toLocaleDateString()}` : 'Active')
+                                    : 'Basic features enabled'}
+                            </span>
+                        </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                         {!currentUser?.isProUser && <span className="text-[12px] font-black text-brand bg-brandTint px-2 py-1 rounded-md">Upgrade</span>}
+                         <ChevronRight className="w-5 h-5 text-textLight group-hover:text-text transition-colors" />
+                    </div>
+                </div>
+            </div>
+
             {/* Settings Groups */}
             <div className="flex flex-col gap-6">
 
@@ -171,7 +205,7 @@ export const AccountTab = () => {
                 <div className="flex flex-col gap-2 mt-2">
                     <span className="text-[12px] font-extrabold text-error tracking-widest uppercase px-1">Danger Zone</span>
                     <div className="flex flex-col w-full bg-white rounded-[16px] border border-error/50 overflow-hidden shadow-sm">
-                        <SettingRow label="Change Password" onClick={() => navigateTo('password')} />
+                        {isEmailUser && <SettingRow label="Change Password" onClick={() => navigateTo('password')} />}
                         <div
                             onClick={() => navigateTo('delete')}
                             className="h-[52px] w-full bg-white px-4 flex items-center justify-between cursor-pointer hover:bg-errorBg/30 active:bg-[#F8F8F8] transition-colors duration-[80ms]"
@@ -246,8 +280,11 @@ const ScreenNotifications = ({ onSave }: { onSave: () => void }) => {
 };
 
 const ScreenPassword = ({ onSave }: { onSave: () => void }) => {
+    const { updatePassword } = useAuth();
     const { addToast } = useToast();
     const [pwd, setPwd] = useState('');
+    const [confirmPwd, setConfirmPwd] = useState('');
+    const [isUpdating, setIsUpdating] = useState(false);
 
     // Simple bar color logic
     const len = pwd.length;
@@ -259,18 +296,54 @@ const ScreenPassword = ({ onSave }: { onSave: () => void }) => {
 
     const colors = ['bg-border', 'bg-error', 'bg-warning', 'bg-yellow-500', 'bg-success'];
 
-    const handleSave = () => { addToast('Password successfully updated', 'success'); onSave(); };
+    const handleSave = async () => {
+        if (!pwd) {
+            addToast('Please enter a new password', 'error');
+            return;
+        }
+        if (pwd.length < 6) {
+            addToast('Password must be at least 6 characters', 'error');
+            return;
+        }
+        if (pwd !== confirmPwd) {
+            addToast('Passwords do not match', 'error');
+            return;
+        }
+
+        setIsUpdating(true);
+        try {
+            await updatePassword(pwd);
+            addToast('Password successfully updated', 'success');
+            onSave();
+        } catch (error: any) {
+            addToast(error.message || 'Failed to update password', 'error');
+        } finally {
+            setIsUpdating(false);
+        }
+    };
 
     return (
         <div className="flex flex-col h-full animate-fadeIn">
             <div className="bg-white rounded-[16px] border border-border p-5 flex flex-col gap-4 mb-6">
-                <div className="flex flex-col gap-1.5">
+                <div className="flex flex-col gap-1.5 opacity-50 cursor-not-allowed">
                     <label className="text-[13px] font-extrabold text-textMid uppercase tracking-wide">Current</label>
-                    <input type="password" placeholder="••••••••" className="w-full h-[48px] bg-surfaceAlt border border-border rounded-[10px] px-3 font-semibold text-[15px] focus:border-brand outline-none" />
+                    <input 
+                        type="password" 
+                        placeholder="••••••••" 
+                        disabled
+                        className="w-full h-[48px] bg-surfaceAlt border border-border rounded-[10px] px-3 font-semibold text-[15px] outline-none" 
+                    />
+                    <span className="text-[10px] font-bold text-textLight px-1 italic">Current password verification not required with active session</span>
                 </div>
                 <div className="flex flex-col gap-1.5 mt-2">
                     <label className="text-[13px] font-extrabold text-textMid uppercase tracking-wide">New Password</label>
-                    <input type="password" value={pwd} onChange={e => setPwd(e.target.value)} placeholder="••••••••" className="w-full h-[48px] bg-surfaceAlt border border-border rounded-[10px] px-3 font-semibold text-[15px] focus:border-brand outline-none" />
+                    <input 
+                        type="password" 
+                        value={pwd} 
+                        onChange={e => setPwd(e.target.value)} 
+                        placeholder="••••••••" 
+                        className="w-full h-[48px] bg-surfaceAlt border border-border rounded-[10px] px-3 font-semibold text-[15px] focus:border-brand outline-none" 
+                    />
                     <div className="flex items-center gap-1 mt-1 h-1.5 w-full">
                         {[1, 2, 3, 4].map(i => (
                             <div key={i} className={`h-full flex-1 rounded-full bg-border overflow-hidden`}>
@@ -281,10 +354,22 @@ const ScreenPassword = ({ onSave }: { onSave: () => void }) => {
                 </div>
                 <div className="flex flex-col gap-1.5 mt-2">
                     <label className="text-[13px] font-extrabold text-textMid uppercase tracking-wide">Confirm New</label>
-                    <input type="password" placeholder="••••••••" className="w-full h-[48px] bg-surfaceAlt border border-border rounded-[10px] px-3 font-semibold text-[15px] focus:border-brand outline-none" />
+                    <input 
+                        type="password" 
+                        value={confirmPwd}
+                        onChange={e => setConfirmPwd(e.target.value)}
+                        placeholder="••••••••" 
+                        className="w-full h-[48px] bg-surfaceAlt border border-border rounded-[10px] px-3 font-semibold text-[15px] focus:border-brand outline-none" 
+                    />
                 </div>
             </div>
-            <button onClick={handleSave} className="w-full h-[52px] bg-brand text-white font-black rounded-[14px] mt-auto">Update Password</button>
+            <button 
+                onClick={handleSave} 
+                disabled={isUpdating}
+                className="w-full h-[52px] bg-brand text-white font-black rounded-[14px] mt-auto disabled:opacity-50 flex items-center justify-center"
+            >
+                {isUpdating ? 'Updating...' : 'Update Password'}
+            </button>
         </div>
     );
 };
@@ -366,3 +451,112 @@ const ScreenDelete = () => {
         </div>
     );
 };
+
+function ScreenSubscription({ user }: { user: User | null | undefined }) {
+    const { addToast } = useToast();
+    const { startProgress, stopProgress } = useProgress();
+    const navigate = useNavigate();
+
+    const stripeProLink = import.meta.env.VITE_STRIPE_PRO_LINK || 'https://buy.stripe.com/test_5kA7ti50o3sbgYU5kk';
+    const upgradeLink = `${stripeProLink}?client_reference_id=${user?.id || 'anonymous'}&prefilled_email=${encodeURIComponent(user?.email || '')}`;
+
+    const handleManageSubscription = async () => {
+        startProgress();
+        try {
+            const { data, error } = await supabase.functions.invoke('create-portal-session', {
+                method: 'POST',
+            });
+
+            if (error) throw error;
+            if (data?.url) {
+                window.location.href = data.url;
+            }
+        } catch (error: any) {
+            console.error('Portal error:', error);
+            addToast(error.message || 'Failed to open billing portal', 'error');
+        } finally {
+            stopProgress();
+        }
+    };
+
+    return (
+        <div className="flex flex-col min-h-full animate-fadeIn">
+            <div className="bg-white rounded-[16px] border border-border p-5 flex flex-col gap-6 mb-6 shadow-sm">
+                <div className="flex flex-col items-center gap-2 py-2">
+                    <div className={`w-16 h-16 rounded-full flex items-center justify-center text-[28px] ${user?.isProUser ? 'bg-brandTint text-brand' : 'bg-surfaceAlt text-textMid'}`}>
+                        {user?.isProUser ? <Sparkles size={32} /> : '👤'}
+                    </div>
+                    <div className="text-center">
+                        <h3 className="text-[20px] font-black tracking-tight text-text">{user?.isProUser ? 'AdGate Pro' : 'Free Plan'}</h3>
+                        <p className="text-[14px] font-bold text-textMid">
+                            {user?.isProUser ? 'Premium creator features active' : 'Basic creator features'}
+                        </p>
+                    </div>
+                </div>
+
+                <div className="flex flex-col gap-3">
+                    <div className="flex items-center justify-between py-1 border-b border-border/50 pb-3">
+                        <span className="text-[14px] font-bold text-textMid">Current Status</span>
+                        <span className={`text-[13px] font-black px-2 py-0.5 rounded-md ${user?.isProUser ? 'bg-successBg text-success' : 'bg-surfaceAlt text-textMid'}`}>
+                            {user?.isProUser ? 'ACTIVE' : 'BASIC'}
+                        </span>
+                    </div>
+                    
+                    {user?.isProUser && (
+                        <div className="flex items-center justify-between py-1 border-b border-border/50 pb-3">
+                            <span className="text-[14px] font-bold text-textMid">Next Billing Date</span>
+                            <span className="text-[14px] font-black text-text">
+                                {user.subscriptionPeriodEnd ? new Date(user.subscriptionPeriodEnd).toLocaleDateString() : 'N/A'}
+                            </span>
+                        </div>
+                    )}
+
+                    <div className="flex items-center justify-between py-1">
+                        <span className="text-[14px] font-bold text-textMid">Billing Account</span>
+                        <span className="text-[14px] font-black text-text truncate max-w-[150px]">{user?.email}</span>
+                    </div>
+                </div>
+            </div>
+
+            {/* Features Section */}
+            <div className="flex flex-col gap-3 mb-8">
+                <span className="text-[12px] font-extrabold text-textMid tracking-widest uppercase px-1">Pro Features</span>
+                <div className="grid grid-cols-1 gap-2">
+                    {[
+                        { title: 'Unlimited Challenges', desc: 'Host as many pairing links as you want', icon: '🔥' },
+                        { title: 'Verified Badge', desc: 'Increased trust and profile visibility', icon: '✅' },
+                        { title: 'Priority Support', desc: 'Get help within 24 hours', icon: '⚡' },
+                    ].map((feat, i) => (
+                        <div key={i} className="flex items-center gap-3 p-3 bg-white border border-border rounded-[12px]">
+                            <span className="text-[20px]">{feat.icon}</span>
+                            <div className="flex flex-col">
+                                <span className="text-[14px] font-extrabold text-text">{feat.title}</span>
+                                <span className="text-[12px] font-bold text-textMid">{feat.desc}</span>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            </div>
+
+            <div className="flex flex-col gap-3 mt-auto pb-10">
+                {user?.isProUser ? (
+                    <button 
+                        onClick={handleManageSubscription}
+                        className="w-full h-[52px] bg-white border border-border text-text font-black rounded-[14px] flex items-center justify-center gap-2 hover:bg-surfaceAlt transition-all shadow-sm active:scale-[0.98]"
+                    >
+                        <CreditCard size={18} /> Manage Subscription
+                    </button>
+                ) : (
+                    <a 
+                        href={upgradeLink}
+                        className="w-full h-[52px] bg-brand text-white font-black rounded-[14px] flex items-center justify-center gap-2 hover:bg-brand-hover transition-all shadow-sm active:scale-[0.98]"
+                    >
+                        <Sparkles size={18} /> Upgrade to Pro
+                    </a>
+                ) }
+            </div>
+        </div>
+    );
+}
+
+

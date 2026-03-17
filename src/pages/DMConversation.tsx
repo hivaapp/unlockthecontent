@@ -6,6 +6,8 @@ import type { DMMessage } from '../context/MessagingContext';
 import { BottomSheet } from '../components/ui/BottomSheet';
 import { useToast } from '../context/ToastContext';
 import { MessagesSidebar } from './MyChatsHub';
+import { supabase } from '../lib/supabase';
+import { getConversationMessages } from '../services/messageService';
 
 interface MediaAttachment {
   type: 'image' | 'video' | 'file';
@@ -31,6 +33,7 @@ export const DMConversation = () => {
   const [pendingAttachments, setPendingAttachments] = useState<MediaAttachment[]>([]);
   const [isTyping, setIsTyping] = useState(false);
   const [showBlockConfirm, setShowBlockConfirm] = useState(false);
+  const [messages, setMessages] = useState<DMMessage[]>([]);
 
   const conversation = conversations.find(c => c.conversationId === conversationId);
   
@@ -41,12 +44,52 @@ export const DMConversation = () => {
   const partnerColor = otherParticipant?.avatarColor || '#2563EB';
 
   useEffect(() => {
-    if (!currentUser || !conversation) return;
-    if (conversationId) {
-      markConversationRead(conversationId);
-    }
-    scrollToBottom();
-  }, [conversationId, conversation?.messages.length, currentUser, conversation]);
+    if (!currentUser || !conversationId) return;
+    
+    // Fetch initial messages
+    getConversationMessages(conversationId).then(dbMsgs => {
+      const parsedMsgs: DMMessage[] = dbMsgs.map((m: any) => ({
+        messageId: m.id,
+        senderId: m.sender_id,
+        content: m.content || '',
+        timestamp: m.created_at,
+        type: 'text',
+        isOpeningMessage: m.is_opening_message
+      }));
+      setMessages(parsedMsgs);
+      scrollToBottom();
+    });
+
+    // Mark as read
+    markConversationRead(conversationId);
+  }, [conversationId, currentUser, markConversationRead]);
+
+  // Subscribe to real-time messages
+  useEffect(() => {
+    if (!conversationId) return;
+
+    const channel = supabase.channel(`public:direct_messages:chat_${conversationId}`)
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'direct_messages', filter: `conversation_id=eq.${conversationId}` }, (payload) => {
+        const m = payload.new as any;
+        setMessages(prev => {
+          if (prev.find(x => x.messageId === m.id)) return prev;
+          return [...prev, {
+            messageId: m.id,
+            senderId: m.sender_id,
+            content: m.content || '',
+            timestamp: m.created_at,
+            type: 'text',
+            isOpeningMessage: m.is_opening_message
+          }];
+        });
+        scrollToBottom();
+      })
+      .subscribe();
+    
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [conversationId]);
 
   const scrollToBottom = () => {
     setTimeout(() => {
@@ -54,38 +97,43 @@ export const DMConversation = () => {
     }, 50);
   };
 
-  const handleSend = () => {
-    if (!inputText.trim() && pendingAttachments.length === 0 || !currentUser || !conversationId) return;
+  const handleSend = async () => {
+    if ((!inputText.trim() && pendingAttachments.length === 0) || !currentUser || !conversationId) return;
     
-    // In a real app we'd handle attachments here
-    sendMessage(conversationId, inputText.trim() || 'Sent an attachment', currentUser.id);
-    
+    const content = inputText.trim() || 'Sent an attachment';
     setInputText('');
     setPendingAttachments([]);
     if (textareaRef.current) {
       textareaRef.current.style.height = '44px';
     }
-    
-    // Auto-response mock
-    setTimeout(() => {
-        setIsTyping(true);
-        scrollToBottom();
+
+    try {
+        await sendMessage(conversationId, content, currentUser.id);
         
+        // Auto-response mock
         setTimeout(() => {
-            setIsTyping(false);
-            const responses = [
-                "That makes sense!",
-                "I agree, completely changes how I look at it.",
-                "Let me think about that and get back to you.",
-                "Haha truly.",
-                "Could you send me a link to that when you have a second?"
-            ];
-            const randomResponse = responses[Math.floor(Math.random() * responses.length)];
-            if (otherParticipant) {
-                sendMessage(conversationId, randomResponse, otherParticipant.id);
-            }
-        }, 3000 + Math.random() * 3000); // 3-6 seconds typing
-    }, 2000);
+            setIsTyping(true);
+            scrollToBottom();
+            
+            setTimeout(async () => {
+                setIsTyping(false);
+                const responses = [
+                    "That makes sense!",
+                    "I agree, completely changes how I look at it.",
+                    "Let me think about that and get back to you.",
+                    "Haha truly.",
+                    "Could you send me a link to that when you have a second?"
+                ];
+                const randomResponse = responses[Math.floor(Math.random() * responses.length)];
+                if (otherParticipant) {
+                    await sendMessage(conversationId, randomResponse, otherParticipant.id);
+                }
+            }, 3000 + Math.random() * 3000); // 3-6 seconds typing
+        }, 2000);
+    } catch (err) {
+        console.error('Failed to send message', err);
+        showToast('Failed to send message', 'error');
+    }
   };
 
   const handleAddAttachment = (type: 'image' | 'video' | 'file') => {
@@ -146,7 +194,7 @@ export const DMConversation = () => {
   }
 
   // Group messages by date
-  const groupedMessages = conversation.messages.reduce<{ date: string; msgs: DMMessage[] }[]>((acc, msg) => {
+  const groupedMessages = messages.reduce<{ date: string; msgs: DMMessage[] }[]>((acc, msg) => {
     const dateStr = formatDate(msg.timestamp);
     const last = acc[acc.length - 1];
     if (last && last.date === dateStr) {
@@ -163,7 +211,7 @@ export const DMConversation = () => {
       <div className="hidden lg:flex lg:flex-col w-[380px] shrink-0 border-r border-border z-10 overflow-hidden">
          <MessagesSidebar 
             activeTab="chats" 
-            setActiveTab={() => {}} 
+            setActiveTab={(tab) => { navigate(`/chats`, { state: { activeTab: tab } }); }} 
             activeChatId={conversationId} 
             onSelectChat={(id, type) => {
                 if (type === 'dm') navigate(`/messages/${id}`);

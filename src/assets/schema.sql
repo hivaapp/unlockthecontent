@@ -647,10 +647,11 @@ CREATE TABLE public.message_requests (
   -- Prevent duplicate pending requests
   created_at        TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   
-  CHECK(sender_id != recipient_id),
-  -- Only one pending request between any two users at a time
-  UNIQUE(sender_id, recipient_id)
+  CHECK(sender_id != recipient_id)
 );
+
+-- Only one pending request between any two users at a time
+CREATE UNIQUE INDEX idx_message_requests_one_pending ON public.message_requests (sender_id, recipient_id) WHERE status = 'pending';
 
 -- Direct message conversations (created when request is approved)
 CREATE TABLE public.direct_conversations (
@@ -672,6 +673,12 @@ CREATE TABLE public.direct_conversations (
   created_at        TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   
   CHECK(participant_a_id != participant_b_id)
+);
+
+-- Ensure only one active conversation between any two users
+CREATE UNIQUE INDEX idx_direct_conversations_unique_participants ON public.direct_conversations (
+  LEAST(participant_a_id, participant_b_id), 
+  GREATEST(participant_a_id, participant_b_id)
 );
 
 -- Direct messages within conversations

@@ -211,7 +211,7 @@ export const Landing = () => {
     };
 
     const copyToClipboard = () => {
-        navigator.clipboard.writeText(`https://unlockthecontent.com/r/${generatedSlug}`);
+        navigator.clipboard.writeText(`${window.location.origin}/r/${generatedSlug}`);
         setIsCopied(true);
         setTimeout(() => setIsCopied(false), 2000);
     };
@@ -431,7 +431,7 @@ export const Landing = () => {
                                         <>
                                             <div className="flex-1 h-[56px] rounded-[14px] border-2 px-4 flex items-center relative overflow-hidden transition-colors bg-brandTint border-brand/30">
                                                 <span className="text-[14px] sm:text-[15px] font-[900] text-black bg-[#F3F1EC] px-3 sm:px-4 py-2 sm:py-[10px] rounded-lg border-2 border-[#E6E2D9] tracking-tight">
-                                    unlockthecontent.com/r/{generatedSlug}
+                                    {window.location.host}/r/{generatedSlug}
                                 </span>            </div>
                                             <button onClick={copyToClipboard} className={`h-[56px] w-[56px] rounded-[14px] flex items-center justify-center text-white transition-colors shrink-0 shadow-sm ${isCopied ? 'bg-success' : 'bg-brand hover:bg-brand-hover'}`}>
                                                 {isCopied ? <Check size={24} /> : <LinkIcon size={24} />}
@@ -688,7 +688,7 @@ export const Landing = () => {
                                 {isLoggedIn ? (
                                     <>
                                         <div className="flex-1 h-[40px] rounded-[10px] px-3 flex items-center relative overflow-hidden transition-colors bg-[#F3F1EC]">
-                                            <span className="font-bold font-mono text-[13px] truncate text-text">unlockthecontent.com/r/{generatedSlug}</span>
+                                            <span className="font-bold font-mono text-[13px] truncate text-text">{window.location.host}/r/{generatedSlug}</span>
                                         </div>
                                         <button onClick={copyToClipboard} className={`w-[40px] h-[40px] rounded-full flex items-center justify-center text-white transition-colors shrink-0 shadow-sm ${isCopied ? 'bg-success' : 'bg-[#E8312A]'}`}>
                                             {isCopied ? <Check size={18} /> : <LinkIcon size={18} />}

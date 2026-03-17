@@ -58,10 +58,12 @@ export const CreatorProfile = () => {
 
     let sendRequest: any = null;
     let hasPendingRequestTo: any = null;
+    let conversations: any[] = [];
     try {
         const msgCtx = useMessaging();
         sendRequest = msgCtx?.sendRequest;
         hasPendingRequestTo = msgCtx?.hasPendingRequestTo;
+        conversations = msgCtx?.conversations || [];
     } catch { /* ignore */ }
 
     // Fetch Profile
@@ -107,19 +109,50 @@ export const CreatorProfile = () => {
     const resources = allLinks.filter((l: any) => l.mode !== 'follower_pairing');
     const campaigns = allLinks.filter((l: any) => l.mode === 'follower_pairing');
 
-    // Check if request is already sent
     const requestAlreadySent = isLoggedIn && currentUser && profile && hasPendingRequestTo ? hasPendingRequestTo(currentUser.id, profile.id) : false;
+    const requestReceived = isLoggedIn && currentUser && profile && hasPendingRequestTo ? hasPendingRequestTo(profile.id, currentUser.id) : false;
+    const existingConversation = conversations?.find(c => c.participants.some((p: any) => p.id === profile?.id));
 
-    const handleSendMessage = () => {
+    let msgBtnText = 'Message';
+    let msgBtnAction = () => { if (isLoggedIn) setShowMessageSheet(true); else setIsAuthSheetOpen(true); };
+    let msgBtnStyle = 'bg-brand text-white hover:bg-brandHover shadow-sm';
+
+    if (existingConversation) {
+        msgBtnText = 'Message';
+        msgBtnAction = () => navigate(`/chats/${existingConversation.conversationId}`);
+        msgBtnStyle = 'bg-[#FAF0EB] text-[#E8312A] border border-[#FECACA]';
+    } else if (requestAlreadySent) {
+        msgBtnText = 'Request Pending';
+        msgBtnAction = () => navigate('/chats');
+        msgBtnStyle = 'bg-surfaceAlt text-textMid border border-border';
+    } else if (requestReceived) {
+        msgBtnText = 'Respond to Request';
+        msgBtnAction = () => navigate('/chats');
+        msgBtnStyle = 'bg-[#FAF0EB] text-[#E8312A] border border-[#FECACA]';
+    }
+
+
+    const handleSendMessage = async () => {
         if (!isLoggedIn) {
             setIsAuthSheetOpen(true);
             return;
         }
         if (!messageText.trim() || !currentUser || !profile || !sendRequest) return;
+
+        if (messageText.trim().length < 10) {
+            showToast('Message must be at least 10 characters.', 'error');
+            return;
+        }
+        
+        if (messageText.trim().length > 500) {
+            showToast('Message cannot exceed 500 characters.', 'error');
+            return;
+        }
+
         setIsSending(true);
         
         try {
-            sendRequest(profile.id, messageText, {
+            await sendRequest(profile.id, messageText, {
                 id: currentUser.id,
                 name: currentUser.name,
                 username: currentUser.username,
@@ -259,11 +292,10 @@ export const CreatorProfile = () => {
                             
                             {!isOwner && (
                                 <button 
-                                    onClick={() => requestAlreadySent ? navigate('/chats') : isLoggedIn ? setShowMessageSheet(true) : setIsAuthSheetOpen(true)}
-                                    disabled={false} // don't disable, route to chats instead
-                                    className={`lg:hidden h-[36px] px-[16px] rounded-[10px] text-[13px] font-bold flex items-center justify-center shrink-0 mb-1 ml-auto self-start mt-[-2px] transition-colors ${requestAlreadySent ? 'bg-surfaceAlt text-textMid border border-border' : 'bg-brand text-white'}`}
+                                    onClick={msgBtnAction}
+                                    className={`lg:hidden h-[36px] px-[16px] rounded-[10px] text-[13px] font-bold flex items-center justify-center shrink-0 mb-1 ml-auto self-start mt-[-2px] transition-colors ${msgBtnStyle}`}
                                 >
-                                    {requestAlreadySent ? 'Request Pending' : 'Message'}
+                                    {msgBtnText}
                                 </button>
                             )}
                         </div>
@@ -271,10 +303,10 @@ export const CreatorProfile = () => {
                         {/* Desktop Message Button */}
                         {!isOwner && (
                             <button
-                                onClick={() => requestAlreadySent ? navigate('/chats') : isLoggedIn ? setShowMessageSheet(true) : setIsAuthSheetOpen(true)}
-                                className={`hidden lg:flex w-full mt-4 h-[44px] rounded-[12px] text-[14px] font-[900] items-center justify-center transition-colors ${requestAlreadySent ? 'bg-surfaceAlt text-textMid border border-border' : 'bg-brand text-white hover:bg-brandHover shadow-sm'}`}
+                                onClick={msgBtnAction}
+                                className={`hidden lg:flex w-full mt-4 h-[44px] rounded-[12px] text-[14px] font-[900] items-center justify-center transition-colors ${msgBtnStyle}`}
                             >
-                                {requestAlreadySent ? 'Request Pending' : 'Message'}
+                                {msgBtnText}
                             </button>
                         )}
 
@@ -386,43 +418,48 @@ export const CreatorProfile = () => {
                                     </div>
                                 ) : (
                                     resources.map((r: any) => {
-                                        const ut = r.unlockType || 'custom_sponsor';
+                                        const ut = r.unlock_type || r.unlockType || 'custom_sponsor';
                                         let bgClass = '';
                                         let badgeColor = '';
                                         let typeColor = '';
                                         let utText = '';
+                                        let badgeText = '';
 
                                         if (ut === 'custom_sponsor') {
-                                            bgClass = 'bg-gradient-to-br from-[#EDE9FE] to-[#C4B5FD]'; typeColor = '#4C1D95'; badgeColor = 'bg-white/90 text-[#4C1D95] border-[#4C1D95]/20 font-[700]'; utText = 'Subscribe to Unlock';
+                                            bgClass = 'bg-[#FAF0EB]'; typeColor = '#C1644A'; badgeColor = 'bg-white text-[#C1644A] border-[#E6E2D9]'; utText = 'Unlock via Sponsor'; badgeText = '✨ Sponsored';
                                         } else if (ut === 'email_subscribe') {
-                                            bgClass = 'bg-[#F0FDF4]'; typeColor = '#166534'; badgeColor = 'bg-white/90 text-[#166534] border-[#166534]/20 font-[700]'; utText = 'Subscribe to Unlock';
+                                            bgClass = 'bg-[#EBF5EE]'; typeColor = '#417A55'; badgeColor = 'bg-white text-[#417A55] border-[#E6E2D9]'; utText = 'Subscribe to Unlock'; badgeText = '✉️ Email';
                                         } else if (ut === 'social_follow') {
-                                            bgClass = 'bg-[#EFF6FF]'; typeColor = '#2563EB'; badgeColor = 'bg-white/90 text-[#2563EB] border-[#2563EB]/20 font-[700]'; utText = 'Follow to Unlock';
+                                            bgClass = 'bg-[#EFF6FF]'; typeColor = '#2563EB'; badgeColor = 'bg-white text-[#2563EB] border-[#E6E2D9]'; utText = 'Follow to Unlock'; badgeText = '📱 Social';
                                         } else if (ut === 'premium_media') {
-                                            bgClass = 'bg-[#111]'; typeColor = 'white'; badgeColor = 'bg-white/20 text-white border-white/20 backdrop-blur-sm font-[700]'; utText = 'Watch to Unlock';
+                                            bgClass = 'bg-[#21201C]'; typeColor = '#FFFFFF'; badgeColor = 'bg-white/20 text-white border-white/20 backdrop-blur-sm'; utText = 'Watch to Unlock'; badgeText = '🎬 Premium';
                                         } else {
-                                            bgClass = 'bg-[#FFFBEB]'; typeColor = '#92400E'; badgeColor = 'bg-white/90 text-[#92400E] border-[#92400E]/20 font-[700]'; utText = 'Unlock to View';
+                                            bgClass = 'bg-[#F3F1EC]'; typeColor = '#6B6860'; badgeColor = 'bg-white text-[#6B6860] border-[#E6E2D9]'; utText = 'Unlock to View'; badgeText = '🆓 Free';
                                         }
 
                                         return (
-                                            <Link key={r.id} to={`/r/${r.slug}`} className="w-full bg-white border border-[#F0F0F0] rounded-[14px] overflow-hidden group hover:border-[#DDDDDD] transition-colors block">
-                                                <div className={`h-[90px] w-full ${bgClass} relative flex flex-col justify-end p-[12px_14px]`}>
-                                                    <div className="absolute inset-0 flex items-center justify-center opacity-30 text-[48px] overflow-hidden pointer-events-none group-hover:scale-110 transition-transform duration-700">{getFileEmoji(r.fileType || 'file')}</div>
+                                            <Link key={r.id} to={`/r/${r.slug}`} className="w-full bg-white border border-[#E6E2D9] rounded-lg overflow-hidden group hover:border-[#D97757]/30 transition-all block translate-y-0 hover:-translate-y-0.5">
+                                                <div className={`h-[80px] w-full ${bgClass} relative flex flex-col justify-end p-4 transition-colors`}>
+                                                    <div className="absolute inset-0 flex items-center justify-center opacity-[0.08] text-[48px] overflow-hidden pointer-events-none group-hover:scale-110 transition-transform duration-700">{getFileEmoji(r.file?.file_type || r.fileType || 'file')}</div>
                                             <div className="relative z-10 flex items-center gap-2">
-                                                        <span className="text-[20px] leading-none text-white drop-shadow-sm">{getFileEmoji(r.file?.file_type || r.fileType || 'file')}</span>
-                                                        <span className="text-[10px] font-[800] text-white drop-shadow-sm uppercase tracking-wide">{r.file?.file_type || r.fileType || 'Resource'}</span>
+                                                        <span className="text-[18px] leading-none opacity-80">{getFileEmoji(r.file?.file_type || r.fileType || 'file')}</span>
+                                                        <span className="text-[10px] font-black uppercase tracking-widest opacity-60">{r.file?.file_type || r.fileType || 'Resource'}</span>
                                                     </div>
-                                                    <div className={`absolute top-[12px] right-[12px] px-2 py-0.5 border rounded-[6px] text-[10px] shadow-sm z-10 leading-relaxed uppercase tracking-widest ${badgeColor}`}>
-                                                        {ut === 'custom_sponsor' ? '✨ Sponsored' : ut === 'email_subscribe' ? '🆓 Email' : ut === 'social_follow' ? '🆓 Social' : '🆓 Free'}
+                                                    <div className={`absolute top-3 right-3 h-[20px] px-2 border rounded-full text-[9px] font-black z-10 flex items-center gap-1 uppercase tracking-widest ${badgeColor}`}>
+                                                        {badgeText}
                                                     </div>
                                                 </div>
-                                                <div className="p-[14px] flex flex-col">
-                                                    <h3 className="text-[14px] font-[900] text-[#111] leading-[1.3] max-h-[36px] overflow-hidden line-clamp-2">{r.title}</h3>
-                                                    <span className="text-[11px] font-[700] text-[#AAAAAA] mt-[8px]">👁 {r.viewCount || r.view_count || 0} views • 🔓 {r.unlockCount || r.unlock_count || 0} unlocks</span>
+                                                <div className="p-4 flex flex-col">
+                                                    <h3 className="text-[14px] font-bold text-[#21201C] leading-snug h-10 overflow-hidden line-clamp-2">{r.title}</h3>
+                                                    <span className="text-[11px] font-semibold text-[#6B6860] mt-1.5 flex items-center gap-1.5">
+                                                        <span>{r.viewCount || r.view_count || 0} views</span>
+                                                        <span className="w-1 h-1 rounded-full bg-[#E6E2D9]" />
+                                                        <span>{r.unlockCount || r.unlock_count || 0} unlocks</span>
+                                                    </span>
                                                     
-                                                    <button className="w-full h-[38px] mt-[12px] rounded-[8px] text-[13px] font-[800] text-white transition-colors" style={{ backgroundColor: typeColor }}>
+                                                    <div className="w-full h-10 mt-4 rounded-md text-[13px] font-black flex items-center justify-center transition-all group-hover:scale-[1.01]" style={{ backgroundColor: ut === 'premium_media' ? '#21201C' : typeColor, color: ut === 'premium_media' ? '#FFFFFF' : '#FFFFFF' }}>
                                                         {utText}
-                                                    </button>
+                                                    </div>
                                                 </div>
                                             </Link>
                                         );
@@ -499,12 +536,18 @@ export const CreatorProfile = () => {
                         </div>
                     </div>
                     
-                    <textarea 
-                        value={messageText}
-                        onChange={(e) => setMessageText(e.target.value)}
-                        placeholder="Write your introductory message..."
-                        className="w-full h-[120px] rounded-[14px] bg-surfaceAlt border border-border focus:border-brand/40 focus:ring-1 focus:ring-brand/40 px-4 py-3 text-[14px] font-semibold text-text outline-none resize-none placeholder:text-textLight mb-4 font-sans"
-                    />
+                    <div className="relative mb-4">
+                        <textarea 
+                            value={messageText}
+                            onChange={(e) => setMessageText(e.target.value)}
+                            placeholder="Write your introductory message..."
+                            maxLength={500}
+                            className={`w-full h-[120px] rounded-[14px] bg-surfaceAlt border focus:ring-1 px-4 py-3 text-[14px] font-semibold text-text outline-none resize-none placeholder:text-textLight font-sans ${messageText.length > 0 && messageText.length < 10 ? 'border-error focus:border-error focus:ring-error focus:ring-opacity-20' : 'border-border focus:border-brand/40 focus:ring-brand/40'}`}
+                        />
+                        <div className={`absolute bottom-3 right-3 text-[11px] font-bold ${messageText.length > 500 ? 'text-error' : messageText.length > 0 && messageText.length < 10 ? 'text-error' : 'text-textLight'}`}>
+                            {messageText.length}/500 {messageText.length > 0 && messageText.length < 10 && '(min 10 required)'}
+                        </div>
+                    </div>
 
                     <div className="flex gap-3">
                         <button 
@@ -515,8 +558,8 @@ export const CreatorProfile = () => {
                         </button>
                         <button 
                             onClick={handleSendMessage}
-                            disabled={!messageText.trim() || isSending}
-                            className={`flex-[2] h-12 text-white font-black text-[14px] rounded-[14px] transition-all flex items-center justify-center ${messageText.trim() && !isSending ? 'bg-brand shadow-sm hover:scale-[1.02]' : 'bg-brand/50 cursor-not-allowed'}`}
+                            disabled={!messageText.trim() || messageText.trim().length < 10 || messageText.length > 500 || isSending}
+                            className={`flex-[2] h-12 text-white font-black text-[14px] rounded-[14px] transition-all flex items-center justify-center ${messageText.trim() && messageText.trim().length >= 10 && messageText.length <= 500 && !isSending ? 'bg-brand shadow-sm hover:scale-[1.02]' : 'bg-brand/50 cursor-not-allowed'}`}
                         >
                             {isSending ? (
                                 <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />

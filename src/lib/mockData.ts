@@ -20,6 +20,9 @@ export interface User {
     pendingPayout?: number;
     trustScore?: number;
     isProUser?: boolean;
+    subscriptionPeriodEnd?: string | null;
+    stripeCustomerId?: string | null;
+    stripeSubscriptionId?: string | null;
     followerPairingLinkCount?: number;
     socialHandles?: Record<string, string | null>;
     stats?: {

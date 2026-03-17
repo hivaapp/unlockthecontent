@@ -1,15 +1,45 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { mockLinks } from '../lib/mockData';
+import { getLinkBySlug } from '../services/linksService';
+import { getWaitingCount } from '../services/followerPairingService';
+import { AuthBottomSheet } from '../components/AuthBottomSheet';
+import { useAuth } from '../context/AuthContext';
 
 type GenderOption = 'male' | 'female' | 'any';
 
 export const FollowerPairingMatch = () => {
   const { slug } = useParams();
   const navigate = useNavigate();
+  const { isLoggedIn } = useAuth();
   const [selected, setSelected] = useState<GenderOption | null>(null);
+  const [link, setLink] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [waitingCount, setWaitingCount] = useState(0);
+  const [showAuth, setShowAuth] = useState(false);
+  const [authScreen, setAuthScreen] = useState<'signin' | 'signup'>('signup');
 
-  const link = mockLinks.find(l => l.slug === slug && l.unlockType === 'follower_pairing');
+  // Load link data
+  useEffect(() => {
+    if (!slug) return;
+    const load = async () => {
+      try {
+        const data = await getLinkBySlug(slug);
+        if (!data || data.mode !== 'follower_pairing') {
+          navigate(`/r/${slug}`, { replace: true });
+          return;
+        }
+        setLink(data);
+        // Get waiting count
+        const count = await getWaitingCount(data.id);
+        setWaitingCount(count);
+      } catch {
+        navigate(`/r/${slug}`, { replace: true });
+      } finally {
+        setLoading(false);
+      }
+    };
+    load();
+  }, [slug, navigate]);
 
   // Check commitment exists
   useEffect(() => {
@@ -23,17 +53,38 @@ export const FollowerPairingMatch = () => {
     }
   }, [slug, navigate]);
 
-  if (!link) {
-    navigate(`/r/${slug}`, { replace: true });
-    return null;
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-bg flex items-center justify-center">
+        <div className="w-8 h-8 border-3 rounded-full" style={{ border: '3px solid #E6E2D9', borderTopColor: '#D97757', animation: 'spin 0.8s linear infinite' }} />
+        <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+      </div>
+    );
   }
 
-  const waitingCount = 3 + Math.floor(Math.random() * 10); // 3-12
+  if (!link) return null;
 
   const handleNext = () => {
     if (!selected || !slug) return;
     sessionStorage.setItem(`adgate_acc_${slug}_gender`, selected);
-    navigate(`/r/${slug}/matching`);
+
+    // If already logged in, go straight to matching
+    if (isLoggedIn) {
+      navigate(`/r/${slug}/matching`);
+      return;
+    }
+
+    // Otherwise, prompt to sign in / create account
+    setShowAuth(true);
+  };
+
+  const handleAuthSuccess = () => {
+    setShowAuth(false);
+    // After successful auth, navigate to matching page
+    // which will now handle everything since user is authenticated
+    if (slug) {
+      navigate(`/r/${slug}/matching`);
+    }
   };
 
   const cards: { id: GenderOption; emoji: string; bg: string; title: string; subtitle: string }[] = [
@@ -43,38 +94,47 @@ export const FollowerPairingMatch = () => {
   ];
 
   return (
-    <div className="min-h-screen bg-white flex flex-col items-center">
+    <div className="min-h-screen bg-bg flex flex-col items-center" style={{ fontFamily: 'Söhne, ui-sans-serif, system-ui, sans-serif' }}>
       {/* Nav */}
-      <nav className="w-full h-[58px] bg-white flex items-center justify-between px-4 shrink-0" style={{ borderBottom: '1px solid #F0F0F0' }}>
-        <button onClick={() => navigate(-1)} className="w-[44px] h-[44px] flex items-center justify-center text-[#111] text-[20px]">←</button>
+      <nav className="w-full h-[58px] bg-surface flex items-center justify-between px-4 shrink-0" style={{ borderBottom: '1px solid #E6E2D9' }}>
+        <button onClick={() => navigate(-1)} className="w-[44px] h-[44px] flex items-center justify-center text-text text-[20px]">←</button>
         <Link to="/" className="flex items-center gap-1.5">
-          <span className="font-[900] text-[15px] tracking-tight text-[#111]">AdGate</span>
+          <span className="font-[900] text-[15px] tracking-tight text-text">AdGate</span>
         </Link>
-        <Link to="/" className="text-[14px] font-[700] text-[#E8312A] hover:underline">Sign in</Link>
+        {isLoggedIn ? (
+          <div className="w-[44px]" />
+        ) : (
+          <button
+            onClick={() => { setAuthScreen('signin'); setShowAuth(true); }}
+            className="text-[14px] font-[700] text-brand hover:underline"
+          >
+            Sign in
+          </button>
+        )}
       </nav>
 
       {/* Step indicator */}
       <div className="pt-10 pb-4 flex flex-col items-center">
         <div className="flex items-center gap-2 mb-3">
-          <div className="w-2 h-2 rounded-full bg-[#B45309]" />
-          <div className="w-2 h-2 rounded-full bg-[#B45309]" />
-          <div className="w-2 h-2 rounded-full bg-[#E8E8E8]" />
+          <div className="w-2 h-2 rounded-full bg-brand" />
+          <div className="w-2 h-2 rounded-full bg-brand" />
+          <div className="w-2 h-2 rounded-full bg-border" />
         </div>
-        <span className="text-[11px] font-[700] text-[#888]">Step 2 of 3</span>
+        <span className="text-[11px] font-[700] text-textMid">Step 2 of 3</span>
       </div>
 
       {/* Headline */}
       <div className="px-4 flex flex-col items-center mt-4">
-        <h1 className="text-[22px] font-[900] text-[#111] text-center max-w-[300px]" style={{ lineHeight: '1.25' }}>
+        <h1 className="text-[22px] font-[900] text-text text-center max-w-[300px]" style={{ lineHeight: '1.25' }}>
           Who would you like to be paired with?
         </h1>
-        <p className="text-[14px] font-[600] text-[#888] text-center max-w-[300px] mt-2" style={{ lineHeight: '1.6' }}>
+        <p className="text-[14px] font-[600] text-textMid text-center max-w-[300px] mt-2" style={{ lineHeight: '1.6' }}>
           We match you with a recent member who shares your preference.
         </p>
       </div>
 
       {/* Gender cards */}
-      <div className="w-full px-4 mt-8 flex flex-col gap-3">
+      <div className="w-full px-4 mt-8 flex flex-col gap-3 max-w-[500px]">
         {cards.map(card => {
           const isSelected = selected === card.id;
           return (
@@ -84,8 +144,8 @@ export const FollowerPairingMatch = () => {
               className="w-full rounded-[14px] p-5 flex items-center gap-4 transition-all"
               style={{
                 backgroundColor: 'white',
-                border: isSelected ? '1.5px solid #B45309' : '1.5px solid #E8E8E8',
-                boxShadow: isSelected ? '0 0 0 3px rgba(180,83,9,0.12)' : 'none',
+                border: isSelected ? '1.5px solid #D97757' : '1.5px solid #E6E2D9',
+                boxShadow: isSelected ? '0 0 0 3px rgba(217,119,87,0.12)' : 'none',
                 opacity: selected && !isSelected ? 0.6 : 1,
               }}
             >
@@ -93,14 +153,14 @@ export const FollowerPairingMatch = () => {
                 {card.emoji}
               </div>
               <div className="flex-1 text-left">
-                <span className="text-[16px] font-[900] text-[#111] block">{card.title}</span>
-                <span className="text-[12px] font-[600] text-[#888] block">{card.subtitle}</span>
+                <span className="text-[16px] font-[900] text-text block">{card.title}</span>
+                <span className="text-[12px] font-[600] text-textMid block">{card.subtitle}</span>
               </div>
               <div
                 className="w-5 h-5 rounded-full shrink-0 flex items-center justify-center"
                 style={{
-                  border: isSelected ? 'none' : '2px solid #E8E8E8',
-                  backgroundColor: isSelected ? '#B45309' : 'transparent',
+                  border: isSelected ? 'none' : '2px solid #E6E2D9',
+                  backgroundColor: isSelected ? '#D97757' : 'transparent',
                 }}
               >
                 {isSelected && (
@@ -115,37 +175,53 @@ export const FollowerPairingMatch = () => {
       </div>
 
       {/* Availability indicator */}
-      <div className="w-full px-4 mt-6">
-        <div className="w-full rounded-[10px] p-3 flex items-center gap-3" style={{ backgroundColor: '#FAFAFA' }}>
-          <div className="relative shrink-0">
-            <div className="w-2 h-2 rounded-full bg-[#22C55E]" />
-            <div
-              className="absolute inset-0 w-2 h-2 rounded-full bg-[#22C55E]"
-              style={{ animation: 'accPulse 2s infinite' }}
-            />
+      {waitingCount > 0 && (
+        <div className="w-full px-4 mt-6 max-w-[500px]">
+          <div className="w-full rounded-[10px] p-3 flex items-center gap-3" style={{ backgroundColor: '#FAF9F7' }}>
+            <div className="relative shrink-0">
+              <div className="w-2 h-2 rounded-full bg-success" />
+              <div
+                className="absolute inset-0 w-2 h-2 rounded-full bg-success"
+                style={{ animation: 'accPulse 2s infinite' }}
+              />
+            </div>
+            <span className="text-[13px] font-[600] text-textMid">{waitingCount} {waitingCount === 1 ? 'person' : 'people'} waiting to be matched right now</span>
           </div>
-          <span className="text-[13px] font-[600] text-[#555]">{waitingCount} people waiting to be matched right now</span>
+          <p className="text-[11px] text-textLight text-center mt-3">
+            You will be matched based on the most recently available member.
+          </p>
         </div>
-        <p className="text-[11px] text-[#AAAAAA] text-center mt-3">
-          You will be matched based on the most recently available member.
-        </p>
-      </div>
+      )}
 
       {/* Next button */}
-      <div className="w-full px-4 mt-8 pb-8">
+      <div className="w-full px-4 mt-8 pb-8 max-w-[500px]">
         <button
           onClick={handleNext}
           disabled={!selected}
           className="w-full h-[54px] rounded-[14px] text-white text-[16px] font-[900] flex items-center justify-center transition-all"
           style={{
-            backgroundColor: '#B45309',
+            backgroundColor: '#D97757',
             opacity: selected ? 1 : 0.4,
             pointerEvents: selected ? 'auto' : 'none',
           }}
         >
-          Find My Match →
+          {isLoggedIn ? 'Find My Match →' : 'Continue →'}
         </button>
+        {!isLoggedIn && selected && (
+          <p className="text-[11px] text-textLight text-center mt-3">
+            You'll need to sign in to get matched.
+          </p>
+        )}
       </div>
+
+      {/* Auth Bottom Sheet */}
+      <AuthBottomSheet
+        isOpen={showAuth}
+        onClose={() => setShowAuth(false)}
+        onSuccess={handleAuthSuccess}
+        defaultScreen={authScreen}
+        contextualMessage="Sign in to get matched with an accountability partner and start your challenge."
+      />
 
       <style>{`
         @keyframes accPulse {

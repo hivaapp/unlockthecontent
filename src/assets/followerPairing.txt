@@ -1,0 +1,230 @@
+## Follower Pairing — Complete End-to-End Implementation Prompt (Parts 10 + 11 + 12 Combined)
+
+---
+
+### Context Your AI Must Read First
+
+Before implementing anything the AI must fully understand the existing Email Subscribe, Social Follow, and Custom Sponsor implementations. The Follower Pairing system shares the same foundational architecture — same slug generation, same share URL construction, same `getLinkBySlug` query pattern, same session key system, same `ResourceUnlockPage` routing switch, same dashboard link management, same Explore page display. The AI must not rebuild any of these foundations. It extends them.
+
+The AI must also read the complete database schema from Part 1. The tables that power this entire feature already exist — `pairing_configs`, `pairing_participants`, `pairing_sessions`, `pairing_messages`, `scheduled_messages`, `completion_assets`. All RLS policies from Part 2 are already in place. No schema changes are needed. The implementation is purely application logic connecting to these existing tables.
+
+---
+
+### What Follower Pairing Is — The Complete Mental Model
+
+A creator runs a challenge. They create a Follower Pairing link and share it with their audience. Viewers who visit the link commit to the challenge, optionally specify a gender preference for their partner, and are paired with another viewer who made the same commitment. The two paired viewers get a private chat room where only they can communicate. The creator can send broadcast messages to all active pairs but cannot read private messages between pairs. After the challenge duration ends, if both participants completed it, they unlock a reward asset the creator configured. The creator monitors all their active campaigns from the dashboard.
+
+This is fundamentally different from the lock content unlock types. There is no single unlock action. The entire journey — committing, waiting to be paired, chatting with a partner, completing the challenge — is the product.
+
+---
+
+## The Four Viewer-Facing Pages
+
+---
+
+### Page 1 — Commitment Page `/r/[slug]`
+
+This is the same unlock page entry point used by all lock content types. The `ResourceUnlockPage` switch statement routes to `FollowerPairingUnlock` when `link.mode === 'follower_pairing'`.
+
+The commitment page shows the creator's challenge details — the topic, description, duration in days, check-in frequency, and the commitment prompt the creator wrote. It shows how many participants have already joined and how many active pairs exist. This social proof encourages joining.
+
+The page has a single text area where the viewer writes their commitment statement in response to the creator's commitment prompt. This is their personal declaration — something like "I commit to working out every morning for 30 days." It must be at least 20 characters. There is a character counter.
+
+The viewer taps "I'm In" after writing their commitment. Their commitment text is saved in sessionStorage under `adgate_fp_[linkId]_commitment`. Nothing is written to Supabase yet. The viewer is moved to Page 2.
+
+The session state for the entire pairing journey lives in sessionStorage. This means if the viewer closes the tab and returns, they resume from wherever they left off — the same page they were on, with their previous inputs restored.
+
+---
+
+### Page 2 — Gender Preference Page
+
+This page asks the viewer their gender preference for their accountability partner. The options are Male, Female, and No Preference. This is a single-tap selection — no submit button, tapping a card immediately saves the selection to sessionStorage under `adgate_fp_[linkId]_gender` and moves to Page 3.
+
+The gender preference is used as a soft filter during matching, not a hard requirement. If no suitable match exists with the preferred gender, the system matches across all genders to avoid indefinite waiting.
+
+---
+
+### Page 3 — Matching Page
+
+This page has two distinct states — searching and matched.
+
+**The searching state** shows an animated matching indicator — something that communicates "finding your accountability partner." The viewer sees their own commitment statement displayed back to them. They see a progress message like "Looking for someone who shares your commitment..."
+
+When this page mounts, the app calls `joinPairingQueue` which writes the viewer into the `pairing_participants` table. The row contains the `link_id`, `user_id` if logged in or null if anonymous, the `commitment_text` from sessionStorage, the `gender_preference` from sessionStorage, a generated `session_key`, and `status: waiting`.
+
+After inserting the participant row, the app starts a Supabase Realtime subscription on the `pairing_sessions` table filtered by the participant's ID in either `participant_a_id` or `participant_b_id`. This subscription listens for a new row being inserted — which means a match was found.
+
+Simultaneously a matching algorithm runs. The matching happens in a Supabase Edge Function called `find-pairing-match`. The frontend calls this function every 10 seconds while on the matching page. The function looks in `pairing_participants` for another waiting participant on the same link who has a compatible gender preference and has been waiting. If a compatible waiting participant is found, the function creates a `pairing_sessions` row linking the two participants, sets both participant statuses to `paired`, and the Realtime subscription fires on both viewers' browsers.
+
+The 10-second polling plus Realtime subscription gives near-instant matching when two people are online simultaneously, and reliable eventual matching when there is a delay.
+
+**The matched state** appears when the Realtime subscription fires. The searching animation stops. A celebration moment plays — the partner's commitment statement is revealed. The viewer sees their partner's commitment, a trust score badge, and a "Meet Your Partner →" button that navigates to Page 4. The session ID is saved to sessionStorage under `adgate_fp_[linkId]_session`.
+
+---
+
+### Page 4 — The Pairing Chat
+
+This is the core of the entire feature. It is a full real-time chat between exactly two people — the paired participants.
+
+**The chat architecture** uses Supabase Realtime subscriptions on the `pairing_messages` table. The filter is `session_id=eq.[sessionId]`. Both participants subscribe to this channel when the chat mounts. New messages inserted by either participant appear instantly on both screens via the Realtime event.
+
+**The message types** that exist in the chat:
+
+Private messages — sent by either participant, visible only to the two of them. These are normal chat messages. The RLS policy on `pairing_messages` enforces that only the two participants can read rows where `is_broadcast = false`.
+
+Broadcast messages — sent by the creator to all active pairs on this campaign. These appear in every pair's chat simultaneously. They are visually distinct from private messages — a different background color, a "From Creator" label, and the creator's avatar. The RLS policy allows the creator to INSERT broadcast messages but not to READ private messages.
+
+System messages — automatically generated events like "Challenge started", "Day 5 check-in reminder", and "Challenge complete." These are also stored as rows in `pairing_messages` with a special `message_type` field.
+
+**The progress bar** at the top of the chat shows how far through the challenge duration the pair is. It calculates `(days since pairing) / duration_days * 100`. It turns amber for the last 20% of the duration.
+
+**The check-in mechanism** works as follows. Based on the creator's configured `check_in_frequency` (daily, every other day, weekly), a system message appears in the chat prompting both participants to check in. Each participant taps a "✓ Check In" button. The check-in is recorded in the participant's row. Both participants can see whether the other has checked in for the current period.
+
+**Media in chat** — participants can send images and files. These follow the exact same upload flow as the rest of the platform — `FileUploadZone` component, `uploadFile` service using the `assets` bucket, `confirm-upload` Edge Function. The resulting presigned download URLs are embedded in the message content.
+
+**Typing indicators** — when a participant is typing, a `typing` event is broadcast over the Supabase Realtime presence channel for that session. The other participant sees a "Partner is typing..." indicator.
+
+**Reactions** — participants can long-press a message to add an emoji reaction. Reactions are stored as a JSON array on the `pairing_messages` row and updated via Supabase UPDATE. The Realtime subscription picks up the update and both screens refresh the reaction display.
+
+**Reply to message** — tapping reply on a message sets a `replyTo` reference in the composer. The sent message includes the quoted message ID. The chat renders reply messages with a quoted preview above the message content.
+
+---
+
+### The Challenge Completion Flow
+
+When the session's `expires_at` timestamp passes, the challenge is considered ended. A system message appears in the chat: "Your challenge has ended."
+
+Both participants see a completion card in the chat. Each one taps "Mark Complete" to confirm they completed the challenge. When both have marked complete, the `pairing_sessions` status updates to `completed`. The `pairing_configs` counters update — `active_pairs` decrements and `completed_pairs` increments.
+
+If the creator configured a completion asset, the completion card transforms into a reward reveal. A "Unlock Your Reward 🎉" button appears. Tapping it calls `get-download-url` with `unlockType: completion_asset`. The Edge Function verifies the session is completed and the requesting user is a participant. If verified, it returns the presigned download URL for the completion asset file. The content is delivered exactly as in the lock content unlock types.
+
+If no completion asset was configured, the completion card shows a congratulations message and a link to the creator's profile.
+
+---
+
+## The Creator Dashboard Tools
+
+---
+
+### Campaign Overview Card
+
+In the Dashboard Links tab, Follower Pairing link cards look different from lock content cards. They show the campaign topic, the duration, and a three-number stats strip: total participants, active pairs, completed pairs. An amber border distinguishes them visually from green-bordered lock content links.
+
+Tapping the card expands it or navigates to the campaign detail page.
+
+---
+
+### Campaign Detail Page
+
+The creator accesses a full campaign management view for each pairing link. It has three tabs — Overview, Participants, and Messages.
+
+**Overview tab** shows: the share link with copy button, total participants over time as a chart, active pairs count, completion rate, a list of all current active sessions showing pair status and days remaining, and the pairing config settings with an Edit button.
+
+**Participants tab** shows a searchable list of all participants — their commitment text, when they joined, who they are paired with, their session status (waiting, paired, completed, expired), and their check-in streak.
+
+**Messages tab** is the creator's broadcast interface. The creator types a message and taps Send. This inserts a row into `pairing_messages` for every active session on this campaign simultaneously — each row has the same content, the creator's `sender_id`, `is_broadcast: true`, and the respective `session_id`. Every active pair sees the message appear in their chat in real time. The creator sees a confirmation: "Message delivered to 47 pairs."
+
+---
+
+### Scheduled Messages
+
+The creator can pre-schedule broadcast messages during link creation or from the campaign detail page. Each scheduled message has a `day_number` (which day of the challenge to send it), a `send_time` (time of day), and the message content.
+
+A Supabase Edge Function called `send-scheduled-messages` is triggered on a schedule — either via pg_cron on Supabase Pro or via a daily Cloudflare Worker cron trigger. It queries `scheduled_messages` for rows where `is_sent = false` and `day_number` matches today's day number relative to each session's `paired_at` date. For each matching message, it inserts broadcast rows into `pairing_messages` for all active sessions on that pairing config, then marks the scheduled message as `is_sent = true` with the current timestamp and a `delivered_count`.
+
+---
+
+### Completion Asset Management
+
+From the campaign detail page the creator can add, replace, or remove the completion asset. The completion asset consists of a file (uses the same upload flow, `assets` bucket) and an unlock message the creator writes. If no completion asset is configured, completing the challenge shows a congratulations state without a downloadable reward.
+
+---
+
+## How Supabase Tables Are Used — The Complete Map
+
+---
+
+`pairing_participants` — one row per viewer who clicks I'm In on a pairing link. Status flows from `waiting` → `paired` → `completed` or `expired`. The matching algorithm reads and updates this table.
+
+`pairing_sessions` — one row per matched pair. Created by the `find-pairing-match` Edge Function. Contains `participant_a_id`, `participant_b_id`, `link_id`, `paired_at`, `expires_at` (paired_at + duration_days), `status` (active, completed, expired).
+
+`pairing_messages` — every message in every chat. `session_id` links to the session. `sender_id` is the participant or creator. `is_broadcast` distinguishes broadcast from private. Realtime is enabled on this table. RLS enforces that only participants can read non-broadcast messages for their session.
+
+`scheduled_messages` — pre-written broadcast messages with day numbers. Read and executed by the scheduled Edge Function. Never read directly by the frontend.
+
+`completion_assets` — one row per pairing config that has a reward. Contains `file_id` and `unlock_message`. Read by `get-download-url` Edge Function when verifying completion asset requests.
+
+`pairing_configs` — the campaign settings. Contains all the metadata the creator configured. `total_participants`, `active_pairs`, `completed_pairs` are denormalized counters updated via RPC functions as participants join, pair, and complete.
+
+---
+
+## How R2 Is Used
+
+R2 is involved in two places in the Follower Pairing feature.
+
+The completion asset file is uploaded to the `assets` bucket when the creator configures it. The upload flow is identical to content files — `FileUploadZone` component, `generate-upload-url` Edge Function, direct browser-to-R2 PUT, `confirm-upload` Edge Function. The file sits in R2 until a completed participant requests it.
+
+Chat media attachments are uploaded to the `assets` bucket when participants send images or files in the chat. Same upload flow. The presigned download URL is stored as the message content or as a field on the message row.
+
+The sponsor video concept from Custom Sponsor does not apply here. There are no sponsor videos in the Follower Pairing flow.
+
+---
+
+## The Matching Algorithm — How It Works
+
+The `find-pairing-match` Edge Function is called by the frontend every 10 seconds while a participant is on the matching page. It receives the `participantId` and `linkId`.
+
+Inside the function, it first verifies the requesting participant is still in `waiting` status. If they were already paired (by a simultaneous call from their match), it returns the existing session immediately.
+
+It then queries `pairing_participants` for other waiting participants on the same `link_id`, excluding the requesting participant, ordered by `created_at` ascending (longest waiting gets matched first). It applies the gender preference filter as a soft preference — first tries to find a match with the preferred gender, falls back to any gender if none found after the participant has been waiting more than 2 minutes.
+
+When a match is found, the function wraps both operations in a Supabase transaction. It inserts a `pairing_sessions` row. It updates both participant rows to `status: paired` and sets `session_id`. It increments `total_participants` and `active_pairs` on `pairing_configs` via RPC. It returns the new session data.
+
+Race condition handling — if two participants simultaneously call `find-pairing-match` and both try to match with each other, the database transaction and the UNIQUE constraint on participant IDs in sessions prevents double-pairing. One transaction commits, the other finds the participant already paired and returns the existing session.
+
+---
+
+## The Realtime Architecture
+
+Three Realtime subscriptions run simultaneously while a viewer is in the pairing flow.
+
+**Subscription 1 — Matching page.** Subscribes to `pairing_sessions` filtered to sessions containing this participant's ID. Fires when a match is created. Moves the viewer from searching state to matched state.
+
+**Subscription 2 — Chat page.** Subscribes to `pairing_messages` filtered by `session_id`. Fires when any message is inserted or updated. Updates the message list in real time for both participants.
+
+**Subscription 3 — Chat presence.** Uses Supabase Realtime presence to track online status and typing indicators. Each participant joins a presence channel named `session-[sessionId]`. The presence state includes `isTyping` and `lastSeen`. Typing indicator throttle — presence updates are sent at most every 500ms while typing, and a `isTyping: false` update is sent 2 seconds after the last keystroke.
+
+All three subscriptions are cleaned up when the component unmounts to prevent memory leaks and orphaned connections.
+
+---
+
+## Session State Management — What Lives Where
+
+`sessionStorage` holds the viewer's progress through the pairing journey. This persists across page refreshes within the same tab. The keys are:
+
+`adgate_fp_[linkId]_commitment` — the commitment text they wrote on Page 1.
+`adgate_fp_[linkId]_gender` — the gender preference they selected on Page 2.
+`adgate_fp_[linkId]_participant` — the participant ID returned after joining the queue on Page 3.
+`adgate_fp_[linkId]_session` — the session ID returned when matched on Page 3.
+
+When the chat page mounts, it reads `adgate_fp_[linkId]_session` to know which session to load. If this key is missing the viewer is redirected back to Page 1. If the session exists in Supabase but is expired or completed, the chat shows the appropriate end state rather than an active chat.
+
+---
+
+## What The AI Must Not Do
+
+The AI must not create new database tables. All required tables exist from Part 1.
+
+The AI must not modify RLS policies. The existing policies from Part 2 already enforce the privacy rules — participants only see their own session's messages, creators cannot read private messages.
+
+The AI must not build a separate real-time system outside of Supabase Realtime. No WebSocket servers, no third-party chat SDKs, no Firebase. Supabase Realtime handles everything.
+
+The AI must not allow the creator to read private messages between participants. The RLS policy prevents this at the database level. The creator's dashboard must not show any UI that attempts to display private message content.
+
+The AI must not skip the transaction wrapper in the matching algorithm. Without a transaction, race conditions will create duplicate sessions.
+
+The AI must not poll the database from the chat page for new messages. Realtime subscriptions replace polling entirely. The only polling in the entire feature is the 10-second `find-pairing-match` call on the matching page while waiting to be paired.
+
+The AI must not duplicate the `UnlockSuccessScreen` component. The completion asset delivery uses the same shared success screen component as all other unlock types.
+
+The AI must not forget to unsubscribe from Realtime channels on component unmount. Every `supabase.channel()` call must have a corresponding cleanup in the `useEffect` return function.

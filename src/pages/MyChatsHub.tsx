@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useChatSessions } from '../context/ChatSessionsContext';
 import { useMessaging } from '../context/MessagingContext';
@@ -28,58 +28,6 @@ export const truncate = (str: string, len: number) =>
   str.length > len ? str.slice(0, len) + '…' : str;
 
 // --- Pairing Tab Components ---
-// (Mostly original code, refactored into a tab)
-
-const useMockMessagePoller = () => {
-  const { sessions, setSessions } = useChatSessions();
-
-  useEffect(() => {
-    const activeSessions = sessions.filter(s => s.status === 'active');
-    if (activeSessions.length === 0) return;
-
-    const interval = setInterval(() => {
-      const randomSession = activeSessions[Math.floor(Math.random() * activeSessions.length)];
-
-      const mockResponses: Record<string, string[]> = {
-        session_viewer_001: [
-          'Just finished my morning pages ✓',
-          'How are you doing today?',
-          'Missed yesterday but back on track',
-          'Day check-in!',
-        ],
-        session_viewer_002: [
-          'Sent 3 more proposals today',
-          'Had a call with a potential client 🤞',
-          "How's your outreach going?",
-          'Feeling good about this week',
-        ],
-      };
-
-      const responses = mockResponses[randomSession.sessionId] || ['Check-in!'];
-      const content = responses[Math.floor(Math.random() * responses.length)];
-
-      setSessions(prev =>
-        prev.map(s =>
-          s.sessionId === randomSession.sessionId
-            ? {
-                ...s,
-                unreadCount: s.unreadCount + 1,
-                lastMessage: {
-                  content,
-                  senderId: s.partner.participantId,
-                  senderName: s.partner.displayName,
-                  timestamp: new Date().toISOString(),
-                  type: 'private',
-                },
-              }
-            : s
-        )
-      );
-    }, 45000);
-
-    return () => clearInterval(interval);
-  }, [sessions.length, setSessions, sessions]);
-};
 
 // ... existing FilterSheet and ActionSheet for Pairing ...
 const PairingFilterSheet = ({
@@ -334,27 +282,36 @@ const RequestsTab = ({ onSelectChat }: { onSelectChat?: (id: string, type: 'requ
         .filter(r => !declinedLocally.find(d => d.requestId === r.requestId))
         .sort((a, b) => new Date(b.sentAt).getTime() - new Date(a.sentAt).getTime());
 
-    const handleApprove = (req: MessageRequest) => {
-        // Build currentUser profile for the conversation
-        approveRequest(req.requestId, {
-            id: currentUser.id,
-            name: currentUser.name,
-            username: currentUser.username,
-            initial: currentUser.initial || 'U',
-            avatarColor: currentUser.avatarColor || '#2563EB',
-            isCreator: currentUser.isCreator,
-        });
-        showToast(`Chat started with ${req.sender.name}`, 'success');
-        if (onSelectChat) {
-             // The new conversation id isn't explicitly returned here without a slight tweak,
-             // but we will route to /chats and let the user click it, or just do nothing on desktop.
+    const handleApprove = async (req: MessageRequest) => {
+        try {
+            await approveRequest(req.requestId, {
+                id: currentUser.id,
+                name: currentUser.name,
+                username: currentUser.username,
+                initial: currentUser.initial || 'U',
+                avatarColor: currentUser.avatarColor || '#2563EB',
+                isCreator: currentUser.isCreator,
+            });
+            showToast(`Chat started with ${req.sender.name}`, 'success');
+            if (onSelectChat) {
+                 // The new conversation id isn't explicitly returned here without a slight tweak,
+                 // but we will route to /chats and let the user click it, or just do nothing on desktop.
+            }
+        } catch (err) {
+            console.error('Failed to approve request:', err);
+            showToast('Failed to approve request', 'error');
         }
     };
 
-    const handleDecline = (req: MessageRequest) => {
-        declineRequest(req.requestId);
-        setDeclinedLocally(prev => [req, ...prev]);
-        showToast(`Request declined`, 'info');
+    const handleDecline = async (req: MessageRequest) => {
+        try {
+            await declineRequest(req.requestId);
+            setDeclinedLocally(prev => [req, ...prev]);
+            showToast(`Request declined`, 'info');
+        } catch (err) {
+            console.error('Failed to decline request:', err);
+            showToast('Failed to decline request', 'error');
+        }
     };
 
     return (
@@ -591,9 +548,14 @@ export const MessagesSidebar = ({
     onSelectChat?: (id: string, type: 'dm' | 'pairing') => void;
 }) => {
     const { currentUser } = useAuth();
-    const { sessions, markSessionRead, getTotalUnread } = useChatSessions();
+    const { sessions, markSessionRead, getTotalUnread, refreshSessions } = useChatSessions();
     const { getTotalDMUnread, getTotalPendingCount } = useMessaging();
     const navigate = useNavigate();
+
+    // Refresh pairing sessions when this view mounts (e.g. after navigating back from a match)
+    useEffect(() => {
+        refreshSessions();
+    }, [refreshSessions]);
     
     // Pairing specific
     const [filter, setFilter] = useState('active');
@@ -601,7 +563,7 @@ export const MessagesSidebar = ({
     const [showFilter, setShowFilter] = useState(false);
     const [showActionSheet, setShowActionSheet] = useState(false);
 
-    useMockMessagePoller();
+    // Real sessions are loaded via ChatSessionsContext
 
     const dmUnread = currentUser ? getTotalDMUnread(currentUser.id) : 0;
     const pendingCount = currentUser ? getTotalPendingCount(currentUser.id) : 0;
@@ -782,7 +744,9 @@ export const MessagesSidebar = ({
 export const MyChatsHub = () => {
   const { isLoggedIn } = useAuth();
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState<'chats' | 'requests' | 'pairing'>('chats');
+  const location = useLocation();
+  const state = location.state as any;
+  const [activeTab, setActiveTab] = useState<'chats' | 'requests' | 'pairing'>(state?.activeTab || 'chats');
   const [isDesktop, setIsDesktop] = useState(window.innerWidth >= 1024);
 
   useEffect(() => {

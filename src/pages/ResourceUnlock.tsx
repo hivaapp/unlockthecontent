@@ -102,6 +102,23 @@ export const ResourceUnlock = () => {
         addToast('Sponsor visited! Revealing your content...', 'success');
     };
 
+    const handleShareTwitter = () => {
+        const url = window.location.href;
+        const text = `Check out this free resource: ${resource?.title}`;
+        window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}&url=${encodeURIComponent(url)}`, '_blank');
+    };
+
+    const handleShareWhatsApp = () => {
+        const url = window.location.href;
+        const text = `Check out this free resource: ${resource?.title} - ${url}`;
+        window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
+    };
+
+    const handleCopyLink = () => {
+        navigator.clipboard.writeText(window.location.href);
+        addToast('Link copied to clipboard', 'success');
+    };
+
     if (isLoading) {
         return (
             <div className="min-h-screen bg-bg flex flex-col items-center justify-center p-6">
@@ -353,7 +370,7 @@ export const ResourceUnlock = () => {
                             )}
                             
                             {(resource.mode === 'follower_pairing' || resource.unlockType === 'follower_pairing') && (resource.pairing_config || resource.followerPairingConfig) && (
-                                <FollowerPairingUnlock config={resource.pairing_config || resource.followerPairingConfig} onComplete={() => registerVideoWatch(false)} />
+                                <FollowerPairingUnlock link={resource} slug={slug} onComplete={() => registerVideoWatch(false)} />
                             )}
                         </>
                     ) : (
@@ -379,13 +396,13 @@ export const ResourceUnlock = () => {
                             <div className="mb-8">
                                 <p className="text-[14px] font-black text-center text-text mb-4">Share this free resource with your friends</p>
                                 <div className="flex justify-center gap-3">
-                                    <button className="flex-1 h-10 bg-[#000000] text-white rounded-full flex items-center justify-center gap-2 font-bold text-[13px] hover:opacity-90">
+                                    <button onClick={handleShareTwitter} className="flex-1 h-10 bg-[#000000] text-white rounded-full flex items-center justify-center gap-2 font-bold text-[13px] hover:opacity-90">
                                         <Twitter size={16} /> Twitter
                                     </button>
-                                    <button className="flex-1 h-10 bg-[#25D366] text-white rounded-full flex items-center justify-center gap-2 font-bold text-[13px] hover:opacity-90">
+                                    <button onClick={handleShareWhatsApp} className="flex-1 h-10 bg-[#25D366] text-white rounded-full flex items-center justify-center gap-2 font-bold text-[13px] hover:opacity-90">
                                         <MessageCircle size={16} /> WhatsApp
                                     </button>
-                                    <button className="flex-1 h-10 bg-surfaceAlt text-text rounded-full flex items-center justify-center gap-2 font-bold text-[13px] hover:bg-border">
+                                    <button onClick={handleCopyLink} className="flex-1 h-10 bg-surfaceAlt text-text rounded-full flex items-center justify-center gap-2 font-bold text-[13px] hover:bg-border">
                                         <Copy size={16} /> Copy
                                     </button>
                                 </div>

@@ -2,18 +2,19 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../../../context/AuthContext';
 import { CountUp } from '../../ui/CountUp';
-import { Copy, Plus, ArrowRight, UserCheck, Download } from 'lucide-react';
-import { useToast } from '../../../context/ToastContext';
+import { ArrowRight, UserCheck, Download } from 'lucide-react';
 import { getAllUniqueSubscribers } from '../../../services/emailSubscribeService';
 import { GlobalSubscribersSheet } from '../GlobalSubscribersSheet';
 import { getCreatorLinks } from '../../../services/linksService';
+import { getRecentActivity, type Activity } from '../../../services/activityService';
 
-export const HomeTab = ({ onTabChange }: { onTabChange: (tab: 'home' | 'links' | 'chats' | 'account') => void }) => {
+export const HomeTab = () => {
     const { currentUser: user } = useAuth();
-    const { showToast } = useToast();
     const [subscriberCount, setSubscriberCount] = useState<number | null>(null);
     const [totalViews, setTotalViews] = useState<number>(0);
     const [isSubscribersSheetOpen, setIsSubscribersSheetOpen] = useState(false);
+    const [activities, setActivities] = useState<Activity[]>([]);
+    const [isLoadingActivities, setIsLoadingActivities] = useState(true);
 
     useEffect(() => {
         if (user?.id) {
@@ -31,24 +32,18 @@ export const HomeTab = ({ onTabChange }: { onTabChange: (tab: 'home' | 'links' |
             const links = await getCreatorLinks(user!.id);
             const views = links.reduce((acc, link) => acc + (link.view_count || 0), 0);
             setTotalViews(views);
+
+            // Fetch recent activities
+            setIsLoadingActivities(true);
+            const recentActivities = await getRecentActivity(user!.id);
+            setActivities(recentActivities);
+            setIsLoadingActivities(false);
         } catch (err) {
             console.error('Failed to load home stats:', err);
+            setIsLoadingActivities(false);
         }
     };
 
-    // Mock Data
-    const latestLink = { url: 'adga.te/r/design-system', exists: true };
-    const activities = [
-        { id: 1, type: 'unlock', title: 'design-system locked unlocked', time: '2 mins ago', icon: '🔓', bg: 'bg-brand/10' },
-        { id: 3, type: 'create', title: 'Created new link', time: '2 days ago', icon: '🔗', bg: 'bg-surfaceAlt' },
-        { id: 4, type: 'unlock', title: 'figma-kit locked unlocked', time: '2 days ago', icon: '🔓', bg: 'bg-brand/10' },
-        { id: 5, type: 'unlock', title: 'resume-template unlocked', time: '3 days ago', icon: '🔓', bg: 'bg-brand/10' },
-    ];
-
-    const copyLink = () => {
-        navigator.clipboard.writeText(latestLink.url);
-        showToast({ message: 'Link copied to clipboard', type: 'success' });
-    };
 
     return (
         <div className="flex flex-col gap-6 px-4 pt-4 sm:pt-8 w-full pb-8">
@@ -106,30 +101,6 @@ export const HomeTab = ({ onTabChange }: { onTabChange: (tab: 'home' | 'links' |
                 )}
             </div>
 
-            {/* Quick Share Strip */}
-            <div className="card p-4 shadow-none flex flex-col gap-3">
-                {latestLink.exists ? (
-                    <>
-                        <div className="flex items-center justify-between">
-                            <span className="text-[13px] font-extrabold text-text">Latest Link</span>
-                            <button
-                                onClick={copyLink}
-                                className="flex items-center gap-1 text-[13px] font-bold text-brand hover:text-brand-hover"
-                            >
-                                <Copy className="w-3.5 h-3.5" /> Copy
-                            </button>
-                        </div>
-                        <div className="w-full h-10 bg-surfaceAlt border border-border rounded-[14px] px-3 flex items-center hover:border-[#D97757] transition-colors cursor-pointer group" onClick={copyLink}>
-                            <span className="font-mono text-[13px] text-textMid truncate group-hover:text-text transition-colors">{latestLink.url}</span>
-                        </div>
-                    </>
-                ) : (
-                    <button onClick={() => onTabChange('links')} className="btn-secondary w-full text-brand border-brand/30 bg-brand-tint hover:bg-brand/10">
-                        <Plus size={16} className="mr-2" />
-                        Create Your First Link
-                    </button>
-                )}
-            </div>
 
             {/* Sponsor Activity Feed */}
             <div className="flex flex-col w-full">
@@ -139,8 +110,13 @@ export const HomeTab = ({ onTabChange }: { onTabChange: (tab: 'home' | 'links' |
                         See All <ArrowRight className="w-3.5 h-3.5" />
                     </button>
                 </div>
-                <div className="card p-0 overflow-hidden shadow-none flex flex-col">
-                    {activities.length > 0 ? activities.map((item, idx) => (
+                <div className="card p-0 overflow-hidden shadow-none flex flex-col min-h-[120px]">
+                    {isLoadingActivities ? (
+                        <div className="w-full h-[120px] flex justify-center items-center flex-col gap-2">
+                             <div className="w-6 h-6 border-2 border-brand/20 border-t-brand rounded-full animate-spin" />
+                             <span className="text-[12px] font-bold text-textLight">Loading activity...</span>
+                        </div>
+                    ) : activities.length > 0 ? activities.map((item, idx) => (
                         <div
                             key={item.id}
                             className="flex items-center justify-between h-[60px] px-4 border-b border-border last:border-0 animate-slide-right opacity-0"

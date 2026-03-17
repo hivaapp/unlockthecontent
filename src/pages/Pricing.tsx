@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
 import { Check, Lock, CalendarX, CheckCircle2, CircleDollarSign, Percent, BadgeDollarSign, ChevronDown, ChevronUp } from 'lucide-react';
 
 const PRICING_FAQS = [
@@ -10,9 +11,13 @@ const PRICING_FAQS = [
 ];
 
 export const Pricing = () => {
+    const { currentUser } = useAuth();
     const [isDonateOn, setIsDonateOn] = useState(false);
     const [openFaq, setOpenFaq] = useState<number | null>(null);
     const [customDealAmount, setCustomDealAmount] = useState('500');
+
+    // Get the Stripe link from environment variables or use a placeholder
+    const stripeProLink = import.meta.env.VITE_STRIPE_PRO_LINK || 'https://buy.stripe.com/test_PASTE_YOUR_LINK_HERE';
 
     // Set meta tags properly
     useEffect(() => {
@@ -273,9 +278,18 @@ export const Pricing = () => {
                                 </div>
                             </div>
 
-                            <Link to="/" className="w-full h-[48px] bg-brand text-white font-black text-[15px] rounded-[14px] flex items-center justify-center hover:bg-brandHover transition-colors shadow-md">
-                                Upgrade to Pro
-                            </Link>
+                            {currentUser?.isProUser ? (
+                                <div className="w-full h-[48px] bg-[#F1F1F1] text-textMid font-black text-[15px] rounded-[14px] flex items-center justify-center cursor-default">
+                                    Current Plan
+                                </div>
+                            ) : (
+                                <a 
+                                    href={`${stripeProLink}?client_reference_id=${currentUser?.id || 'anonymous'}`}
+                                    className="w-full h-[48px] bg-brand text-white font-black text-[15px] rounded-[14px] flex items-center justify-center hover:bg-brandHover transition-colors shadow-md"
+                                >
+                                    Upgrade to Pro
+                                </a>
+                            )}
                         </div>
                     </div>
 

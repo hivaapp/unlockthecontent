@@ -334,11 +334,11 @@ export const ExplorePage = () => {
                             {resources.map(r => (
                                 <Link to={`/r/${r.slug}`} key={r.id} className="bg-white rounded-[14px] border border-border overflow-hidden hover:shadow-md transition-shadow flex flex-col group relative">
                                     {(!r.unlockType || r.unlockType === 'custom_sponsor') ? (
-                                        <div className="absolute top-2 right-2 bg-white/90 backdrop-blur-sm border border-white/20 px-2 py-1 rounded-[6px] text-[#4C1D95] font-black text-[10px] shadow-sm z-10 flex items-center gap-1">✨ Sponsored</div>
+                                        <div className="absolute top-2 right-2 bg-white h-[20px] border border-[#E6E2D9] px-2 rounded-full text-[#C1644A] font-black text-[9px] shadow-sm z-10 flex items-center gap-1 uppercase tracking-widest">✨ Sponsored</div>
                                     ) : (
-                                        <div className="absolute top-2 right-2 bg-white/90 backdrop-blur-sm border border-border px-2 py-1 rounded-[6px] text-[#166534] font-black text-[10px] shadow-sm z-10 flex items-center gap-1">🆓 Free</div>
+                                        <div className="absolute top-2 right-2 bg-white h-[20px] border border-[#E6E2D9] px-2 rounded-full text-[#417A55] font-black text-[9px] shadow-sm z-10 flex items-center gap-1 uppercase tracking-widest">🆓 Free</div>
                                     )}
-                                    <div className={`h-[100px] w-full ${(!r.unlockType || r.unlockType === 'custom_sponsor') ? 'bg-gradient-to-br from-[#EDE9FE] to-[#C4B5FD] text-[#4C1D95]' : r.unlockType === 'email_subscribe' ? 'bg-[#F0FDF4] text-[#166534]' : r.unlockType === 'social_follow' ? 'bg-[#EFF6FF] text-[#2563EB]' : 'bg-[#FFFBEB] text-[#92400E]'} flex items-center justify-center text-[40px] group-hover:scale-105 transition-transform duration-500`}>
+                                    <div className={`h-[90px] w-full ${(!r.unlockType || r.unlockType === 'custom_sponsor') ? 'bg-[#FAF0EB] text-[#C1644A]' : r.unlockType === 'email_subscribe' ? 'bg-[#EBF5EE] text-[#417A55]' : r.unlockType === 'social_follow' ? 'bg-[#EFF6FF] text-[#2563EB]' : 'bg-[#F3F1EC] text-[#6B6860]'} flex items-center justify-center text-[40px] group-hover:scale-105 transition-transform duration-500`}>
                                         {getFileEmoji(r.fileType)}
                                     </div>
                                     <div className="p-3 sm:p-4 flex flex-col flex-1">
@@ -371,7 +371,7 @@ export const ExplorePage = () => {
                                             <span className="text-[11px] font-bold text-textLight">{r.unlockCount} unlocks</span>
                                         </div>
 
-                                        <button className="w-full h-10 mt-3 bg-brand text-white font-black text-[13px] rounded-[14px] group-hover:bg-brand-hover transition-colors shadow-sm">
+                                        <button className="w-full h-10 mt-3 bg-[#D97757] text-white font-black text-[13px] rounded-md hover:bg-[#C4663F] transition-all shadow-sm active:scale-[0.98]">
                                             Unlock Free
                                         </button>
                                     </div>
@@ -384,16 +384,16 @@ export const ExplorePage = () => {
                         <div className="w-full flex justify-center flex-col gap-3 mb-8">
                             {resources.map(r => (
                                 <Link to={`/r/${r.slug}`} key={r.id} className="w-full h-[72px] bg-white rounded-[14px] border border-border p-3 flex items-center hover:bg-surfaceAlt transition-colors group relative">
-                                    <div className={`w-12 h-12 rounded-[10px] shrink-0 ${(!r.unlockType || r.unlockType === 'custom_sponsor') ? 'bg-gradient-to-br from-[#EDE9FE] to-[#C4B5FD] text-[#4C1D95] border-2 border-[#6366F1]' : r.unlockType === 'email_subscribe' ? 'bg-[#F0FDF4] text-[#166534]' : r.unlockType === 'social_follow' ? 'bg-[#EFF6FF] text-[#2563EB]' : 'bg-[#FFFBEB] text-[#92400E]'} flex items-center justify-center text-[24px] mr-3`}>
+                                    <div className={`w-12 h-12 rounded-lg shrink-0 ${(!r.unlockType || r.unlockType === 'custom_sponsor') ? 'bg-[#FAF0EB] text-[#C1644A] border border-[#E6E2D9]' : r.unlockType === 'email_subscribe' ? 'bg-[#EBF5EE] text-[#417A55]' : r.unlockType === 'social_follow' ? 'bg-[#EFF6FF] text-[#2563EB]' : 'bg-[#F3F1EC] text-[#6B6860]'} flex items-center justify-center text-[24px] mr-3`}>
                                         {getFileEmoji(r.fileType)}
                                     </div>
                                     <div className="flex flex-col flex-1 min-w-0 pr-2">
                                         <div className="flex items-center gap-2">
                                             <h3 className="font-extrabold text-[14px] leading-tight truncate">{r.title}</h3>
                                             {(!r.unlockType || r.unlockType === 'custom_sponsor') ? (
-                                                <span className="text-[10px] bg-[#EDE9FE] text-[#4C1D95] font-black px-1.5 py-0.5 rounded-[14px]">✨ Sponsored</span>
+                                                <span className="text-[9px] bg-[#FAF0EB] text-[#C1644A] border border-[#E6E2D9] font-black px-2 py-0.5 rounded-full uppercase tracking-widest">✨ Sponsored</span>
                                             ) : (
-                                                <span className="text-[10px] bg-[#F0FDF4] text-[#166534] border border-[#BBF7D0] font-black px-1.5 py-0.5 rounded-[14px]">🆓 Free</span>
+                                                <span className="text-[9px] bg-[#EBF5EE] text-[#417A55] border border-[#E6E2D9] font-black px-2 py-0.5 rounded-full uppercase tracking-widest">🆓 Free</span>
                                             )}
                                         </div>
                                         <button 
