@@ -69,7 +69,7 @@ export const AccountTab = () => {
                     {activeScreen === 'password' && <ScreenPassword onSave={goBack} />}
                     {activeScreen === 'edit_profile' && <ScreenEditProfile user={currentUser} onSave={goBack} />}
                     {activeScreen === 'delete' && <ScreenDelete />}
-                    {activeScreen === 'subscription' && <ScreenSubscription user={currentUser} onSave={goBack} />}
+                    {activeScreen === 'subscription' && <ScreenSubscription user={currentUser} />}
                 </div>
             </div>
         );
@@ -455,7 +455,6 @@ const ScreenDelete = () => {
 function ScreenSubscription({ user }: { user: User | null | undefined }) {
     const { addToast } = useToast();
     const { startProgress, stopProgress } = useProgress();
-    const navigate = useNavigate();
 
     const stripeProLink = import.meta.env.VITE_STRIPE_PRO_LINK || 'https://buy.stripe.com/test_5kA7ti50o3sbgYU5kk';
     const upgradeLink = `${stripeProLink}?client_reference_id=${user?.id || 'anonymous'}&prefilled_email=${encodeURIComponent(user?.email || '')}`;
