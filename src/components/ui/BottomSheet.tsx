@@ -47,6 +47,9 @@ export const BottomSheet = ({ isOpen, onClose, title, children, footer, fullHeig
                     ${isOpen ? 'translate-y-0 opacity-100 sm:scale-100' : 'translate-y-full opacity-0 sm:translate-y-0 sm:scale-95'}
                     ${fullHeight ? 'h-[92vh]' : 'max-h-[85vh]'}
                     rounded-t-[20px] sm:rounded-[20px] sm:w-[500px] sm:h-auto overflow-hidden`}
+                role="dialog"
+                aria-modal="true"
+                aria-label={title}
             >
                 {/* Drag Handle (Mobile only, visual only) */}
                 <div className="sm:hidden w-full flex justify-center pt-3 pb-2 flex-shrink-0 bg-white">
@@ -59,6 +62,7 @@ export const BottomSheet = ({ isOpen, onClose, title, children, footer, fullHeig
                     <h2 className="text-[17px] font-black text-text m-0">{title}</h2>
                     <button
                         onClick={onClose}
+                        aria-label="Close dialog"
                         className="w-9 h-9 flex items-center justify-center rounded-full bg-surfaceAlt text-textMid hover:text-text transition-colors"
                     >
                         <X size={20} />
