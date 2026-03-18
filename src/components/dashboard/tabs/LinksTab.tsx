@@ -274,6 +274,7 @@ export const LinksTab = ({ searchQuery, setSearchQuery }: { searchQuery: string,
                 <h1 className="text-[16px] font-black text-text m-0">My Links</h1>
                 <button
                     onClick={() => setIsCreateOpen(true)}
+                    aria-label="Create new link"
                     className="w-10 h-10 rounded-full bg-brand text-white flex items-center justify-center hover:bg-brand-hover hover:scale-105 transition-all shadow-[0_2px_8px_rgba(217,119,87,0.3)]"
                 >
                     <Plus size={20} strokeWidth={3} />
@@ -293,6 +294,7 @@ export const LinksTab = ({ searchQuery, setSearchQuery }: { searchQuery: string,
                         </div>
                         <button 
                             onClick={() => { setShowNewLinkBanner(false); clearNewLinkParam(); }}
+                            aria-label="Close banner"
                             className="absolute top-4 right-4 text-[#417A55] hover:opacity-70 p-1 -m-1"
                         >
                             <X size={16} />
@@ -313,6 +315,7 @@ export const LinksTab = ({ searchQuery, setSearchQuery }: { searchQuery: string,
                     {searchQuery && (
                         <button
                             onClick={() => setSearchQuery('')}
+                            aria-label="Clear search"
                             className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 flex items-center justify-center text-textLight hover:text-text"
                         >
                             <X size={14} />
