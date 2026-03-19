@@ -13,11 +13,20 @@ import {
   subscribeToSessionUpdates,
   reportPartner,
   updateLastActive,
+  deliverScheduledMessages,
+  getCompletionAssetUrl,
 } from '../services/followerPairingService';
 import type { PairingSession, PairingMessage } from '../services/followerPairingService';
 import { uploadFile } from '../services/uploadService';
+import { TrustScoreBadge } from '../components/shared/TrustScoreBadge';
 import { supabase } from '../lib/supabase';
 
+// Chat media sharing
+import { ChatMediaButton, ChatUploadPreview, ChatMediaContent, ChatMediaLightbox, ChatExpiryBanner } from '../components/chats';
+import { uploadChatMedia, deleteChatUpload } from '../services/chatUploadService';
+import type { ChatUploadResult } from '../services/chatUploadService';
+import { validateChatFile, getMediaCategory, clearPendingUpload } from '../utils/chatMediaHelpers';
+import type { MediaCategory } from '../utils/chatMediaHelpers';
 interface MediaAttachment {
   type: 'image' | 'video' | 'file';
   url: string | null;
@@ -31,32 +40,96 @@ interface ChatMessage {
   senderId: string;
   senderName: string;
   senderInitial: string;
-  type: 'private' | 'broadcast';
+  type: 'private' | 'broadcast' | 'scheduled' | 'reward_reveal';
   content: string;
   timestamp: string;
   isRead: boolean;
   attachments?: MediaAttachment[];
+  links?: { url: string; title: string }[] | null;
+  youtubeUrl?: string | null;
+  dayNumber?: number;
+  sendTime?: string;
+  completionAssetId?: string | null;
+  // Media sharing fields
+  messageType?: string;
+  media_r2_key?: string | null;
+  media_thumbnail_r2_key?: string | null;
+  media_original_name?: string | null;
+  media_mime_type?: string | null;
+  media_size_bytes?: number | null;
+  media_category?: string | null;
+  is_pro_storage?: boolean;
+}
+
+interface CompletionAssetData {
+  id: string;
+  file_id: string | null;
+  unlock_message: string | null;
+  links: { url: string; title: string }[];
+  youtube_url: string | null;
+  resource_title: string | null;
+  resource_description: string | null;
+  file?: {
+    id: string;
+    original_name: string;
+    mime_type: string;
+    size_bytes: number;
+    r2_key: string;
+    r2_bucket: string;
+  } | null;
 }
 
 // Convert Supabase PairingMessage to local ChatMessage
-const toLocalMessage = (msg: PairingMessage, currentUserId: string): ChatMessage => ({
-  id: msg.id,
-  senderId: msg.sender_id,
-  senderName: msg.sender?.name || 'Unknown',
-  senderInitial: msg.sender?.initial || msg.sender?.name?.[0] || '?',
-  type: msg.is_broadcast ? 'broadcast' : 'private',
-  content: msg.content || '',
-  timestamp: msg.created_at,
-  isRead: msg.is_read || msg.sender_id === currentUserId,
-  attachments: msg.file ? [{
-    type: msg.file.mime_type?.startsWith('image/') ? 'image' as const
-        : msg.file.mime_type?.startsWith('video/') ? 'video' as const
-        : 'file' as const,
-    url: null, // We'll fetch download URLs separately
-    fileName: msg.file.original_name,
-    fileSize: formatBytes(msg.file.size_bytes),
-  }] : undefined,
-});
+const toLocalMessage = (msg: PairingMessage, currentUserId: string): ChatMessage => {
+  // Determine message type
+  let msgType: 'private' | 'broadcast' | 'scheduled' | 'reward_reveal' = 'private';
+  if (msg.message_type === 'reward_reveal') {
+    msgType = 'reward_reveal';
+  } else if (msg.message_type === 'scheduled') {
+    msgType = 'scheduled';
+  } else if (msg.is_broadcast) {
+    msgType = 'broadcast';
+  }
+
+  // Parse links from JSONB
+  let parsedLinks = msg.links;
+  if (typeof msg.links === 'string') {
+    try { parsedLinks = JSON.parse(msg.links); } catch { parsedLinks = []; }
+  }
+
+  return {
+    id: msg.id,
+    senderId: msg.sender_id,
+    senderName: msg.sender?.name || 'Unknown',
+    senderInitial: msg.sender?.initial || msg.sender?.name?.[0] || '?',
+    type: msgType,
+    content: msg.content || '',
+    timestamp: msg.created_at,
+    isRead: msg.is_read || msg.sender_id === currentUserId,
+    links: Array.isArray(parsedLinks) && parsedLinks.length > 0 ? parsedLinks : null,
+    youtubeUrl: msg.youtube_url || null,
+    dayNumber: msg.scheduled_message?.day_number,
+    sendTime: msg.scheduled_message?.send_time,
+    completionAssetId: msg.message_type === 'reward_reveal' ? (msg.content || null) : null,
+    attachments: msg.file ? [{
+      type: msg.file.mime_type?.startsWith('image/') ? 'image' as const
+          : msg.file.mime_type?.startsWith('video/') ? 'video' as const
+          : 'file' as const,
+      url: null,
+      fileName: msg.file.original_name,
+      fileSize: formatBytes(msg.file.size_bytes),
+    }] : undefined,
+    // Media sharing fields
+    messageType: (msg as any).message_type || 'text',
+    media_r2_key: (msg as any).media_r2_key || null,
+    media_thumbnail_r2_key: (msg as any).media_thumbnail_r2_key || null,
+    media_original_name: (msg as any).media_original_name || null,
+    media_mime_type: (msg as any).media_mime_type || null,
+    media_size_bytes: (msg as any).media_size_bytes || null,
+    media_category: (msg as any).media_category || null,
+    is_pro_storage: (msg as any).is_pro_storage || false,
+  };
+};
 
 const formatBytes = (bytes: number): string => {
   if (!bytes || bytes === 0) return '0 B';
@@ -64,6 +137,35 @@ const formatBytes = (bytes: number): string => {
   const sizes = ['B', 'KB', 'MB', 'GB'];
   const i = Math.floor(Math.log(bytes) / Math.log(k));
   return `${parseFloat((bytes / Math.pow(k, i)).toFixed(1))} ${sizes[i]}`;
+};
+
+// Helper to reliably get a domain name
+const getDomainName = (url: string) => {
+  try {
+    const hostname = new URL(url).hostname;
+    return hostname.replace(/^www\./, '');
+  } catch {
+    return url;
+  }
+};
+
+const getDomainInitial = (url: string) => {
+  try {
+    const hostname = new URL(url).hostname;
+    const base = hostname.replace(/^www\./, '');
+    return base.charAt(0).toUpperCase();
+  } catch {
+    return url.charAt(0).toUpperCase();
+  }
+};
+
+const getDomainColor = (url: string) => {
+  const colors = ['#E8312A', '#4F46E5', '#0EA5E9', '#10B981', '#F59E0B', '#8B5CF6', '#EC4899'];
+  let hash = 0;
+  for (let i = 0; i < url.length; i++) {
+    hash = url.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  return colors[Math.abs(hash) % colors.length];
 };
 
 export const FollowerPairingChat = () => {
@@ -97,6 +199,18 @@ export const FollowerPairingChat = () => {
   const [loading, setLoading] = useState(true);
   const [isSending, setIsSending] = useState(false);
   const [uploadingFile, setUploadingFile] = useState(false);
+  const [rewardAssets, setRewardAssets] = useState<Record<string, CompletionAssetData>>({});
+  const [downloadingReward, setDownloadingReward] = useState(false);
+
+  // ── Chat media sharing state ──────────────────────────────────────────
+  const [mediaUploadResult, setMediaUploadResult] = useState<ChatUploadResult | null>(null);
+  const [mediaUploadProgress, setMediaUploadProgress] = useState(0);
+  const [mediaUploadComplete, setMediaUploadComplete] = useState(false);
+  const [mediaUploadError, setMediaUploadError] = useState<string | null>(null);
+  const [mediaPreviewFile, setMediaPreviewFile] = useState<{ name: string; size: number; category: MediaCategory; thumbnailUrl: string | null } | null>(null);
+  const [mediaLightbox, setMediaLightbox] = useState<{ cdnUrl: string; fileName: string; type: 'image' | 'video' } | null>(null);
+  const mediaAbortRef = useRef<AbortController | null>(null);
+  const isProUser = (currentUser as any)?.is_pro || false;
 
   const [resolvedUserId, setResolvedUserId] = useState('');
 
@@ -149,6 +263,12 @@ export const FollowerPairingChat = () => {
         // Mark as read
         await markMessagesRead(sessionId, currentUserId);
         markSessionRead(sessionId);
+
+        // Fire-and-forget: deliver any scheduled/reward messages that are due
+        // The Realtime subscription will pick up any newly inserted messages
+        if (sessionData.status === 'active') {
+          deliverScheduledMessages(sessionId, currentUserId).catch(console.error);
+        }
       } catch (err) {
         console.error('Failed to load session:', err);
       } finally {
@@ -219,6 +339,50 @@ export const FollowerPairingChat = () => {
 
     return () => clearInterval(interval);
   }, [sessionId, currentUserId, session]);
+
+  // Fetch completion asset data when reward_reveal messages appear
+  useEffect(() => {
+    const rewardMsgs = messages.filter(m => m.type === 'reward_reveal' && m.completionAssetId);
+    if (rewardMsgs.length === 0) return;
+
+    const fetchAssets = async () => {
+      for (const msg of rewardMsgs) {
+        if (!msg.completionAssetId || rewardAssets[msg.completionAssetId]) continue;
+        try {
+          const { data, error } = await supabase
+            .from('completion_assets')
+            .select(`
+              id,
+              file_id,
+              unlock_message,
+              links,
+              youtube_url,
+              resource_title,
+              resource_description,
+              file:files (
+                id, original_name, mime_type, size_bytes, r2_key, r2_bucket
+              )
+            `)
+            .eq('id', msg.completionAssetId)
+            .maybeSingle();
+
+          if (!error && data) {
+            // Supabase returns joined relations as arrays — normalize file to single object
+            const normalized = {
+              ...data,
+              file: Array.isArray(data.file) ? data.file[0] || null : data.file,
+            } as CompletionAssetData;
+            setRewardAssets(prev => ({ ...prev, [data.id]: normalized }));
+          }
+        } catch (err) {
+          console.error('Failed to fetch completion asset:', err);
+        }
+      }
+    };
+
+    fetchAssets();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [messages]);
 
   // Scroll on mount
   useEffect(() => {
@@ -293,15 +457,40 @@ export const FollowerPairingChat = () => {
   };
 
   const handleSend = async () => {
-    if ((!inputText.trim() && pendingAttachments.length === 0) || isSending || !sessionId || !currentUserId) return;
+    const hasText = inputText.trim().length > 0;
+    const hasMedia = mediaUploadComplete && mediaUploadResult;
+    if ((!hasText && !hasMedia && pendingAttachments.length === 0) || isSending || !sessionId || !currentUserId) return;
 
     setIsSending(true);
     try {
-      // If there are file attachments, upload them first
+      // Determine message_type
+      let messageType = 'text';
+      let mediaFields: Record<string, unknown> = {};
+
+      if (hasMedia && mediaUploadResult) {
+        const cat = mediaUploadResult.mediaCategory;
+        messageType = hasText ? 'mixed' : cat;
+        mediaFields = {
+          messageType,
+          mediaR2Key: mediaUploadResult.mainR2Key,
+          mediaThumbnailR2Key: mediaUploadResult.thumbnailR2Key,
+          mediaOriginalName: mediaUploadResult.originalName,
+          mediaMimeType: mediaUploadResult.originalMimeType,
+          mediaSizeBytes: mediaUploadResult.originalSizeBytes,
+          mediaCategory: mediaUploadResult.mediaCategory,
+          isProStorage: mediaUploadResult.isPro,
+        };
+
+        // Clear orphan tracking — file is now referenced by a message
+        const fileIds = [mediaUploadResult.mainFileId];
+        if (mediaUploadResult.thumbnailFileId) fileIds.push(mediaUploadResult.thumbnailFileId);
+        clearPendingUpload(fileIds);
+      }
+
+      // Legacy file attachments support
       let fileId: string | null = null;
-      if (pendingAttachments.length > 0) {
-        // For now, we only handle the placeholder attachments
-        // Real file upload would go through uploadFile service
+      if (pendingAttachments.length > 0 && !hasMedia) {
+        // TODO: legacy upload path
       }
 
       const msg = await sendChatMessage({
@@ -309,6 +498,7 @@ export const FollowerPairingChat = () => {
         senderId: currentUserId,
         content: inputText.trim() || null,
         fileId,
+        ...mediaFields,
       });
 
       // Add to local state immediately
@@ -318,8 +508,14 @@ export const FollowerPairingChat = () => {
         return [...prev, localMsg];
       });
 
+      // Clear composer
       setInputText('');
       setPendingAttachments([]);
+      setMediaUploadResult(null);
+      setMediaUploadComplete(false);
+      setMediaUploadProgress(0);
+      setMediaUploadError(null);
+      setMediaPreviewFile(null);
       if (textareaRef.current) {
         textareaRef.current.style.height = '44px';
       }
@@ -329,6 +525,82 @@ export const FollowerPairingChat = () => {
     } finally {
       setIsSending(false);
     }
+  };
+
+  // ── Chat media file selection handler ──────────────────────────────────
+  const handleMediaFileSelected = async (file: File) => {
+    // Client-side validation
+    const validation = validateChatFile(file, isProUser);
+    if (!validation.valid) {
+      setMediaUploadError(validation.error);
+      return;
+    }
+
+    const category = getMediaCategory(file.type) || 'document';
+    const thumbnailUrl = file.type.startsWith('image/') ? URL.createObjectURL(file) : null;
+
+    // Set preview immediately
+    setMediaPreviewFile({ name: file.name, size: file.size, category, thumbnailUrl });
+    setMediaUploadProgress(0);
+    setMediaUploadComplete(false);
+    setMediaUploadError(null);
+    setMediaUploadResult(null);
+    setShowMediaPicker(false);
+
+    // Create abort controller
+    const abortController = new AbortController();
+    mediaAbortRef.current = abortController;
+
+    try {
+      const result = await uploadChatMedia(file, {
+        onProgress: (pct) => setMediaUploadProgress(pct),
+        onStageChange: () => {},
+        signal: abortController.signal,
+      });
+
+      setMediaUploadResult(result);
+      setMediaUploadComplete(true);
+    } catch (err: any) {
+      if (err.message === 'Upload cancelled.') {
+        // User cancelled — preview already cleared by handleCancelMediaUpload
+        return;
+      }
+      console.error('Chat media upload failed:', err);
+      setMediaUploadError(err.message || 'Upload failed');
+    } finally {
+      mediaAbortRef.current = null;
+    }
+  };
+
+  const handleCancelMediaUpload = () => {
+    // Abort in-progress upload
+    mediaAbortRef.current?.abort();
+    mediaAbortRef.current = null;
+
+    // If upload already completed, clean up R2 files
+    if (mediaUploadResult) {
+      const fileIds = [mediaUploadResult.mainFileId];
+      if (mediaUploadResult.thumbnailFileId) fileIds.push(mediaUploadResult.thumbnailFileId);
+      deleteChatUpload(fileIds).catch(console.error);
+    }
+
+    // Revoke thumbnail URL
+    if (mediaPreviewFile?.thumbnailUrl) {
+      URL.revokeObjectURL(mediaPreviewFile.thumbnailUrl);
+    }
+
+    // Reset all media state
+    setMediaUploadResult(null);
+    setMediaUploadComplete(false);
+    setMediaUploadProgress(0);
+    setMediaUploadError(null);
+    setMediaPreviewFile(null);
+  };
+
+  // ── Lightbox handlers for media messages ────────────────────────────
+  const handleOpenMediaLightbox = (cdnUrl: string, fileName: string) => {
+    const mimeGuess = fileName.match(/\.(mp4|mov|webm)$/i) ? 'video' : 'image';
+    setMediaLightbox({ cdnUrl, fileName, type: mimeGuess as 'image' | 'video' });
   };
 
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -457,7 +729,7 @@ export const FollowerPairingChat = () => {
   }
 
   return (
-    <div className="flex w-full bg-bg overflow-hidden" style={{ height: 'calc(100vh - 64px)' }}>
+    <div className="flex w-full bg-bg overflow-hidden h-[calc(100dvh-128px)] md:h-[calc(100vh-64px)]">
       {/* Desktop Sidebar */}
       <div className="hidden lg:flex lg:flex-col w-[380px] shrink-0 border-r border-[#E6E2D9] z-10 overflow-hidden">
          <MessagesSidebar 
@@ -514,6 +786,11 @@ export const FollowerPairingChat = () => {
           <div className="flex flex-col items-center justify-center h-full text-center px-4">
             <span className="text-[48px] mb-4">🤝</span>
             <h3 className="text-[18px] font-[900] text-text mb-2">You've been paired with {partnerName}!</h3>
+            {(partner.trustScore || 75) >= 75 && (
+              <div className="mb-2">
+                <TrustScoreBadge score={partner.trustScore || 75} size="md" />
+              </div>
+            )}
             <p className="text-[13px] font-[600] text-textMid max-w-[260px]">Send a message to introduce yourself.</p>
 
             <div className="mt-4 rounded-[12px] p-3.5 max-w-[280px]" style={{ backgroundColor: '#FFFBEB' }}>
@@ -541,11 +818,216 @@ export const FollowerPairingChat = () => {
                 {group.msgs.map((msg) => {
                   const isOwn = msg.senderId === currentUserId;
                   const isBroadcast = msg.type === 'broadcast';
+                  const isScheduled = msg.type === 'scheduled';
+
+                  // ── Scheduled Challenge Update message ──
+                  if (isScheduled) {
+                    return (
+                      <div key={msg.id} className="mb-4 w-full rounded-[12px] p-4" style={{ backgroundColor: '#FFFBEB', border: '1px solid #FDE68A' }}>
+                        <div className="flex items-center justify-between flex-wrap gap-2 mb-3">
+                          <div className="flex items-center gap-2">
+                            <div className="w-7 h-7 rounded-full flex items-center justify-center shrink-0" style={{ backgroundColor: creatorColor }}>
+                              <span className="text-[10px] font-[900] text-white">C</span>
+                            </div>
+                            <span className="text-[13px] font-[900] text-[#92400E]">{creatorName}</span>
+                          </div>
+                          <span className="h-5 px-2.5 rounded-[10px] text-[10px] font-[800] text-[#92400E] flex items-center gap-1" style={{ backgroundColor: '#FAF0EB', border: '1px solid #FDE68A' }}>
+                            📅 Challenge Update{msg.dayNumber ? ` · Day ${msg.dayNumber}` : ''}
+                          </span>
+                        </div>
+                        <p className="text-[14px] font-[600] text-text" style={{ lineHeight: '1.65', whiteSpace: 'pre-wrap' }}>{msg.content}</p>
+                        
+                        {/* YouTube + Links for Scheduled */}
+                        {(msg.youtubeUrl || (msg.links && msg.links.length > 0)) && (
+                          <div className="flex flex-col gap-2 pt-3 mt-3 border-t border-[#FDE68A]">
+                            {msg.youtubeUrl && (
+                              <a 
+                                href={msg.youtubeUrl} 
+                                target="_blank" 
+                                rel="noopener noreferrer"
+                                className="flex items-center gap-3 p-3 bg-white/50 rounded-[10px] border border-red-100 hover:bg-white transition-colors group"
+                              >
+                                <div className="w-10 h-10 rounded-full bg-red-50 flex items-center justify-center shrink-0">
+                                  <svg width="20" height="20" viewBox="0 0 24 24" fill="#E8312A"><path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z" /></svg>
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <div className="text-[12px] font-black text-text">Watch Video</div>
+                                  <div className="text-[11px] text-textLight truncate">{msg.youtubeUrl}</div>
+                                </div>
+                                <span className="text-[#AAA49C] group-hover:text-text translate-x-0 group-hover:translate-x-1 transition-all">→</span>
+                              </a>
+                            )}
+                            {msg.links?.map((link, idx) => (
+                              <a 
+                                key={idx}
+                                href={link.url} 
+                                target="_blank" 
+                                rel="noopener noreferrer"
+                                className="flex items-center gap-3 p-3 bg-white/50 rounded-[10px] border border-blue-100 hover:bg-white transition-colors group"
+                              >
+                                <div className="w-10 h-10 rounded-[10px] flex items-center justify-center text-white font-black text-[14px] shrink-0" 
+                                     style={{ backgroundColor: getDomainColor(link.url) }}>
+                                  {getDomainInitial(link.url)}
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <div className="text-[12px] font-black text-text truncate">{link.title || getDomainName(link.url)}</div>
+                                  <div className="text-[11px] text-textLight truncate">{link.url}</div>
+                                </div>
+                                <span className="text-[#AAA49C] group-hover:text-text translate-x-0 group-hover:translate-x-1 transition-all">→</span>
+                              </a>
+                            ))}
+                          </div>
+                        )}
+
+                        <div className="flex items-center justify-between mt-3 pt-2 border-t border-[#FDE68A]/50">
+                          <span className="text-[10px] font-[600] text-[#B4956A]">
+                            {msg.sendTime ? `Scheduled for ${msg.sendTime.slice(0, 5)}` : ''}
+                          </span>
+                          <span className="text-[10px] text-[#B4956A]">{formatTime(msg.timestamp)}</span>
+                        </div>
+                      </div>
+                    );
+                  }
+
+                  // ── Reward Reveal card ──
+                  if (msg.type === 'reward_reveal' && msg.completionAssetId) {
+                    const asset = rewardAssets[msg.completionAssetId];
+                    // Parse links
+                    let assetLinks: { url: string; title: string }[] = [];
+                    if (asset?.links) {
+                      if (typeof asset.links === 'string') {
+                        try { assetLinks = JSON.parse(asset.links); } catch { assetLinks = []; }
+                      } else if (Array.isArray(asset.links)) {
+                        assetLinks = asset.links;
+                      }
+                    }
+
+                    return (
+                      <div key={msg.id} className="mb-4 w-full rounded-[16px] overflow-hidden" style={{ border: '1px solid #F59E0B', background: 'linear-gradient(135deg, #FFFBEB 0%, #FEF3C7 100%)' }}>
+                        {/* Header */}
+                        <div className="px-4 pt-4 pb-3">
+                          <div className="flex items-center gap-2 mb-3">
+                            <span className="text-[28px]">🎁</span>
+                            <div>
+                              <span className="h-5 px-2.5 rounded-[10px] text-[10px] font-[800] text-[#92400E] flex items-center" style={{ backgroundColor: 'rgba(245,158,11,0.15)', border: '1px solid rgba(245,158,11,0.3)' }}>
+                                ✨ Reward Unlocked
+                              </span>
+                            </div>
+                          </div>
+
+                          {asset?.resource_title && (
+                            <h3 className="text-[18px] font-[900] text-[#1C1917] mb-1" style={{ lineHeight: '1.3' }}>
+                              {asset.resource_title}
+                            </h3>
+                          )}
+                          {asset?.resource_description && (
+                            <p className="text-[13px] font-[600] text-[#78716C] mb-3" style={{ lineHeight: '1.5' }}>
+                              {asset.resource_description}
+                            </p>
+                          )}
+
+                          {/* Creator's bonus message */}
+                          {asset?.unlock_message && (
+                            <div className="rounded-[10px] p-3 mb-3 flex gap-2.5" style={{ backgroundColor: 'rgba(255,255,255,0.6)', border: '1px solid rgba(245,158,11,0.2)' }}>
+                              <div className="w-7 h-7 rounded-full flex items-center justify-center shrink-0 mt-0.5" style={{ backgroundColor: creatorColor }}>
+                                <span className="text-[10px] font-[900] text-white">C</span>
+                              </div>
+                              <div>
+                                <span className="text-[11px] font-[800] text-[#92400E]">{creatorName}</span>
+                                <p className="text-[13px] font-[600] text-[#44403C] mt-0.5" style={{ lineHeight: '1.5' }}>
+                                  "{asset.unlock_message}"
+                                </p>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Resources */}
+                        {(asset?.file || assetLinks.length > 0 || asset?.youtube_url) && (
+                          <div className="px-4 pb-4 flex flex-col gap-2">
+                            {/* File Download */}
+                            {asset?.file && (
+                              <button
+                                onClick={async () => {
+                                  setDownloadingReward(true);
+                                  try {
+                                    const url = await getCompletionAssetUrl(sessionId!);
+                                    if (url) window.open(url, '_blank');
+                                  } finally {
+                                    setDownloadingReward(false);
+                                  }
+                                }}
+                                className="flex items-center gap-3 p-3 bg-white rounded-[12px] hover:bg-white/90 transition-all group"
+                                style={{ border: '1px solid rgba(245,158,11,0.2)' }}
+                              >
+                                <div className="w-10 h-10 rounded-[10px] flex items-center justify-center text-[#92400E]" style={{ backgroundColor: 'rgba(245,158,11,0.12)' }}>
+                                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+                                </div>
+                                <div className="flex-1 text-left min-w-0">
+                                  <div className="text-[13px] font-black text-[#1C1917] truncate">{asset.file.original_name}</div>
+                                  <div className="text-[11px] text-[#A8A29E]">{formatBytes(asset.file.size_bytes)} · {downloadingReward ? 'Downloading...' : 'Tap to download'}</div>
+                                </div>
+                                <span className="text-[#D4A843] group-hover:text-[#92400E] translate-x-0 group-hover:translate-x-1 transition-all font-[800]">↓</span>
+                              </button>
+                            )}
+
+                            {/* YouTube Video */}
+                            {asset?.youtube_url && (
+                              <a
+                                href={asset.youtube_url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="flex items-center gap-3 p-3 bg-white rounded-[12px] hover:bg-white/90 transition-all group"
+                                style={{ border: '1px solid rgba(245,158,11,0.2)' }}
+                              >
+                                <div className="w-10 h-10 rounded-full bg-red-50 flex items-center justify-center">
+                                  <svg width="20" height="20" viewBox="0 0 24 24" fill="#E8312A"><path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z" /></svg>
+                                </div>
+                                <div className="flex-1 text-left min-w-0">
+                                  <div className="text-[13px] font-black text-[#1C1917] truncate">Bonus Video Content</div>
+                                  <div className="text-[11px] text-[#A8A29E] truncate">{asset.youtube_url}</div>
+                                </div>
+                                <span className="text-[#D4A843] group-hover:text-[#92400E] translate-x-0 group-hover:translate-x-1 transition-all font-[800]">→</span>
+                              </a>
+                            )}
+
+                            {/* Links */}
+                            {assetLinks.map((link, idx) => (
+                              <a
+                                key={idx}
+                                href={link.url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="flex items-center gap-3 p-3 bg-white rounded-[12px] hover:bg-white/90 transition-all group"
+                                style={{ border: '1px solid rgba(245,158,11,0.2)' }}
+                              >
+                                <div className="w-10 h-10 rounded-[10px] flex items-center justify-center text-white font-black text-[14px]"
+                                     style={{ backgroundColor: getDomainColor(link.url) }}>
+                                  {getDomainInitial(link.url)}
+                                </div>
+                                <div className="flex-1 text-left min-w-0">
+                                  <div className="text-[13px] font-black text-[#1C1917] truncate">{link.title || getDomainName(link.url)}</div>
+                                  <div className="text-[11px] text-[#A8A29E] truncate">{link.url}</div>
+                                </div>
+                                <span className="text-[#D4A843] group-hover:text-[#92400E] translate-x-0 group-hover:translate-x-1 transition-all font-[800]">→</span>
+                              </a>
+                            ))}
+                          </div>
+                        )}
+
+                        {/* Footer */}
+                        <div className="px-4 pb-3 flex items-center justify-between" style={{ borderTop: '1px solid rgba(245,158,11,0.15)' }}>
+                          <span className="text-[10px] font-[700] text-[#D4A843] pt-2">🎉 Congratulations on completing the challenge!</span>
+                          <span className="text-[10px] text-[#D4A843] pt-2">{formatTime(msg.timestamp)}</span>
+                        </div>
+                      </div>
+                    );
+                  }
 
                   if (isBroadcast) {
                     return (
-                      <div key={msg.id} className="mb-4 w-full rounded-[12px] p-3.5" style={{ backgroundColor: '#FFFBEB', border: '1px solid #FDE68A' }}>
-                        <div className="flex items-center justify-between flex-wrap gap-2 mb-2">
+                      <div key={msg.id} className="mb-4 w-full rounded-[12px] p-4 shadow-sm" style={{ backgroundColor: '#FFFBEB', border: '1px solid #FDE68A' }}>
+                        <div className="flex items-center justify-between flex-wrap gap-2 mb-3">
                           <div className="flex items-center gap-2">
                             <div className="w-6 h-6 rounded-full flex items-center justify-center shrink-0" style={{ backgroundColor: creatorColor }}>
                               <span className="text-[10px] font-[900] text-white">C</span>
@@ -553,19 +1035,78 @@ export const FollowerPairingChat = () => {
                             <span className="text-[14px] font-[900] text-[#92400E]">{creatorName}</span>
                           </div>
                           <span className="h-5 px-2.5 rounded-[10px] text-[10px] font-[800] text-[#92400E] flex items-center" style={{ backgroundColor: '#FAF0EB', border: '1px solid #FDE68A' }}>
-                            📣 Creator Update
+                            📣 Challenge Update
                           </span>
                         </div>
-                        <p className="text-[14px] font-[600] text-text" style={{ lineHeight: '1.65' }}>{msg.content}</p>
+                        <p className="text-[14px] font-[600] text-text mb-4" style={{ lineHeight: '1.65', whiteSpace: 'pre-wrap' }}>{msg.content}</p>
+                        
+                        {/* Attachments for Broadcast */}
+                        {(msg.youtubeUrl || (msg.links && msg.links.length > 0)) && (
+                          <div className="flex flex-col gap-2 pt-3 border-t border-[#FDE68A]">
+                            {msg.youtubeUrl && (
+                              <a 
+                                href={msg.youtubeUrl} 
+                                target="_blank" 
+                                rel="noopener noreferrer"
+                                className="flex items-center gap-3 p-3 bg-white/50 rounded-[10px] border border-red-100 hover:bg-white transition-colors group"
+                              >
+                                <div className="w-10 h-10 rounded-full bg-red-50 flex items-center justify-center shrink-0">
+                                  <svg width="20" height="20" viewBox="0 0 24 24" fill="#E8312A"><path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z" /></svg>
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <div className="text-[12px] font-black text-text">Watch Video</div>
+                                  <div className="text-[11px] text-textLight truncate">{msg.youtubeUrl}</div>
+                                </div>
+                                <span className="text-[#AAA49C] group-hover:text-text translate-x-0 group-hover:translate-x-1 transition-all">→</span>
+                              </a>
+                            )}
+                            {msg.links?.map((link, idx) => (
+                              <a 
+                                key={idx}
+                                href={link.url} 
+                                target="_blank" 
+                                rel="noopener noreferrer"
+                                className="flex items-center gap-3 p-3 bg-white/50 rounded-[10px] border border-blue-100 hover:bg-white transition-colors group"
+                              >
+                                <div className="w-10 h-10 rounded-[10px] flex items-center justify-center text-white font-black text-[14px] shrink-0" 
+                                     style={{ backgroundColor: getDomainColor(link.url) }}>
+                                  {getDomainInitial(link.url)}
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <div className="text-[12px] font-black text-text truncate">{link.title || getDomainName(link.url)}</div>
+                                  <div className="text-[11px] text-textLight truncate">{link.url}</div>
+                                </div>
+                                <span className="text-[#AAA49C] group-hover:text-text translate-x-0 group-hover:translate-x-1 transition-all">→</span>
+                              </a>
+                            ))}
+                          </div>
+                        )}
                       </div>
                     );
                   }
 
                   if (isOwn) {
+                    const hasMediaContent = msg.media_r2_key && msg.media_category;
                     return (
                       <div key={msg.id} className="flex flex-col items-end mb-3">
                         <div className="max-w-[85%] rounded-[14px] p-3.5 text-[14px] font-[600] text-text" style={{ backgroundColor: '#FAF0EB', border: '1px solid #E6E2D9', borderBottomRightRadius: '2px', lineHeight: '1.6' }}>
-                          {msg.content}
+                          {msg.content && <div style={{ marginBottom: hasMediaContent ? '8px' : '0' }}>{msg.content}</div>}
+                          {hasMediaContent && (
+                            <ChatMediaContent
+                              message={{
+                                media_r2_key: msg.media_r2_key!,
+                                media_thumbnail_r2_key: msg.media_thumbnail_r2_key,
+                                media_original_name: msg.media_original_name || 'File',
+                                media_mime_type: msg.media_mime_type || undefined,
+                                media_size_bytes: msg.media_size_bytes || 0,
+                                media_category: msg.media_category!,
+                                is_pro_storage: msg.is_pro_storage || false,
+                                created_at: msg.timestamp,
+                              }}
+                              onOpenLightbox={handleOpenMediaLightbox}
+                            />
+                          )}
+                          {!msg.content && !hasMediaContent && msg.content}
                         </div>
                         <div className="flex items-center gap-1 mt-1 mr-1">
                           <span className="text-[10px] text-textLight">{formatTime(msg.timestamp)}</span>
@@ -575,6 +1116,7 @@ export const FollowerPairingChat = () => {
                   }
 
                   // Incoming
+                  const incomingHasMedia = msg.media_r2_key && msg.media_category;
                   return (
                     <div key={msg.id} className="flex gap-2 mb-3 items-start">
                       <div className="w-8 h-8 rounded-full flex items-center justify-center shrink-0 mt-5" style={{ backgroundColor: partnerColor }}>
@@ -583,7 +1125,23 @@ export const FollowerPairingChat = () => {
                       <div className="flex flex-col max-w-[85%]">
                         <span className="text-[11px] font-[800] text-textMid mb-1">{msg.senderName}</span>
                         <div className="rounded-[14px] p-3.5 text-[14px] font-[600] text-text bg-white" style={{ border: '1px solid #E6E2D9', borderBottomLeftRadius: '2px', lineHeight: '1.6' }}>
-                          {msg.content}
+                          {msg.content && <div style={{ marginBottom: incomingHasMedia ? '8px' : '0' }}>{msg.content}</div>}
+                          {incomingHasMedia && (
+                            <ChatMediaContent
+                              message={{
+                                media_r2_key: msg.media_r2_key!,
+                                media_thumbnail_r2_key: msg.media_thumbnail_r2_key,
+                                media_original_name: msg.media_original_name || 'File',
+                                media_mime_type: msg.media_mime_type || undefined,
+                                media_size_bytes: msg.media_size_bytes || 0,
+                                media_category: msg.media_category!,
+                                is_pro_storage: msg.is_pro_storage || false,
+                                created_at: msg.timestamp,
+                              }}
+                              onOpenLightbox={handleOpenMediaLightbox}
+                            />
+                          )}
+                          {!msg.content && !incomingHasMedia && msg.content}
                         </div>
                         <span className="text-[10px] text-textLight mt-1 ml-1">{formatTime(msg.timestamp)}</span>
                       </div>
@@ -637,10 +1195,93 @@ export const FollowerPairingChat = () => {
           >
             Share your experience →
           </button>
+
+          {/* Reward Panel */}
+          {session?.pairing_config?.completion_assets && (
+            <div className="w-full mt-6 flex flex-col items-center">
+              <div className="w-full h-[1px] bg-border mb-6" />
+              <div className="flex flex-col items-center text-center max-w-[400px]">
+                <span className="text-[32px] mb-3">🎁</span>
+                <h4 className="text-[18px] font-[900] text-text mb-2">Creator's Reward</h4>
+                <p className="text-[14px] font-[600] text-textMid mb-6" style={{ lineHeight: '1.6' }}>
+                  {session.pairing_config.completion_assets.unlock_message || "You've successfully completed the challenge! Here's your reward from the creator."}
+                </p>
+
+                <div className="w-full flex flex-col gap-3">
+                  {/* File Download */}
+                  {session.pairing_config.completion_assets.file && (
+                    <button
+                      onClick={async () => {
+                        const url = await getCompletionAssetUrl(sessionId!);
+                        if (url) window.open(url, '_blank');
+                      }}
+                      className="flex items-center gap-3 p-4 bg-white rounded-[14px] border border-border hover:border-brand/30 transition-all group"
+                    >
+                      <div className="w-10 h-10 rounded-[10px] bg-surfaceAlt flex items-center justify-center text-textMid">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+                      </div>
+                      <div className="flex-1 text-left min-w-0">
+                        <div className="text-[13px] font-black text-text truncate">{session.pairing_config.completion_assets.file.original_name}</div>
+                        <div className="text-[11px] text-textLight">{formatBytes(session.pairing_config.completion_assets.file.size_bytes)} · Resource File</div>
+                      </div>
+                      <span className="text-[#AAA49C] group-hover:text-text translate-x-0 group-hover:translate-x-1 transition-all">→</span>
+                    </button>
+                  )}
+
+                  {/* YouTube Video */}
+                  {session.pairing_config.completion_assets.youtube_url && (
+                    <a
+                      href={session.pairing_config.completion_assets.youtube_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-3 p-4 bg-white rounded-[14px] border border-border hover:border-brand/30 transition-all group"
+                    >
+                      <div className="w-10 h-10 rounded-full bg-red-50 flex items-center justify-center">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="#E8312A"><path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z" /></svg>
+                      </div>
+                      <div className="flex-1 text-left min-w-0">
+                        <div className="text-[13px] font-black text-text truncate">Bonus Video Content</div>
+                        <div className="text-[11px] text-textLight">{session.pairing_config.completion_assets.youtube_url}</div>
+                      </div>
+                      <span className="text-[#AAA49C] group-hover:text-text translate-x-0 group-hover:translate-x-1 transition-all">→</span>
+                    </a>
+                  )}
+
+                  {/* Links */}
+                  {session.pairing_config.completion_assets.links && session.pairing_config.completion_assets.links.map((link, idx) => (
+                    <a
+                      key={idx}
+                      href={link.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-3 p-4 bg-white rounded-[14px] border border-border hover:border-brand/30 transition-all group"
+                    >
+                      <div className="w-10 h-10 rounded-[10px] flex items-center justify-center text-white font-black text-[14px]"
+                           style={{ backgroundColor: getDomainColor(link.url) }}>
+                        {getDomainInitial(link.url)}
+                      </div>
+                      <div className="flex-1 text-left min-w-0">
+                        <div className="text-[13px] font-black text-text truncate">{link.title || getDomainName(link.url)}</div>
+                        <div className="text-[11px] text-textLight">{link.url}</div>
+                      </div>
+                      <span className="text-[#AAA49C] group-hover:text-text translate-x-0 group-hover:translate-x-1 transition-all">→</span>
+                    </a>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       ) : (
         /* Message input */
         <div className="shrink-0 bg-white flex flex-col" style={{ borderTop: '1px solid #E6E2D9', paddingBottom: 'max(10px, env(safe-area-inset-bottom, 10px))' }}>
+          {/* Free plan media expiry banner */}
+          <ChatExpiryBanner
+            chatId={sessionId || ''}
+            hasFreePlanMedia={messages.some(m => m.media_r2_key && !m.is_pro_storage)}
+            isProUser={isProUser}
+          />
+
           {uploadingFile && (
             <div className="flex items-center gap-2 px-4 py-2 bg-bg">
               <div className="w-4 h-4 rounded-full" style={{ border: '2px solid #E6E2D9', borderTopColor: '#D97757', animation: 'spin 0.8s linear infinite' }} />
@@ -648,16 +1289,25 @@ export const FollowerPairingChat = () => {
             </div>
           )}
 
+          {/* Media upload preview card */}
+          {mediaPreviewFile && (
+            <ChatUploadPreview
+              fileName={mediaPreviewFile.name}
+              fileSize={mediaPreviewFile.size}
+              mediaCategory={mediaPreviewFile.category}
+              thumbnailUrl={mediaPreviewFile.thumbnailUrl}
+              progress={mediaUploadProgress}
+              isComplete={mediaUploadComplete}
+              error={mediaUploadError}
+              onCancel={handleCancelMediaUpload}
+            />
+          )}
+
           <div className="flex items-end gap-2 px-4 py-2.5">
-            <button 
-              onClick={() => setShowMediaPicker(true)}
-              className="w-10 h-10 rounded-full bg-bg border border-border flex items-center justify-center shrink-0"
-            >
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#D97757" strokeWidth="2.5" strokeLinecap="round">
-                <line x1="12" y1="5" x2="12" y2="19" />
-                <line x1="5" y1="12" x2="19" y2="12" />
-              </svg>
-            </button>
+            <ChatMediaButton
+              onFileSelected={handleMediaFileSelected}
+              disabled={!!mediaPreviewFile && !mediaUploadComplete}
+            />
 
             <textarea
               ref={textareaRef}
@@ -683,9 +1333,9 @@ export const FollowerPairingChat = () => {
               className="w-[44px] h-[44px] rounded-md flex items-center justify-center shrink-0 transition-opacity"
               style={{
                 backgroundColor: '#D97757',
-                opacity: (inputText.trim() || pendingAttachments.length > 0) ? 1 : 0.4,
+                opacity: (inputText.trim() || (mediaUploadComplete && mediaUploadResult) || pendingAttachments.length > 0) ? 1 : 0.4,
               }}
-              disabled={(!inputText.trim() && pendingAttachments.length === 0) || isSending}
+              disabled={(!inputText.trim() && !(mediaUploadComplete && mediaUploadResult) && pendingAttachments.length === 0) || isSending || (!!mediaPreviewFile && !mediaUploadComplete && !mediaUploadError)}
             >
               {isSending ? (
                 <div className="w-5 h-5 rounded-full" style={{ border: '2px solid rgba(255,255,255,0.3)', borderTopColor: 'white', animation: 'spin 0.8s linear infinite' }} />
@@ -779,11 +1429,7 @@ export const FollowerPairingChat = () => {
               <div className="px-4 py-4" style={{ borderBottom: '1px solid #E6E2D9' }}>
                 <span className="text-[12px] font-[800] text-textMid uppercase">{partnerName}'s trust</span>
                 <div className="flex items-center gap-2 mt-2">
-                  <div className="h-[24px] px-[10px] rounded-[20px] flex items-center gap-1" style={{ backgroundColor: 'rgba(37,99,235,0.1)' }}>
-                    <span className="text-[11px] font-[900]" style={{ color: '#2563EB' }}>
-                      ⭐ {partner.trustScore || 75} · {(partner.trustScore || 75) >= 80 ? 'Great' : 'Good'}
-                    </span>
-                  </div>
+                  <TrustScoreBadge score={partner.trustScore || 75} size="md" />
                 </div>
               </div>
 
@@ -1027,6 +1673,16 @@ export const FollowerPairingChat = () => {
              )}
           </div>
         </div>
+      )}
+
+      {/* Chat Media Lightbox */}
+      {mediaLightbox && (
+        <ChatMediaLightbox
+          cdnUrl={mediaLightbox.cdnUrl}
+          fileName={mediaLightbox.fileName}
+          type={mediaLightbox.type}
+          onClose={() => setMediaLightbox(null)}
+        />
       )}
 
       <style>{`

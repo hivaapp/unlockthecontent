@@ -1,0 +1,574 @@
+
+
+# Enhanced Prompt — Full Rewrite
+
+Below is the complete, enhanced version. Every section has been deepened, gaps have been filled, and new sections have been added for accessibility, performance, component architecture, transition states, content edge cases, and micro-interactions.
+
+---
+
+## Unlock Page Redesign — Before Unlock State — Complete Frontend Design Prompt
+
+---
+
+### Section 0 — AI Reading Instructions and Scope Lock
+
+Before generating any code, the AI must complete these reading steps in order:
+
+**Step 1.** Read the existing `EmailSubscribeUnlock.jsx`, `SocialFollowUnlock.jsx`, and `SponsorUnlock.jsx` components end to end. Catalog every prop, every state variable, every sessionStorage key, every handler function name, and every imported child component. Write this catalog as a comment block at the top of each new file.
+
+**Step 2.** Read `CreatorRow.jsx` to understand its prop interface. The redesign creates a new `UnlockCreatorStrip` component — the AI must not modify `CreatorRow` because it is used on other pages.
+
+**Step 3.** Read `UnlockSuccessScreen.jsx`. The redesign only covers the pre-unlock state. The success screen remains untouched. The AI must ensure that the existing conditional render — `if (unlocked) return <UnlockSuccessScreen />` — stays exactly as it is. The new design wraps only the `else` branch.
+
+**Step 4.** Read the existing CSS or styled-components to identify any global tokens (font family, base font size, spacing scale) already in use. The redesign must inherit these globals rather than redeclaring them.
+
+**Scope lock.** The AI must not create, modify, or delete any file outside of these components and their direct style files. No changes to routers, services, API calls, Supabase queries, context providers, or utility functions. If the AI believes a backend change would improve the design, it must leave a `// TODO: backend suggestion` comment and implement the frontend without that change.
+
+---
+
+### Section 1 — What Is Wrong With The Current Design And Why Each Problem Matters
+
+**Problem 1 — Visual fragmentation.** The page currently renders three visually disconnected elements stacked vertically: a gradient card with a padlock, a thin creator attribution line, and a white action card. These three elements have different border radii, different shadow treatments, and different horizontal margins. The viewer's eye has to reassemble them into one experience. This increases cognitive load and reduces conversion. The redesign must present one continuous visual narrative from creator identity through content preview through unlock action without visible seams between sections.
+
+**Problem 2 — The padlock card communicates restriction, not value.** The dominant visual element on the page is a padlock icon on a gradient background. This frames the experience as "you are blocked" rather than "something valuable is waiting for you." Psychological framing matters — loss framing ("locked") underperforms gain framing ("unlock this to get X") in conversion contexts. The redesign must lead with what the viewer gains, not what is withheld.
+
+**Problem 3 — "DIGITAL RESOURCE" is a meaningless label.** Every single link, regardless of content type, shows the same generic label. A PDF checklist and a 3-hour video course get identical treatment. This destroys specificity, which is the primary driver of perceived value. The redesign must show the actual file name, file type, and file size when a file exists. When no file exists (text-only content), it must show the link title and description instead.
+
+**Problem 4 — Creator identity is deprioritized.** The creator is the trust signal. Viewers decide whether to subscribe or follow based on who is asking. The current "by @username" text is 12px, gray, sandwiched between two cards, easy to miss. The redesign must make the creator's avatar, name, and verification status the first thing the viewer sees, anchored at the top of the page in a dedicated strip.
+
+**Problem 5 — "PROGRESS: 0/1" is raw data, not UI.** The Social Follow page shows progress as plain text. This must become a visual progress bar with states, colors, and a completion celebration. Raw data display signals an unfinished product and erodes trust.
+
+**Problem 6 — "A" where the newsletter name should be.** The Email Subscribe page currently shows just the letter "A" where the newsletter name should render. This is a data rendering bug — `email_config.newsletter_name` is not being displayed. The redesign must fix this by correctly rendering the newsletter name. If the name is null or empty, fall back to "[Creator Name]'s Newsletter" rather than showing a broken initial.
+
+**Problem 7 — No visual differentiation between unlock types.** All three unlock types use the same gray-and-white palette. A viewer cannot tell at a glance whether they need to subscribe, follow, or watch. Each type must have its own color language that runs through every element — borders, icons, buttons, badges, progress indicators — so the unlock action is immediately obvious.
+
+---
+
+### Section 2 — The Design System
+
+#### 2A — Typography Scale
+
+The app already uses Nunito. The redesign uses these exact sizes and weights with no deviation:
+
+| Token Name | Size | Weight | Line Height | Usage |
+|---|---|---|---|---|
+| `heading-lg` | 22px | 900 | 1.25 | Link title in content preview card |
+| `heading-md` | 17px | 900 | 1.3 | Action section headers |
+| `heading-sm` | 15px | 800 | 1.35 | Newsletter name, creator name |
+| `body` | 14px | 600 | 1.6 | Descriptions, content body |
+| `body-sm` | 13px | 600 | 1.55 | Secondary descriptions |
+| `label` | 11px | 700 | 1.2 | Uppercase labels, badges, trust lines |
+| `label-xs` | 10px | 700 | 1.2 | Sponsored-by attribution |
+| `input` | 15px | 600 | 1.4 | Form inputs |
+
+All text uses `-webkit-font-smoothing: antialiased`. All headings use `letter-spacing: -0.01em`. All uppercase labels use `letter-spacing: 0.06em`.
+
+#### 2B — Color Palette Per Unlock Type
+
+Each unlock type has a four-color set:
+
+| | Primary | Light Fill | Border Tint | Text on Primary |
+|---|---|---|---|---|
+| **Email Subscribe** | `#166534` | `#F0FDF4` | `#BBF7D0` | `#FFFFFF` |
+| **Social Follow** | `#2563EB` | `#EFF6FF` | `#BFDBFE` | `#FFFFFF` |
+| **Custom Sponsor** | `#6D28D9` (fallback) | `#F5F3FF` | `#DDD6FE` | `#FFFFFF` |
+
+The Custom Sponsor type uses the `sponsor_config.brand_color` if the creator has set one. If `brand_color` is a valid hex string, use it as Primary and generate Light Fill by setting opacity to 0.06 and Border Tint by setting opacity to 0.2. If `brand_color` is null, undefined, or an invalid hex, fall back to the purple set above.
+
+Shared neutrals across all types:
+
+| Token | Value | Usage |
+|---|---|---|
+| `text-primary` | `#111111` | Headings, names |
+| `text-secondary` | `#555555` | Body text, descriptions |
+| `text-tertiary` | `#999999` | Placeholders, helper text |
+| `text-muted` | `#AAAAAA` | Trust lines, timestamps |
+| `border-default` | `#E8E8E8` | Input borders, card borders |
+| `border-light` | `#F0F0F0` | Subtle separators |
+| `surface-page` | Gradient: `#FAFAFA` → `#F3F3F3` | Page background |
+| `surface-card` | `#FFFFFF` | Card backgrounds |
+| `error-bg` | `#FFF0EF` | Error strip background |
+| `error-border` | `#FECACA` | Error strip border |
+| `error-text` | `#C0392B` | Error text |
+
+#### 2C — Spacing Scale
+
+Use a 4px base unit. All spacing values are multiples of 4px.
+
+| Token | Value | Usage |
+|---|---|---|
+| `space-xs` | 4px | Tight gaps within inline elements |
+| `space-sm` | 8px | Gap between list items, icon-to-text |
+| `space-md` | 12px | Inner card padding vertical |
+| `space-base` | 16px | Standard card padding, section gaps |
+| `space-lg` | 20px | Horizontal page padding |
+| `space-xl` | 24px | Between major sections |
+| `space-2xl` | 32px | Desktop column gap |
+
+#### 2D — Elevation and Borders
+
+No box shadows anywhere on the pre-unlock page. Elevation is communicated through borders only. This keeps the page feeling flat, fast, and modern.
+
+Cards use `1.5px solid [border color]` with `border-radius: 16px`. Inside cards, sub-sections are separated with `1px solid #F4F4F4` horizontal lines, never nested cards. The only exception is the Social Follow target rows, which are individually bordered rows inside the action card — these use `1px solid #E8E8E8` and `border-radius: 12px`.
+
+#### 2E — Iconography
+
+Do not import an icon library. Use emoji for all icons in the pre-unlock state. This keeps bundle size zero for icons and matches the warm, approachable tone.
+
+File type emoji mapping:
+- PDF → 📄
+- Video (mp4, mov, webm) → 🎬
+- Image (jpg, png, gif, webp) → 🖼️
+- ZIP/RAR → 📦
+- Spreadsheet (xlsx, csv) → 📊
+- Audio (mp3, wav) → 🎵
+- Presentation (pptx) → 📊
+- Text-only (no file) → 📝
+- Unknown/other → 📎
+
+Determine the emoji by checking the file extension from `link.file_metadata.original_name`. If no file metadata exists, use the text-only emoji.
+
+Platform icon mapping for Social Follow targets:
+- Instagram → Pink `#E1306C` circle with "IG" text
+- YouTube → Red `#FF0000` circle with "YT" text
+- TikTok → Black `#000000` circle with "TT" text
+- Twitter/X → Black `#000000` circle with "𝕏" text
+- Facebook → Blue `#1877F2` circle with "FB" text
+- LinkedIn → Blue `#0A66C2` circle with "in" text
+- Custom URL → Gray `#555555` circle with "🔗" emoji
+
+These circles are 36px diameter with white 11px 800-weight text centered. This avoids importing brand SVGs while still being instantly recognizable.
+
+---
+
+### Section 3 — Mobile Layout Rules (Default — 375px Base)
+
+Page container: `max-width: 560px; margin: 0 auto; padding: 0 20px`. The 20px horizontal padding is on the container, not on individual cards. Cards inside the container have `margin-left: -4px; margin-right: -4px` to create a slight visual bleed that makes them feel wider than the text content. This is subtle — only 4px per side — but it creates a layered depth effect.
+
+All interactive elements (buttons, inputs, tappable rows) have a minimum height of 48px and minimum tap target of 48×48px. This meets WCAG 2.2 Target Size (Level AA).
+
+Bottom padding on the last element: `80px` to clear the persistent bottom navigation bar.
+
+Vertical rhythm between major blocks: `16px` gap between Block 1 (creator strip) and Block 2 (content preview), `16px` gap between Block 2 and Block 3 (action section). Inside blocks, vertical gaps between sub-elements are `12px` unless otherwise specified.
+
+No horizontal scrolling under any circumstances. All content must wrap or truncate within the container width.
+
+---
+
+### Section 4 — Desktop Layout Rules (768px+)
+
+At `min-width: 768px`, the layout adjusts but does not become two-column. Unlock pages are intentionally single-column and narrow to maintain focus and reduce decision friction. The changes at desktop are:
+
+Container max-width increases to `480px` centered. Horizontal padding increases to `32px`. Card border-radius increases to `20px`. The creator strip remains full-width — it breaks out of the 480px container using `margin-left: calc(-50vw + 50%); margin-right: calc(-50vw + 50%); padding-left: calc(50vw - 240px); padding-right: calc(50vw - 240px);` to span the viewport while keeping its content aligned with the card column.
+
+Creator avatar increases from `44px` to `52px`. Heading sizes increase by `2px` (so `heading-lg` becomes `24px`). Input heights increase from `52px` to `56px`.
+
+No other desktop changes. This is deliberately restrained — unlock pages should feel mobile-native even on desktop, like a Stripe Checkout or a Gumroad purchase page.
+
+---
+
+### Section 5 — Block 1: Creator Identity Strip
+
+This is the first element on the page. It establishes who created this content before showing what the content is. Trust flows from identity.
+
+**Structure:**
+
+```
+┌─────────────────────────────────────────────┐
+│ [Avatar 44px]  Creator Name ✓   [View Profile →] │
+│                @handle                        │
+└─────────────────────────────────────────────┘
+  ─────── 1px #F4F4F4 separator line ────────
+```
+
+**Avatar:** 44px circle. Background is `creator.avatarColor` (already exists as a hex string on the creator object). Text is the `creator.initial` (first letter of name) in 18px 800-weight white, centered. If `creator.avatar_url` exists and is a valid URL, render an `<img>` with `object-fit: cover` inside the circle and hide the initial text. The image loads lazily with `loading="lazy"`.
+
+**Creator name:** `creator.name` in `heading-sm` (15px 800-weight `#111`). Truncate with ellipsis at 200px max-width on mobile. If `creator.is_verified` is true, render a 14px amber `#B45309` verified checkmark SVG immediately after the name with 4px left margin. The SVG is a simple filled circle with a white checkmark path — inline it directly, do not import it.
+
+**Handle:** `@${creator.username}` in `label` (11px 700-weight `#AAAAAA`). Displayed on a second line below the name within the same text block.
+
+**View Profile pill:** Right-aligned, vertically centered with the avatar. White background, `1.5px solid #E8E8E8` border, `border-radius: 20px`, padding `6px 14px`. Text "View Profile →" in `label` (11px 700-weight `#555`). On hover (desktop): background `#F9F9F9`, border `#D0D0D0`, transition `150ms ease`. On tap: navigates to `/${creator.username}` using the app's router. Do not use a raw `<a>` tag — use the router's `Link` or `navigate` function.
+
+**Separator line:** 1px solid `#F4F4F4`, full container width, 12px below the creator strip content.
+
+**Accessibility:** The entire creator strip is not a link — only the View Profile pill is interactive. The avatar is decorative and gets `aria-hidden="true"`. If using an `<img>` avatar, add `alt=""` (empty alt for decorative images). The View Profile pill has `role="link"` and the `aria-label="View ${creator.name}'s profile"`.
+
+---
+
+### Section 6 — Block 2: Content Preview Card
+
+This replaces the padlock gradient card. It communicates *what* is being unlocked rather than *that* something is locked.
+
+**Card container:** White background. Border: `1.5px solid #F0F0F0`. Border-radius: 16px. Overflow: hidden (so the top accent bar's corners are clipped by the card radius). No padding on the card itself — inner sections have their own padding.
+
+**Top accent bar:** A `<div>` that is 4px tall, full card width, positioned at the top of the card. Background color is the unlock type's Primary color (green `#166534` for Email, blue `#2563EB` for Social, purple/brand for Sponsor). The card's `overflow: hidden` and `border-radius: 16px` automatically round the bar's top corners. No bottom radius on the bar itself.
+
+**Content info section:** Padding `16px`. Uses CSS Grid: `grid-template-columns: 56px 1fr; gap: 12px; align-items: start`.
+
+Left cell — **File type icon container:** 56×56px, `border-radius: 12px`, background is the unlock type's Light Fill color. Display flex, center both axes. The file type emoji renders at 28px font size.
+
+Right cell — **Content details stack:**
+- **Title:** `link.title` in `heading-lg` (22px 900-weight `#111`). This is the creator's actual link title. Clamp to 2 lines with `display: -webkit-box; -webkit-line-clamp: 2; overflow: hidden`. If `link.title` is null or empty (should never happen but defensive coding), fall back to "Untitled Content".
+- **File info line:** If `link.file_metadata` exists, show `link.file_metadata.original_name` truncated at 30 characters with ellipsis, a `·` separator, and the formatted file size. Format size as: bytes < 1024 → "X B", < 1048576 → "X KB", else "X.X MB". Render in `body-sm` (13px 600-weight `#999`). If no file metadata, show `link.content_type` label in the same style — "Text content" for text, "External link" for URL, etc.
+
+**Description section:** If `link.description` exists and is not an empty string, render it below the content info section separated by a `1px solid #F4F4F4` horizontal line. Padding `16px`. Text in `body-sm` (13px 600-weight `#666`). Line height 1.6. Clamp to 3 lines initially. If the text exceeds 3 lines, show a "Read more" tappable text in the unlock type's Primary color at the end of the third line. Tapping "Read more" removes the clamp and shows full text. The text changes to "Show less" and collapses on second tap. Use CSS `-webkit-line-clamp` for the clamping — not JavaScript text truncation — so the browser handles it naturally.
+
+**Unlock type badge:** At the bottom of the card, inside a section with padding `12px 16px`, aligned to the right. A pill element: background is the unlock type's Light Fill, border-radius 20px, padding `4px 10px`. Text in `label` (11px 700-weight) using the unlock type's Primary color.
+
+Badge text per type:
+- Email Subscribe: `📧 Subscribe to unlock`
+- Social Follow: `👥 Follow to unlock`
+- Custom Sponsor: `▶️ Watch to unlock`
+
+**Lock overlay indicator:** In the top-right corner of the content info section (overlapping the corner), a 28×28px circle with `background: rgba(0,0,0,0.06)`, centered `🔒` emoji at 14px. This is the only padlock on the entire page — it is small, subtle, and secondary to the content information. It confirms the content is locked without making the lock the dominant visual.
+
+---
+
+### Section 7 — Block 3A: Email Subscribe Action Section
+
+**Card container:** White background. Border: `1.5px solid #BBF7D0`. Border-radius: 16px. Padding: 20px. Margin-top: 16px.
+
+**Newsletter identity row:** CSS Grid: `grid-template-columns: 44px 1fr; gap: 12px; align-items: center`. The row only renders if `email_config.newsletter_name` is not null and not empty.
+
+Left cell — 44px circle, background `#DCFCE7` (light green), centered 📧 emoji at 22px.
+
+Right cell — Newsletter name in `heading-sm` (15px 800-weight `#166534`). Below it, `email_config.newsletter_description` in `body-sm` (13px 600-weight `#555`) if it exists. Clamp description to 2 lines.
+
+**Fallback:** If `email_config.newsletter_name` is null, empty, or just whitespace, render the name as `${creator.name}'s Newsletter`. This fixes the "A" bug in the current design. The AI must add a utility function:
+
+```javascript
+const getNewsletterName = (emailConfig, creatorName) => {
+  const name = emailConfig?.newsletter_name?.trim();
+  return name && name.length > 1 ? name : `${creatorName}'s Newsletter`;
+};
+```
+
+**Incentive banner:** Renders only if `email_config.incentive_text` exists and is not empty. Full card width (breaks out of padding with negative margin and padding — `margin: 16px -20px 0; padding: 12px 20px`). Background `#F0FDF4`. Left border: `3px solid #166534`. Text: `✓ ${email_config.incentive_text}` in `body-sm` (13px 700-weight `#166534`). The checkmark is text, not an emoji, and uses the green color.
+
+**Email input group:** Margin-top: 20px.
+
+Label: "Your email address" in `label` (11px 700-weight uppercase `#555`). Margin-bottom: 6px.
+
+Input: `<input type="email" inputMode="email" autoComplete="email" />`. Height: 52px. Width: 100%. Border: `1.5px solid #E8E8E8`. Border-radius: 12px. Padding: `0 16px`. Font: `input` (15px 600-weight). Color: `#111`. Placeholder: "you@example.com" in `#BBBBBB`.
+
+Focus state: Border color transitions to `#166534` (green) over `150ms ease`. A subtle green glow appears — `box-shadow: 0 0 0 3px rgba(22, 101, 52, 0.08)`. Outline: none.
+
+Error state: Border color `#C0392B`. Box shadow `0 0 0 3px rgba(192, 57, 43, 0.08)`. The error message renders directly below the input in an inline error strip (see Section 12 for error strip spec).
+
+Pre-filled state: If the user is logged in and has an email on their account, pre-fill the input with that email. Show a green ✓ icon (text, not SVG) inside the input on the right side, positioned with `position: absolute; right: 16px; top: 50%; transform: translateY(-50%)`. The input needs `position: relative` on its wrapper div and `padding-right: 44px` to make room for the icon.
+
+Validation: The AI must not change the existing email validation logic. It only changes how validation results are displayed — from whatever the current error display is to the inline error strip pattern.
+
+**Subscribe button:** Margin-top: 16px. Width: 100%. Height: 52px. Border-radius: 12px. Border: none. Background: `#166534`. Color: white. Font: 15px 900-weight. Text: "Subscribe & Unlock →". Cursor: pointer.
+
+Hover state (desktop): Background darkens to `#14532D`. Transition: `150ms ease`.
+
+Active/pressed state: Transform: `scale(0.98)`. Transition: `100ms ease`.
+
+Loading state: The button text changes to "Subscribing..." with a CSS spinner animation to the left of the text. The spinner is a 16px circle border with `border: 2px solid rgba(255,255,255,0.3); border-top-color: white` and `animation: spin 600ms linear infinite`. The button is `pointer-events: none` during loading. The background remains green — do not gray it out during loading.
+
+Disabled state: If the email input is empty or invalid, the button has `background: #E8E8E8; color: #AAAAAA; cursor: not-allowed`. It transitions to the enabled green state over `250ms ease` when the input becomes valid. This transition should feel smooth and encouraging — the button "waking up" as the user types a valid email.
+
+**Trust line:** Margin-top: 10px. Text centered. "🔒 Free forever · No payment · Unsubscribe anytime" in `label` (11px 700-weight `#AAAAAA`). The lock emoji is part of the text, not a separate element.
+
+---
+
+### Section 8 — Block 3B: Social Follow Action Section
+
+**Card container:** White background. Border: `1.5px solid #BFDBFE`. Border-radius: 16px. Padding: 20px. Margin-top: 16px.
+
+**Header:** If `social_config.custom_heading` exists and is not empty, use it. Otherwise use "Follow to unlock". Rendered in `heading-md` (17px 900-weight `#111`). Below it, if `social_config.follow_description` exists, render it in `body-sm` (13px 600-weight `#555`). Margin-bottom after the header block: 16px.
+
+**Progress bar:** This replaces the raw "PROGRESS: 0/1" text completely.
+
+Progress label row: Flex container, `justify-content: space-between`. Left side: "X of Y followed" in `body-sm` (13px 700-weight `#555`). X is the number of targets the viewer has visited (from the `visitedTargets` Set in state). Y is `social_config.targets.length`. Right side: when X equals Y, show "All done ✓" in `body-sm` (13px 700-weight `#166534` green) with a subtle fade-in animation.
+
+Track bar: Full width. Height: 8px. Background: `#EFF6FF` (light blue). Border-radius: 4px. Overflow: hidden.
+
+Fill bar: Inside the track. Height: 100%. Width: `${(visitedCount / totalTargets) * 100}%`. Background: `#2563EB` (blue). Border-radius: 4px. `transition: width 500ms cubic-bezier(0.34, 1.56, 0.64, 1)` — this is a spring-like easing that slightly overshoots and settles, making the progress feel satisfying and alive.
+
+When the progress reaches 100%, the fill bar background changes to `#166534` (green) and the entire track bar border changes to `1px solid #BBF7D0`. This transition takes 300ms.
+
+Margin-bottom after progress bar: 16px.
+
+**Follow target cards:** Each target from `social_config.targets` array renders as a tappable row.
+
+Row container: `1px solid #E8E8E8` border. Border-radius: 12px. Padding: 14px. Margin-bottom: 8px (gap between rows). Display: flex. Align-items: center. Gap: 12px. Cursor: pointer. Background: white. `transition: all 200ms ease`.
+
+Left — Platform icon circle: 36px diameter. Background color from the platform icon mapping in Section 2E. White text (platform abbreviation) centered at 12px 800-weight. Border-radius: 50%.
+
+Center — Text stack: Platform name or custom label in `body` (14px 800-weight `#111`). Below it, the target URL formatted as a handle — extract the username from the URL if it's a known platform (show `@username` for Instagram/Twitter/TikTok, channel name for YouTube). If custom or unparseable, show the domain. Font: `label` (11px 600-weight `#888`). This formatting is a display improvement only — the actual URL opened on tap remains `target.url`.
+
+Right — Status indicator: When unvisited, a right-arrow `→` in 16px `#AAAAAA`. When visited (target ID is in the `visitedTargets` Set), a green checkmark `✓` in 16px `#166534`.
+
+**Visited state for the entire row:** When a target has been visited, the row transforms: background `#F0FDF4`, border `1px solid #BBF7D0`. The transition plays over 200ms. The platform icon circle gains a 2px green `#BBF7D0` ring around it using `box-shadow: 0 0 0 2px #BBF7D0`.
+
+**Tap behavior:** Tapping a row opens `target.url` in a new tab (`window.open(url, '_blank')`), then immediately adds the target ID to the `visitedTargets` Set in state. The AI must keep the existing timing logic — some implementations wait for focus return, others mark immediately. Read the existing code and match the behavior exactly, only changing the visual rendering.
+
+**CTA text:** Below the target list. "Tap each link and come back to this page" in `label` (11px 700-weight `#AAAAAA`) centered. Margin-top: 8px.
+
+**Unlock button:** Same dimensions and radius as the Email Subscribe button. Background: `#2563EB` (blue). Text: "Unlock Content →" in 15px 900-weight white. This button is only enabled when all targets are visited (`visitedCount === totalTargets`). Disabled state: `background: #E8E8E8; color: #AAAAAA`. The enable transition mirrors the Email Subscribe button — 250ms smooth background change.
+
+---
+
+### Section 9 — Block 3C: Custom Sponsor Action Section
+
+**Card container:** White background. Border: `1.5px solid #E8E8E8`. Border-radius: 16px. Overflow: hidden (the video fills edge to edge inside the card). Margin-top: 16px.
+
+**Sponsor attribution:** Padding: `16px 20px 12px`. Text "SPONSORED BY" in `label-xs` (10px 700-weight uppercase `#AAAAAA`) centered. Below it, `sponsor_config.brand_name` in `heading-lg` (22px 900-weight `#111`) centered. If `sponsor_config.brand_logo_url` exists, render a max-height 32px brand logo image centered above the brand name, replacing the text. The image has `max-width: 160px; object-fit: contain`. If the image fails to load (`onError`), hide it and show the text name as fallback.
+
+**Video container:** Full card width. Aspect ratio 16:9 enforced with `aspect-ratio: 16/9` CSS property (supported in all modern browsers). Position: relative (to hold the play overlay). Background: `#111` (dark fallback while video loads).
+
+The `<video>` element: `width: 100%; height: 100%; object-fit: cover`. `preload="metadata"` to load the first frame as poster. `playsinline` attribute for iOS. `webkit-playsinline` for older iOS. Do not autoplay.
+
+**Play overlay:** Position: absolute, covers the entire video container. Background: `rgba(0, 0, 0, 0.45)`. Display: flex, column direction, center both axes. Visible by default, hidden after play starts.
+
+Play button: 64px × 64px circle. Background: `rgba(255, 255, 255, 0.95)`. Centered. Inside: a CSS triangle pointing right — `width: 0; height: 0; border-top: 12px solid transparent; border-bottom: 12px solid transparent; border-left: 20px solid #E8312A`. The triangle is offset `2px` to the right of center to optically center it (play triangles look left-heavy when mathematically centered).
+
+Text below play button: "PLAY TO UNLOCK" in `label` (11px 700-weight uppercase white). Letter-spacing: `0.08em`. Margin-top: 12px.
+
+Tap on the overlay: calls `video.play()`, then fades the overlay out with `opacity: 0` transition over `300ms ease`, then sets `display: none` after the transition ends (use a `transitionend` listener or a timeout).
+
+**Skip countdown chip:** After the video starts playing, a chip appears in the top-right corner of the video container. Position: absolute, `top: 12px; right: 12px`. Background: `rgba(0, 0, 0, 0.6)`. Border-radius: 20px. Padding: `6px 12px`. Backdrop-filter: `blur(4px)`. Text in `label` (11px 700-weight white).
+
+Before skip is available: "Skip in Xs" — the number counts down each second. Non-interactive, just informational.
+
+When countdown reaches 0: text changes to "Skip →", background changes to `rgba(255, 255, 255, 0.9)`, text color changes to `#111`. The chip becomes tappable. Tapping pauses the video and marks the sponsor as viewed.
+
+The countdown duration comes from `sponsor_config.min_watch_seconds`. If not set, default to 5.
+
+**CTA button section:** Padding: `16px 20px 20px`. 
+
+If `sponsor_config.requires_click` is true: The button is mandatory and styled as primary. Width: 100%. Height: 52px. Border-radius: 12px. Background: `#6D28D9` (purple, or `brand_color` if set). Color: white. Font: 15px 900-weight. Text: `sponsor_config.cta_button_label` or "Visit Sponsor →". Tapping opens `sponsor_config.cta_url` in a new tab.
+
+If `sponsor_config.requires_click` is false: The button is optional and styled as secondary. White background. Border: `1.5px solid #E8E8E8`. Color: `#333`. Same dimensions. Text: `sponsor_config.cta_button_label` or "Visit Sponsor" (no arrow for optional). A small "Optional" badge in `label-xs` (10px `#AAAAAA`) sits to the right of the button text inside the button.
+
+**Instruction line:** Below the button. Centered. `label` (11px 700-weight `#AAAAAA`).
+
+If `requires_click` is true: "Watch video & visit sponsor to unlock"
+If `requires_click` is false: "Watch the video to unlock"
+
+**Unlock condition indicator:** Below the instruction line, a checklist. Each item is a row with a circle icon (empty gray `○` when incomplete, filled green `●` when complete) and a label. Items:
+- "Watch the ad" — complete when video has been played past the minimum watch time or skipped after countdown
+- "Visit sponsor" — only shown if `requires_click` is true. Complete when the CTA button has been tapped. Track this in component state.
+
+This checklist makes the unlock requirements explicit and shows progress. Render in `body-sm` (13px 600-weight). Green items use `#166534`. Gray items use `#AAAAAA`.
+
+---
+
+### Section 10 — Entrance Animations
+
+Define a single keyframe animation used across all blocks:
+
+```css
+@keyframes fadeSlideUp {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+```
+
+Each block applies this animation with staggered delays:
+
+| Block | Delay | Duration |
+|---|---|---|
+| Creator Strip | 0ms | 350ms |
+| Content Preview Card | 80ms | 350ms |
+| Action Section | 160ms | 350ms |
+
+Animation timing function: `ease-out`. Animation fill mode: `both` (so elements start invisible and stay visible after animation completes).
+
+All animated elements must have `will-change: opacity, transform` to promote them to their own compositor layer and prevent paint jank.
+
+**Important constraint:** These are CSS-only animations. No JavaScript animation libraries. No `requestAnimationFrame` loops. No Framer Motion. CSS `animation` property only. This keeps the component lightweight and avoids adding dependencies.
+
+**Reduced motion:** Wrap the animation declarations in `@media (prefers-reduced-motion: no-preference) { ... }`. If the user has requested reduced motion, all elements appear instantly with no animation. The `will-change` properties are also excluded in the reduced-motion case to save GPU memory.
+
+---
+
+### Section 11 — Loading and Skeleton States
+
+While `getLinkBySlug` is running (the `loading` or `isLoading` state is true), show skeleton placeholders that match the exact dimensions and positions of the real content.
+
+**Creator strip skeleton:** A `44px` circle (gray `#E8E8E8`, shimmer), next to two stacked rectangle skeletons — one `120px × 14px` and one `80px × 10px`. The View Profile pill is not shown in the skeleton.
+
+**Content preview card skeleton:** A `border-radius: 16px` rectangle, `200px` tall, `#E8E8E8` background with shimmer. Inside, a `56px × 56px` rounded square skeleton on the left and two text lines on the right (`180px × 16px` and `140px × 12px`).
+
+**Action section skeleton:** A `border-radius: 16px` rectangle, `260px` tall, `#E8E8E8` background with shimmer.
+
+**Shimmer animation:**
+
+```css
+@keyframes shimmer {
+  0% { background-position: -200px 0; }
+  100% { background-position: calc(200px + 100%) 0; }
+}
+
+.skeleton {
+  background: linear-gradient(90deg, #E8E8E8 0%, #F5F5F5 50%, #E8E8E8 100%);
+  background-size: 200px 100%;
+  animation: shimmer 1.5s ease-in-out infinite;
+}
+```
+
+If the existing codebase already has a `Skeleton` or `ShimmerPlaceholder` component, use it. Only create the above if no existing skeleton system exists.
+
+**Error loading state:** If `getLinkBySlug` fails, show a centered error card instead of skeletons. White card, red top accent bar, centered emoji `😞`, text "Something went wrong" in `heading-md`, a "Try Again" button that calls `refetch()` or `window.location.reload()`. Use the error strip styling from Section 12 for the card border.
+
+---
+
+### Section 12 — Error Display Pattern
+
+All form validation errors, API errors, and submission failures use the same inline error strip component.
+
+**Error strip spec:**
+- Background: `#FFF0EF`
+- Border: `1px solid #FECACA`
+- Border-radius: 8px
+- Padding: `10px 14px`
+- Display: flex, align-items: start, gap: 8px
+- Icon: `⚠️` emoji at 14px, flex-shrink: 0
+- Text: 13px 700-weight `#C0392B`, line-height 1.4
+- Margin: 8px 0 (sits above the element it relates to)
+- Entrance animation: height auto-expand from 0 with opacity 0→1 over 200ms. Use `max-height` transition from `0` to a reasonable max (like `200px`) since `height: auto` cannot be transitioned directly.
+
+**Error strip placement rules:**
+- Email validation error: immediately below the email input, above the subscribe button
+- Social follow API error: at the top of the action card, above the header
+- Sponsor video load error: over the video container, centered
+- Generic submission error: immediately above the submit/unlock button
+
+Never use toast notifications for form errors on unlock pages. Toasts disappear and the user loses context. Inline errors persist until resolved.
+
+---
+
+### Section 13 — Edge Case Content Handling
+
+**Very long link titles (50+ characters):** The `heading-lg` title in the content preview card clamps to 2 lines with ellipsis. On a 375px screen at 22px font size, this gives approximately 28-30 characters per line, so 60 characters maximum before truncation. This is sufficient for most titles. Do not add a "Show full title" expander — titles should be concise and this truncation incentivizes creators to write short titles.
+
+**Missing description:** If `link.description` is null, undefined, or empty string, do not render the description section at all. Do not show an empty space or a placeholder. The content info section directly meets the unlock type badge.
+
+**Very long descriptions (200+ characters):** Clamped to 3 lines with "Read more" as specified in Section 6. The expanded state has no maximum — show the full text.
+
+**No file metadata:** If `link.file_metadata` is null (the link has text content only, no file upload), the file info line shows "Text content" and the file type icon uses 📝 on the Light Fill background. The lock overlay icon still appears.
+
+**Social follow with only 1 target:** The progress bar still renders but the label says "0 of 1 followed" → "1 of 1 followed". The bar fills from 0% to 100% in one step. This edge case must look intentional, not broken.
+
+**Social follow with 5+ targets:** The target list can get long. Do not virtualize or paginate — show all targets. The page scrolls naturally. At 5 targets the list is approximately 400px tall, which is acceptable on mobile with scrolling.
+
+**Sponsor video that fails to load:** If the `<video>` element fires an `error` event, remove the video container entirely and show a fallback card: "Video unavailable" in `heading-md` centered, with the CTA button still visible below (if `requires_click` is true the user can still unlock by visiting the sponsor). If `requires_click` is false and the video fails, show a message "Unable to load — please refresh the page" with a retry button.
+
+**Sponsor with no video URL:** If `sponsor_config.video_url` is null or empty (misconfigured campaign), show a static sponsor card with just the brand name, optional CTA button, and an auto-unlock that triggers after 3 seconds with a visible countdown. This is a graceful degradation — the campaign is misconfigured but the user is not punished.
+
+**Creator resource link (all types):** If `link.creator_resource_url` exists on any unlock type, render a small resource card between the action section and the page bottom. Card: white background, `1px solid #E8E8E8`, border-radius: 12px, padding: 14px. Left: 🔗 emoji in a 32px light gray circle. Center: `link.creator_resource_label` or "Creator Resource" in `body` (14px 700-weight `#111`). Right: external link arrow `↗` in `#AAAAAA`. The entire card is tappable and opens the URL in a new tab.
+
+---
+
+### Section 14 — Accessibility Requirements
+
+**Focus management:** When the page loads, do not auto-focus any element. Let the user navigate naturally. When an error strip appears (e.g., invalid email submitted), programmatically focus the error strip using `errorRef.current.focus()` so screen readers announce it immediately. The error strip must have `tabIndex="-1"` and `role="alert"`.
+
+**ARIA labels:**
+- Email input: `aria-label="Email address"` (in addition to the visible label)
+- Subscribe button: `aria-label="Subscribe to ${getNewsletterName()} and unlock content"`
+- Social follow target rows: each row has `aria-label="Follow on ${platformName} - ${visited ? 'completed' : 'not yet visited'}"` and `role="link"`
+- Progress bar: The track has `role="progressbar"`, `aria-valuenow={visitedCount}`, `aria-valuemin={0}`, `aria-valuemax={totalTargets}`, `aria-label="Follow progress"`
+- Video play overlay: The play button area has `role="button"` and `aria-label="Play sponsor video to unlock content"`
+- Skip chip: `role="button"` and `aria-label="Skip video"` when interactive, `aria-label="Skip available in ${seconds} seconds"` during countdown (use `aria-live="polite"` on the countdown text)
+
+**Color contrast:** All text-on-background combinations must meet WCAG AA contrast ratio (4.5:1 for normal text, 3:1 for large text):
+- `#111` on `#FFFFFF`: 18.1:1 ✓
+- `#555` on `#FFFFFF`: 8.6:1 ✓
+- `#999` on `#FFFFFF`: 2.8:1 ✗ — Change `text-tertiary` from `#999999` to `#767676` (4.54:1) for any text that conveys information. `#999` may remain for purely decorative text (timestamps on non-essential elements).
+- `#AAAAAA` on `#FFFFFF`: 2.3:1 ✗ — Change trust line text from `#AAAAAA` to `#888888` (3.54:1). Trust lines are decorative/reassurance text and 3:1 is acceptable for non-essential text per WCAG understanding of "incidental" text, but `#888888` is safe.
+- `#FFFFFF` on `#166534`: 6.4:1 ✓
+- `#FFFFFF` on `#2563EB`: 4.6:1 ✓
+- `#FFFFFF` on `#6D28D9`: 7.2:1 ✓
+
+**Keyboard navigation:**
+- Tab order: Creator strip View Profile → Content Preview "Read more" (if present) → Email input or first Social target or Video play → Action button → Creator resource link (if present)
+- Social follow target rows must be keyboard-focusable with `tabIndex="0"` and trigger on both Enter and Space keypress
+- The video play overlay must trigger on Enter and Space
+- Focus rings: All focusable elements show a `2px solid [type primary color]` focus ring with `2px offset`, using `:focus-visible` (not `:focus`) to avoid showing rings on mouse click
+
+**Screen reader experience:** The page should narrate as: "[Creator name] shared [link title]. [Description if present]. [Unlock type] to access this content. [Number] of [total] steps completed." — this narrative is achieved through semantic HTML and ARIA labels, not through visually hidden text dumps.
+
+---
+
+### Section 15 — Performance Constraints
+
+**No additional JavaScript dependencies.** The redesign must not add any npm packages. No animation libraries (Framer Motion, React Spring). No icon libraries (Heroicons, Lucide). No CSS-in-JS libraries not already in the project. Every visual element is achieved with CSS, emoji, and inline SVG (verified checkmark only).
+
+**Image optimization:** Creator avatars loaded with `loading="lazy"`. Sponsor brand logos loaded with `loading="lazy"` and explicit `width` and `height` attributes to prevent layout shift. Video element uses `preload="metadata"` not `preload="auto"` — only load the first frame until the user presses play.
+
+**CSS considerations:** All transitions use `transform` and `opacity` only where possible — these properties are GPU-composited and do not trigger layout recalculation. The progress bar width transition is an exception (width triggers layout) but is acceptable because it only fires on user interaction, not on scroll or animation frame.
+
+**Bundle size:** The redesign should not increase the component's JavaScript bundle size by more than 2KB gzipped compared to the current version. The visual improvements are achieved through CSS and HTML structure, not additional JavaScript logic.
+
+---
+
+### Section 16 — Component File Architecture
+
+The AI must create these files:
+
+```
+components/unlock/
+├── UnlockCreatorStrip.jsx       — Block 1 (shared across all types)
+├── ContentPreviewCard.jsx       — Block 2 (shared across all types)
+├── EmailSubscribeAction.jsx     — Block 3A (email specific)
+├── SocialFollowAction.jsx       — Block 3B (social specific)
+├── SponsorAction.jsx            — Block 3C (sponsor specific)
+├── UnlockProgressBar.jsx        — Reusable progress bar component
+├── ErrorStrip.jsx               — Reusable inline error component
+├── CreatorResourceCard.jsx      — Optional resource link (shared)
+├── SkeletonUnlockPage.jsx       — Loading state skeleton
+└── unlock-styles.css            — All styles for unlock pages
+```
+
+Each parent component (`EmailSubscribeUnlock`, `SocialFollowUnlock`, `SponsorUnlock`) imports and composes these shared components. The parent components keep their existing names and file locations — the AI creates the new sub-components and modifies the parent's render method to use them.
+
+If the existing codebase uses CSS modules, styled-components, or Tailwind, the AI must match that pattern for the new styles. If it uses plain CSS files, use `unlock-styles.css`. The AI must check the existing code to determine which CSS approach is in use before writing any styles.
+
+---
+
+### Section 17 — Testing Checklist For The AI
+
+After generating the code, the AI must verify in its output:
+
+1. ☐ `email_config.newsletter_name` renders correctly with the fallback function — never shows just "A"
+2. ☐ Social follow progress renders as a visual bar, never as "PROGRESS: 0/1" text
+3. ☐ The padlock gradient card is completely removed from all three unlock types
+4. ☐ All three unlock types have their correct accent colors throughout
+5. ☐ The creator strip renders avatar, name, handle, and verified badge correctly
+6. ☐ Content preview card shows actual `link.title` not "DIGITAL RESOURCE"
+7. ☐ File type emoji matches the file extension
+8. ☐ Desktop layout centers at 480px max-width without going two-column
+9. ☐ All touch targets are ≥48px
+10. ☐ No `import` of any new npm package
+11. ☐ All sessionStorage keys unchanged
+12. ☐ All submit handlers unchanged — only the JSX/visual rendering is new
+13. ☐ `prefers-reduced-motion` media query wraps all animations
+14. ☐ Error strips use inline placement, never toasts
+15. ☐ The `UnlockSuccessScreen` conditional render is untouched
+16. ☐ Bottom padding of 80px exists on the last element
+
+---
+
+### Section 18 — What The AI Must Absolutely Not Change
+
+This section is a hard boundary. The AI must treat these as immutable:
+
+- **Submit handlers:** `handleSubscribe`, `handleSocialUnlock`, `recordSponsorView`, any function that writes to the database or calls a service. The AI may rename the function only if it changes nothing about its logic, but renaming is discouraged.
+- **Session key patterns:** `adgate_email_[linkId]`, `adgate_social_[linkId]_visited`, `adgate_sponsor_[linkId]_watched`, and any other sessionStorage or localStorage keys. The AI must grep for all storage key usage and ensure none change.
+- **Data fetching:** `getLinkBySlug`, `getCreatorByUsername`, or any Supabase query. No changes to queries, no new queries, no query parameter changes.
+- **Routing:** No new routes, no changes to existing route paths, no changes to `navigate()` calls.
+- **The `UnlockSuccessScreen` component:** This is the post-unlock state. The AI must not modify it. The conditional that switches between pre-unlock and post-unlock must remain exactly as is.
+- **The `trackLinkView` analytics call:** Must remain in its current position (usually `useEffect` on mount).
+- **Auth context usage:** If the component reads auth state to pre-fill email, it must use the existing auth hook/context, not create a new one.
+
+If the AI encounters a situation where a backend change would improve the design, it must add a comment `// BACKEND_SUGGESTION: [description]` and implement the frontend without that change using the existing data.

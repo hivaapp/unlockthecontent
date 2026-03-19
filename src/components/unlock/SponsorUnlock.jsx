@@ -9,6 +9,7 @@ import {
   recordSponsorUnlock,
 } from '../../services/sponsorService'
 import { getFileEmoji, formatFileSize } from '../../services/uploadService'
+import { getYoutubeEmbedUrl } from '../../lib/utils'
 
 const SponsorUnlock = ({ link, currentUser, isLoggedIn, sessionKey, onUnlockSuccess }) => {
   const navigate = useNavigate()
@@ -179,66 +180,156 @@ const SponsorUnlock = ({ link, currentUser, isLoggedIn, sessionKey, onUnlockSucc
 
   if (screen === 'already_unlocked') {
     return (
-      <div className="w-full text-center">
-        <div className="bg-successBg border border-success/20 rounded-xl p-4 mb-4">
-          <div className="text-xl mb-1">✅</div>
-          <h3 className="text-success font-black mb-2">Already unlocked</h3>
-          <button onClick={() => setScreen('locked')} className="w-full h-10 bg-success text-white rounded-xl text-sm font-black transition-all">
-             Watch Again
-          </button>
+      <div className="w-full flex flex-col items-center">
+        <div className="w-16 h-16 bg-successBg rounded-full flex items-center justify-center text-3xl mb-4 border border-success/20">
+          ✅
         </div>
+        <h2 className="text-2xl font-black text-text mb-2 text-center">
+          Already unlocked
+        </h2>
+        <p className="text-[14px] text-textMid text-center mb-8 max-w-[280px]">
+          You have already watched the sponsor video.
+        </p>
+        <button onClick={() => setScreen('locked')} className="w-full h-12 bg-success hover:bg-success/90 text-white rounded-xl text-[15px] font-black max-w-[340px] transition-all shadow-sm">
+          Watch Again
+        </button>
       </div>
     )
   }
 
   if (screen === 'unlocked') {
     return (
-      <div className="w-full animate-pop-in">
-        <div className="text-center mb-4">
-          <div className="text-3xl mb-1">🎉</div>
-          <h2 className="text-lg font-black text-text mb-0.5">Content Ready!</h2>
-          <p className="text-[12px] text-textMid">Thanks for your support.</p>
+      <div className="w-full flex flex-col items-center animate-pop-in">
+        <div className="w-16 h-16 bg-successBg rounded-full flex items-center justify-center text-3xl mb-4 border border-success/20">
+          🎉
         </div>
+        
+        <h2 className="text-2xl font-black text-text mb-2 text-center">
+          Content Ready!
+        </h2>
+        
+        <p className="text-[14px] text-textMid text-center mb-8">
+          Thanks for your support.
+        </p>
 
-        {file && (
-          <div className="bg-white border border-border rounded-xl p-4 mb-4">
-            <div className="flex items-center gap-4 mb-4">
-              <div className="w-12 h-12 rounded-lg bg-surfaceAlt flex items-center justify-center text-2xl">
-                {getFileEmoji(file.original_name, file.mime_type)}
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="text-sm font-black text-text truncate">{link.title}</div>
-                <div className="text-[11px] text-textLight font-bold">
-                  {file.original_name} · {formatFileSize(file.size_bytes)}
+        <div className="w-full max-w-[400px] flex flex-col gap-6">
+          {sponsorConfig?.unlock_text && (
+            <div className="text-center">
+              <p className="text-[15px] font-[500] text-text leading-relaxed whitespace-pre-wrap">
+                {sponsorConfig.unlock_text}
+              </p>
+            </div>
+          )}
+
+          {link.text_content && (
+            <div className="w-full bg-surfaceAlt rounded-xl p-4 border border-border">
+              <p className="text-[14px] font-medium text-text leading-relaxed whitespace-pre-wrap">
+                {link.text_content}
+              </p>
+            </div>
+          )}
+
+          {link.content_links && link.content_links.length > 0 && (
+            <div className="w-full flex flex-col gap-2">
+              {link.content_links.map((cl, idx) => {
+                const getDomainInitial = (url) => {
+                  try { return new URL(url).hostname.replace(/^www\./, '').charAt(0).toUpperCase(); } catch { return '?'; }
+                };
+                const getDomainColor = (url) => {
+                  const colors = ['#E8312A', '#4F46E5', '#0EA5E9', '#10B981', '#F59E0B', '#8B5CF6', '#EC4899'];
+                  let hash = 0;
+                  for (let i = 0; i < url.length; i++) hash = url.charCodeAt(i) + ((hash << 5) - hash);
+                  return colors[Math.abs(hash) % colors.length];
+                };
+                const getDomainName = (url) => {
+                  try { return new URL(url).hostname.replace(/^www\./, ''); } catch { return url; }
+                };
+                return (
+                  <a key={idx} href={cl.url} target="_blank" rel="noopener noreferrer"
+                    className="w-full h-[52px] bg-white rounded-[12px] border border-border flex items-center px-3 gap-3 no-underline hover:bg-surfaceAlt transition-colors"
+                  >
+                    <div className="w-[32px] h-[32px] rounded-[6px] flex items-center justify-center text-white font-[900] text-[14px] shrink-0"
+                      style={{ backgroundColor: getDomainColor(cl.url) }}
+                    >
+                      {getDomainInitial(cl.url)}
+                    </div>
+                    <div className="flex flex-col min-w-0 flex-1">
+                      <span className="text-[13px] font-[800] text-text truncate leading-tight">{cl.title || getDomainName(cl.url)}</span>
+                      <span className="text-[11px] text-textLight truncate leading-tight">{getDomainName(cl.url)}</span>
+                    </div>
+                  </a>
+                );
+              })}
+            </div>
+          )}
+
+          {link.youtube_url && (
+            <div className="w-full aspect-video rounded-xl overflow-hidden border border-border shadow-sm">
+              <iframe
+                src={getYoutubeEmbedUrl(link.youtube_url)}
+                className="w-full h-full border-none"
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                allowFullScreen
+                title="YouTube video player"
+              />
+            </div>
+          )}
+
+          {sponsorConfig?.unlock_url && (
+            <a
+              href={sponsorConfig.unlock_url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="w-full h-12 bg-white border border-border text-text rounded-xl text-sm font-black flex items-center justify-center gap-2 hover:bg-surfaceAlt transition-colors no-underline shadow-sm"
+            >
+              {sponsorConfig.unlock_url_label || 'Access Link'} →
+            </a>
+          )}
+
+          {file && (
+            <div className="w-full flex items-center justify-between py-3 border-t border-border mt-2">
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="text-2xl shrink-0">
+                  {getFileEmoji(file.original_name, file.mime_type)}
+                </div>
+                <div className="flex flex-col min-w-0">
+                  <span className="text-[14px] font-black text-text truncate">
+                    {link.title}
+                  </span>
+                  <span className="text-[12px] text-textLight font-medium">
+                    {formatFileSize(file.size_bytes)}
+                  </span>
                 </div>
               </div>
+              <button
+                onClick={handleDownload}
+                disabled={!downloadUrl}
+                className={`h-10 px-4 rounded-lg text-[13px] font-bold transition-all shrink-0 ml-4 ${
+                  downloadStarted ? 'bg-success text-white' : !downloadUrl ? 'bg-border text-textLight' : 'bg-brand text-white hover:bg-brandHover shadow-sm'
+                }`}
+              >
+                {!downloadUrl ? 'Wait' : downloadStarted ? 'Got it' : 'Download'}
+              </button>
             </div>
-            <button
-              onClick={handleDownload}
-              className={`w-full h-12 rounded-xl text-sm font-black flex items-center justify-center gap-2 transition-all ${
-                downloadStarted ? 'bg-success text-white' : 'bg-brand text-white'
-              }`}
-            >
-              {downloadStarted ? '✅ Downloaded' : '⬇️ Download Now'}
-            </button>
-          </div>
-        )}
+          )}
+        </div>
       </div>
     )
   }
 
   return (
-    <div className="w-full">
-      <div className="bg-warningBg border border-warning/20 rounded-xl p-3 mb-4 flex gap-3 items-center">
-        <span className="text-lg">🎬</span>
-        <div>
-          <div className="text-[13px] font-black text-warning leading-tight">
-            Sponsored by {sponsorConfig?.brand_name}
-          </div>
-        </div>
-      </div>
+    <div className="w-full flex flex-col items-center">
+      {sponsorConfig?.brand_name && (
+        <span className="text-[11px] font-bold text-textMid uppercase tracking-wider mb-2">
+          Sponsored By
+        </span>
+      )}
+      
+      <h2 className="text-2xl font-black text-text mb-6 text-center leading-tight">
+        {sponsorConfig?.brand_name || 'Our Sponsor'}
+      </h2>
 
-      <div className="relative w-full aspect-video bg-black rounded-xl overflow-hidden mb-3 shadow-sm">
+      <div className="relative w-full max-w-[400px] aspect-video bg-black rounded-2xl overflow-hidden mb-6 shadow-md border border-border/50">
         {videoLoading ? (
           <div className="absolute inset-0 flex items-center justify-center">
             <div className="w-6 h-6 border-2 border-white/20 border-t-white rounded-full animate-spin" />
@@ -249,52 +340,62 @@ const SponsorUnlock = ({ link, currentUser, isLoggedIn, sessionKey, onUnlockSucc
               ref={videoRef}
               src={videoUrl}
               playsInline
-              className="w-full h-full"
+              className="w-full h-full object-cover"
               onTimeUpdate={handleTimeUpdate}
               onEnded={handleVideoEnded}
             />
             {!hasStarted && (
-              <div onClick={handlePlay} className="absolute inset-0 bg-black/40 flex flex-col items-center justify-center cursor-pointer gap-2">
-                <div className="w-14 h-14 bg-white rounded-full flex items-center justify-center pl-1 shadow-lg">
-                  <div className="w-0 h-0 border-t-[8px] border-t-transparent border-b-[8px] border-b-transparent border-l-[14px] border-l-text" />
+              <div onClick={handlePlay} className="absolute inset-0 bg-black/50 backdrop-blur-[2px] flex flex-col items-center justify-center cursor-pointer gap-3 transition-all hover:bg-black/40">
+                <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center pl-1 shadow-xl transform transition-transform hover:scale-105">
+                  <div className="w-0 h-0 border-t-[10px] border-t-transparent border-b-[10px] border-b-transparent border-l-[16px] border-l-brand" />
                 </div>
-                <span className="text-white text-xs font-black uppercase tracking-widest">Play to unlock</span>
+                <span className="text-white text-[11px] font-black uppercase tracking-widest drop-shadow-md">Play to unlock</span>
               </div>
             )}
             
             {hasStarted && !videoWatchComplete && (
-               <div className="absolute top-3 right-3">
+               <div className="absolute top-3 right-3 z-10">
                   {canSkip ? (
-                    <button onClick={handleSkip} className="bg-black/60 backdrop-blur-md text-white text-[10px] font-black uppercase px-3 py-1.5 rounded-lg border border-white/20">Skip →</button>
+                    <button onClick={handleSkip} className="bg-black/70 backdrop-blur-md text-white text-[11px] font-black uppercase tracking-wider px-4 py-2 rounded-lg border border-white/20 hover:bg-black/80 transition-colors shadow-sm">
+                      Skip →
+                    </button>
                   ) : (
-                    <div className="bg-black/60 backdrop-blur-md text-white text-[10px] font-black uppercase px-3 py-1.5 rounded-lg">Skip in {skipCountdown}s</div>
+                    <div className="bg-black/60 backdrop-blur-md text-white/90 text-[11px] font-bold uppercase tracking-wider px-4 py-2 rounded-lg border border-white/10">
+                      Skip in {skipCountdown}s
+                    </div>
                   )}
                </div>
             )}
           </>
         ) : (
-          <div className="absolute inset-0 flex items-center justify-center text-white/50 text-xs">Video failed to load</div>
+          <div className="absolute inset-0 flex items-center justify-center text-white/50 text-sm font-medium">Video failed to load</div>
         )}
       </div>
 
-      {sponsorConfig?.brand_website && (
-        <button
-          onClick={handleCtaClick}
-          className={`w-full h-11 rounded-xl text-sm font-black flex items-center justify-center gap-2 transition-all border ${
-            ctaClicked ? 'bg-successBg border-success/20 text-success' : 'bg-white border-border text-text'
-          }`}
-        >
-          {ctaClicked ? `✅ Visited ${sponsorConfig.brand_name}` : `${sponsorConfig.cta_button_label || 'Visit Sponsor'}`}
-        </button>
-      )}
+      <div className="w-full max-w-[400px]">
+        {sponsorConfig?.brand_website && (
+          <button
+            onClick={handleCtaClick}
+            className={`w-full h-12 rounded-xl text-[15px] font-black flex items-center justify-center gap-2 transition-all shadow-sm ${
+              ctaClicked ? 'bg-success text-white' : 'bg-brand hover:bg-brandHover text-white'
+            }`}
+          >
+            {ctaClicked ? `✅ Visited ${sponsorConfig.brand_name}` : `${sponsorConfig.cta_button_label || 'Visit Sponsor'}`}
+          </button>
+        )}
 
-      {error && <div className="text-error text-[10px] font-bold text-center mt-2 uppercase tracking-wider">{error}</div>}
-      
-      {!videoWatchComplete && (
-        <p className="text-[9px] text-textLight text-center mt-3 font-bold uppercase tracking-wider">
-           {requiresClick ? 'Watch video & visit sponsor' : 'Watch video to unlock'}
-        </p>
-      )}
+        {isUnlocking && (
+          <p className="text-[13px] font-bold text-textMid mt-4 text-center animate-pulse">Unlocking...</p>
+        )}
+        
+        {error && <div className="text-error text-[12px] font-bold bg-errorBg p-3 rounded-lg text-center mt-4">{error}</div>}
+        
+        {!videoWatchComplete && !isUnlocking && (
+          <p className="text-[11px] text-textMid text-center mt-4 font-bold uppercase tracking-wider">
+             {requiresClick ? 'Watch video & visit sponsor' : 'Watch video to unlock'}
+          </p>
+        )}
+      </div>
     </div>
   )
 }

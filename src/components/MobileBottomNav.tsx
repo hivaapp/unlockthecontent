@@ -26,7 +26,7 @@ export const MobileBottomNav = () => {
         }
     } catch { /* ignore */ }
 
-    // if (!isLoggedIn) return null; // Remove this to show nav for everyone
+    if (!isLoggedIn) return null;
 
     const navItems = [
         { id: 'home', path: '/dashboard?tab=home', icon: Home, label: 'Home' },

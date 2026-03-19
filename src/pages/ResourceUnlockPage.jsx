@@ -9,15 +9,28 @@ import SocialFollowUnlock from '../components/unlock/SocialFollowUnlock'
 import SponsorUnlock from '../components/unlock/SponsorUnlock'
 import { FollowerPairingUnlock } from '../components/unlock/FollowerPairingUnlock'
 
-// Generate a stable anonymous session key for this browser session
-const getAnonSessionKey = () => {
-  const key = 'adgate_anon_session'
-  let id = sessionStorage.getItem(key)
+// Generate a stable anonymous viewer ID that persists across sessions
+const getAnonViewerId = () => {
+  const key = 'utc_viewer_id'
+  let id = localStorage.getItem(key)
   if (!id) {
     id = `anon_${Date.now()}_${Math.random().toString(36).substring(2, 10)}`
-    sessionStorage.setItem(key, id)
+    localStorage.setItem(key, id)
   }
   return id
+}
+
+// Check if we already tracked a view for a specific link today
+const hasTrackedViewToday = (linkId) => {
+  const key = `utc_view_${linkId}`
+  const ts = localStorage.getItem(key)
+  if (!ts) return false
+  // 24 hour window
+  return (Date.now() - parseInt(ts, 10)) < 24 * 60 * 60 * 1000
+}
+
+const markViewTracked = (linkId) => {
+  localStorage.setItem(`utc_view_${linkId}`, Date.now().toString())
 }
 
 const ResourceUnlockPage = () => {
@@ -53,9 +66,12 @@ const ResourceUnlockPage = () => {
   // ── Track view once link is loaded ───────────────────────────────────
   useEffect(() => {
     if (!link || viewTracked.current) return
+    // Don't re-count if same browser already viewed this link today
+    if (hasTrackedViewToday(link.id)) return
     viewTracked.current = true
-    const sessionKey = getAnonSessionKey()
-    trackLinkView(link.id, sessionKey, currentUser?.id || null)
+    const viewerId = getAnonViewerId()
+    markViewTracked(link.id)
+    trackLinkView(link.id, viewerId, currentUser?.id || null)
   }, [link, currentUser?.id])
 
   // ── Loading state ────────────────────────────────────────────────────
@@ -99,7 +115,7 @@ const ResourceUnlockPage = () => {
     link,
     currentUser,
     isLoggedIn,
-    sessionKey: getAnonSessionKey(),
+    sessionKey: getAnonViewerId(),
     onUnlockSuccess: handleUnlockSuccess,
   }
 
@@ -150,7 +166,6 @@ const ResourceUnlockPage = () => {
             background: 'white',
             border: '1px solid #E6E2D9',
             borderRadius: '12px',
-            marginRight: '8px',
             marginRight: '12px',
             cursor: 'pointer',
             transition: 'all 0.2s',
@@ -184,17 +199,20 @@ const ResourceUnlockPage = () => {
             fontSize: '15px',
             fontWeight: 900,
             color: '#21201C',
-            letterSpacing: '-0.4px'
+            letterSpacing: '-0.4px',
           }}>UnlockTheContent</span>
         </Link>
+
+
       </header>
       
       <main style={{
         flex: 1,
         display: 'flex',
         flexDirection: 'column',
-        padding: '24px 20px',
-        maxWidth: '600px',
+        justifyContent: (link.is_unlocked && link.mode !== 'follower_pairing') ? 'center' : 'flex-start',
+        padding: link.mode === 'follower_pairing' ? '0' : '24px 20px',
+        maxWidth: link.mode === 'follower_pairing' ? 'none' : '600px',
         margin: '0 auto',
         width: '100%',
         boxSizing: 'border-box',
@@ -202,102 +220,122 @@ const ResourceUnlockPage = () => {
         scrollbarWidth: 'none',
       }}>
         {/* Visual Content Preview */}
-        <div style={{
-          flex: 1,
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          justifyContent: 'center',
-          minHeight: 0, // Allow shrinking
-          padding: '16px 0',
-        }}>
+        {link.mode !== 'follower_pairing' && !link.is_unlocked && (
           <div style={{
-            width: '100%',
-            maxWidth: 'calc(min(380px, 45vh))', // Dynamically bound width by screen height
-            aspectRatio: '1/1',
-            background: '#FFFFFF',
-            borderRadius: '40px',
-            border: '1px solid #E6E2D9',
-            boxShadow: '0 8px 32px rgba(0,0,0,0.04)',
+            flex: 1,
             display: 'flex',
             flexDirection: 'column',
             alignItems: 'center',
             justifyContent: 'center',
-            position: 'relative',
-            overflow: 'hidden',
+            minHeight: 0, // Allow shrinking
+            padding: '16px 0',
           }}>
-            {/* Shimmer Overlay */}
-            {!link.is_unlocked && (
-               <div className="absolute inset-0 opacity-10" style={{
-                 background: 'linear-gradient(90deg, transparent, #D97757, transparent)',
-                 backgroundSize: '200% 100%',
-                 animation: 'shimmer 2s infinite linear',
-               }} />
-            )}
-
             <div style={{
-              width: 'clamp(48px, 12vh, 80px)', // Scale down icon on small screens
-              height: 'clamp(48px, 12vh, 80px)',
-              borderRadius: '24px',
-              background: link.is_unlocked ? '#EBF5EE' : '#FAF9F7',
+              width: '100%',
+              maxWidth: '380px',
+              aspectRatio: '1.6 / 1',
+              background: '#FFFFFF',
+              borderRadius: '40px',
+              border: '1px solid #E6E2D9',
+              boxShadow: '0 8px 32px rgba(0,0,0,0.04)',
               display: 'flex',
+              flexDirection: 'column',
               alignItems: 'center',
               justifyContent: 'center',
-              marginBottom: '12px',
-              zIndex: 1,
-              border: `1px solid ${link.is_unlocked ? '#BBF7D0' : '#E6E2D9'}`,
+              position: 'relative',
+              overflow: 'hidden',
             }}>
-              {link.is_unlocked ? (
-                <div style={{ fontSize: 'clamp(24px, 5vh, 40px)' }}>📦</div>
-              ) : (
-                <Lock size={32} color="#D97757" strokeWidth={2.5} style={{ transform: 'scale(1)' }} />
+              {/* Shimmer Overlay */}
+              {!link.is_unlocked && (
+                 <div className="absolute inset-0 opacity-10" style={{
+                   background: 'linear-gradient(90deg, transparent, #D97757, transparent)',
+                   backgroundSize: '200% 100%',
+                   animation: 'shimmer 2s infinite linear',
+                 }} />
               )}
+
+              <div style={{
+                width: 'clamp(48px, 12vh, 80px)', // Scale down icon on small screens
+                height: 'clamp(48px, 12vh, 80px)',
+                borderRadius: '24px',
+                background: link.is_unlocked ? '#EBF5EE' : '#FAF9F7',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                marginBottom: '12px',
+                zIndex: 1,
+                border: `1px solid ${link.is_unlocked ? '#BBF7D0' : '#E6E2D9'}`,
+              }}>
+                {link.is_unlocked ? (
+                  <div style={{ fontSize: 'clamp(24px, 5vh, 40px)' }}>📦</div>
+                ) : (
+                  <Lock size={32} color="#D97757" strokeWidth={2.5} style={{ transform: 'scale(1)' }} />
+                )}
+              </div>
+
+              <div style={{ zIndex: 1, textAlign: 'center', padding: '0 24px' }}>
+                 <h2 style={{ fontSize: '18px', fontWeight: 900, color: '#21201C', margin: '0' }}>
+                   {link.title}
+                 </h2>
+              </div>
             </div>
 
-            <div style={{ zIndex: 1, textAlign: 'center', padding: '0 24px' }}>
-               <h2 style={{ fontSize: '18px', fontWeight: 900, color: '#21201C', margin: '0 0 4px' }}>
-                 {link.title}
-               </h2>
-               <div style={{ fontSize: '12px', fontWeight: 700, color: '#AAA49C', textTransform: 'uppercase', letterSpacing: '0.8px' }}>
-                 {link.file?.file_type || 'Digital Resource'}
-               </div>
-            </div>
-          </div>
 
-          <div style={{ marginTop: '12px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-             <div style={{
-               width: '24px',
-               height: '24px',
-               borderRadius: '50%',
-               background: link.creator?.avatar_color || '#D97757',
-               display: 'flex',
-               alignItems: 'center',
-               justifyContent: 'center',
-               fontSize: '10px',
-               fontWeight: 900,
-               color: 'white',
-             }}>
-               {link.creator?.initial || link.creator?.username?.[0].toUpperCase() || '?'}
-             </div>
-             <span style={{ fontSize: '12px', fontWeight: 700, color: '#6B6860' }}>
-               by @{link.creator?.username || link.creatorHandle}
-             </span>
           </div>
-        </div>
+        )}
 
         {/* Interaction Zone */}
-        <div style={{
-          width: '100%',
-          background: 'white',
-          borderRadius: '24px',
-          border: '1px solid #E6E2D9',
-          padding: '20px',
-          boxSizing: 'border-box',
-          boxShadow: '0 -4px 20px rgba(0,0,0,0.02)',
-          flexShrink: 0, // Prevent zone itself from shrinking
-        }}>
-           {renderContent()}
-        </div>
+        {link.mode === 'follower_pairing' ? (
+          renderContent()
+        ) : (
+          <div style={{
+            width: '100%',
+            background: 'white',
+            borderRadius: '24px',
+            border: '1px solid #E6E2D9',
+            padding: '20px',
+            boxSizing: 'border-box',
+            boxShadow: '0 -4px 20px rgba(0,0,0,0.02)',
+            flexShrink: 0,
+          }}>
+             {renderContent()}
+          </div>
+        )}
+
+        {/* Secondary Actions */}
+        {!link.is_unlocked && link.mode !== 'follower_pairing' && (
+          <div style={{ 
+            marginTop: '32px', 
+            padding: '0 12px',
+            display: 'flex', 
+            flexDirection: 'column',
+            alignItems: 'center', 
+            gap: '16px',
+            width: '100%',
+            textAlign: 'center'
+          }}>
+            <Link 
+              to={`/@${link?.creator?.username || link?.creatorHandle}`}
+              style={{
+                fontSize: '13px',
+                fontWeight: 700,
+                color: '#6B6860',
+                textDecoration: 'none',
+                padding: '10px 16px',
+                borderRadius: '12px',
+                border: '1px solid #E6E2D9',
+                background: 'white',
+                transition: 'all 0.2s'
+              }}
+            >
+              View more from this creator →
+            </Link>
+            
+            <div style={{ fontSize: '12px', color: '#AAA49C', fontWeight: 600 }}>
+              Create your own link? <Link to="/signup" style={{ color: '#D97757', textDecoration: 'none', fontWeight: 700 }}>Get started free</Link>
+            </div>
+          </div>
+        )}
       </main>
 
       <style>{`

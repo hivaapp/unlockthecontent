@@ -1,6 +1,7 @@
 // src/services/emailSubscribeService.js
 import { supabase } from '../lib/supabase'
 import { getDownloadUrl } from './uploadService'
+import { recordTrustEvent } from './trustEventService'
 
 // ── Session key management ────────────────────────────────────────────────
 // Anonymous viewers get a session key stored in sessionStorage.
@@ -176,6 +177,23 @@ export const subscribeAndUnlock = async ({
       downloadUrl = result.downloadUrl
     } catch (err) {
       console.error('Failed to get download URL:', err)
+    }
+  }
+
+  // ── Check for first_subscription trust event ──────────────────────────
+  // If the viewer is logged in, check if this is their very first subscription
+  if (viewerId) {
+    try {
+      const { count } = await supabase
+        .from('email_subscribers')
+        .select('*', { count: 'exact', head: true })
+        .eq('viewer_id', viewerId)
+
+      if (count === 1) {
+        recordTrustEvent(viewerId, 'first_subscription', linkId, 'First email subscription')
+      }
+    } catch (err) {
+      console.warn('[TrustEvent] first_subscription check failed:', err)
     }
   }
 

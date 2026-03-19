@@ -1,0 +1,148 @@
+## Scheduled Messages — Cheapest Possible Implementation Prompt
+
+---
+
+### The Cheapest Architecture — Pull-Based Delivery
+
+The cheapest approach is **pull-based delivery triggered by the participant opening the chat**. No cron jobs, no paid scheduled workers, no background services, no pg_cron (Supabase Pro feature), no Cloudflare Workers cron triggers. Zero additional infrastructure cost. The messages are delivered the moment a participant opens their chat tab — the app checks on mount whether any scheduled messages are due and inserts them if they are. This is sometimes called lazy delivery or on-demand delivery.
+
+The tradeoff is that messages are not delivered at the exact configured time — they are delivered when the first participant of a pair opens the chat after the scheduled time passes. For an accountability challenge app this is completely acceptable. A motivational message scheduled for Day 3 morning appearing when the user opens the app on Day 3 is exactly the right behavior. Users open the chat to check in — that is precisely when they should see the encouragement.
+
+---
+
+### How The Pull-Based System Works Conceptually
+
+When a participant opens the pairing chat page, before loading the message history, the app runs a delivery check. The delivery check looks at two things — the current day number of the challenge (how many days since the pair was matched) and which scheduled messages for this pairing config have already been delivered to this session.
+
+If it finds scheduled messages that are due based on the current day number and have not yet been delivered to this session, it inserts them as broadcast messages into `pairing_messages` for this specific session. The messages then appear in the chat history as if they were sent at that moment.
+
+The key insight is that delivery is recorded per session, not globally. If a pairing campaign has 50 active pairs, the Day 3 message gets delivered to each pair the first time either of that pair's participants opens the chat on or after Day 3. Some pairs get it at 8am, some at 11pm — but everyone gets it when they actually open the app, which is exactly when it is most useful.
+
+---
+
+### The Delivery Check Logic
+
+The delivery check runs as a Supabase RPC function called `deliver_scheduled_messages`. It is called from the frontend on chat mount. Being a database function it runs atomically and handles concurrent calls safely — if both participants open the chat simultaneously, the function's logic prevents duplicate delivery.
+
+The function receives the `session_id` and the calling `user_id`. Inside the function:
+
+First it looks up the session to get the `link_id`, `paired_at` timestamp, and `status`. If the session is expired or completed it does nothing.
+
+Second it calculates the current day number as the number of full days elapsed since `paired_at`. Day 1 is the first 24 hours, Day 2 is 24-48 hours, and so on.
+
+Third it queries `scheduled_messages` for all rows belonging to this session's `pairing_config_id` where `day_number` is less than or equal to the current day number. These are all messages that are due by today.
+
+Fourth it queries `pairing_messages` for rows in this session where `message_type = 'scheduled'` and extracts the `scheduled_message_id` values already delivered. This tells it which scheduled messages have already been inserted into this chat.
+
+Fifth it finds the set difference — scheduled messages that are due but not yet in this chat. These are the undelivered messages.
+
+Sixth for each undelivered message it inserts a row into `pairing_messages` with `session_id`, `sender_id` set to the creator's user ID, `content` containing the message text plus any link or YouTube URL, `is_broadcast` set to false (it is already specific to this session), `message_type` set to `scheduled`, and a reference `scheduled_message_id` pointing to the source row.
+
+The function returns the count of messages it just delivered. If zero, nothing new was inserted. If more than zero, the chat's Realtime subscription picks up the new inserts and they appear in the message list automatically.
+
+---
+
+### The `scheduled_messages` Table Structure
+
+The table already exists from Part 1. The AI must verify these fields exist and add any missing ones:
+
+`id` — primary key  
+`pairing_config_id` — links to the campaign  
+`day_number` — integer, which day of the challenge to deliver this message  
+`send_time` — time of day (used only for display purposes in the creator's UI, not for actual delivery timing since delivery is pull-based)  
+`content` — the message text  
+`link_url` — optional external URL to include  
+`link_label` — optional label for the URL  
+`youtube_url` — optional YouTube URL to embed  
+`sort_order` — integer for ordering multiple messages on the same day  
+`created_at` — timestamp  
+
+The table does NOT need `is_sent` or `delivered_count` columns because delivery tracking is done differently in the pull-based model — it is tracked by what is already in `pairing_messages` for each session, not on the scheduled message row itself.
+
+---
+
+### Multiple Messages Per Day
+
+The creator can add multiple scheduled messages for the same day. Each one gets its own row in `scheduled_messages` with the same `day_number` but a different `sort_order`. The delivery check delivers all of them together when the day arrives. They appear in the chat in sort order, one after another, as a sequence of broadcast messages from the creator.
+
+For example on Day 7 of a 14-day fitness challenge the creator might have three messages — a morning motivation message, a link to a workout video, and an evening check-in prompt. All three are separate rows with `day_number = 7` and `sort_order` 1, 2, 3. They all get delivered together the first time a participant opens the chat on Day 7 or later.
+
+---
+
+### The Creator UI For Building Scheduled Messages
+
+This already exists based on the screenshot. The creator interface has:
+
+A day selector showing "Send on day X of [duration]" where X is a number input. The maximum value is the challenge duration days. The minimum is 1.
+
+A time selector showing "At what time" — this is purely cosmetic for the creator's planning purposes. It is displayed in the chat message as context but does not affect actual delivery timing.
+
+A message textarea for the text content, up to 400 characters.
+
+A Link button that expands an inline input for a URL and an optional label.
+
+A YouTube button that expands an inline input for a YouTube URL. The YouTube URL is validated to confirm it is a valid YouTube link before saving.
+
+An Add Message button that saves the message to the `scheduled_messages` table if the link is already created (edit mode) or to local form state if the link is being created for the first time (create mode). In create mode all scheduled messages are saved to the database as part of the `createLink` flow.
+
+The creator sees their list of scheduled messages organized by day. Days with multiple messages show them stacked. The creator can edit or delete any unsent message. Since delivery is pull-based, there is no concept of "already sent" — every message that has been delivered to at least one session is considered sent and should be non-deletable to avoid inconsistency.
+
+To determine if a message has been delivered to any session, the creator UI can check if any `pairing_messages` rows exist referencing that `scheduled_message_id`. If yes, show it as delivered and non-deletable. If no, it is still pending and can be edited or deleted.
+
+---
+
+### How Messages Appear In The Chat
+
+Scheduled messages appear as a visually distinct message type in the chat. They have a different background — amber or the creator's brand color. They show "📅 Challenge Update · Day [X]" as a label above the content. The creator's avatar and name appear. Any link is shown as a tappable card below the text. Any YouTube URL is shown as an embed below the text.
+
+These are rendered differently from both private messages (right-aligned bubbles) and regular broadcast messages. They feel like official campaign updates rather than personal messages.
+
+---
+
+### Handling The Time Display
+
+Even though delivery is pull-based and not time-exact, the chat should display the message with a timestamp that reflects when it was actually delivered, not the configured send time. The `pairing_messages` row gets the current `created_at` timestamp when it is inserted during the delivery check. The chat renders this timestamp normally. This is honest — it shows when the user actually received it.
+
+Optionally the creator's configured send time can be shown as a subtitle: "Scheduled for Day 3 · 9:00 AM" — this helps participants understand the message is a pre-planned update rather than something the creator just typed.
+
+---
+
+### Delivery on Both Participants Opening The Chat
+
+Since both participants can open the chat, the delivery check might be triggered by either of them. The RPC function must handle this safely. The approach is:
+
+When the function checks what is already delivered, it queries `pairing_messages` for this session with `message_type = scheduled`. If the Day 3 messages are already there (delivered by the other participant opening the chat first), the function finds nothing new to insert and returns zero. The second participant's chat already has the messages via the Realtime subscription that fired when they were first inserted.
+
+This means the first participant to open the chat on any given day triggers the delivery for both. The second participant sees the messages already there. This is correct and efficient.
+
+---
+
+### What The AI Must Build
+
+**Database changes:** Add `link_url`, `link_label`, `youtube_url`, and `sort_order` columns to `scheduled_messages` if not already present. Add `scheduled_message_id` as a nullable foreign key column to `pairing_messages`. Add `message_type` enum or text column to `pairing_messages` if not already present with values `chat`, `scheduled`, `system`, `broadcast`.
+
+**The RPC function:** `deliver_scheduled_messages(session_id, user_id)` — the complete delivery logic described above written as a PostgreSQL function with `SECURITY DEFINER`. This function handles all the logic atomically. Grant execute to `authenticated`.
+
+**Frontend delivery trigger:** In the pairing chat component's `useEffect` on mount, after loading the session data, call `supabase.rpc('deliver_scheduled_messages', { session_id: sessionId, user_id: currentUser.id })`. The result is the count of newly delivered messages. No special handling needed — the Realtime subscription picks up the new messages automatically. This call is fire-and-forget with a `.catch(console.error)`.
+
+**Message rendering:** In the chat message list, add a new rendering branch for messages where `message_type === 'scheduled'`. These render as the amber challenge update cards with the day label, creator avatar, text content, optional link card, and optional YouTube embed.
+
+**Creator UI:** The scheduled messages section in the create link form and the campaign detail edit view. The creator can add multiple messages per day, see them organized by day, and see delivery status (pending vs delivered to at least one session).
+
+**The scheduled messages list in creator dashboard:** In the campaign detail page, a Scheduled Messages tab shows all configured messages with their day numbers, content previews, and delivery status.
+
+---
+
+### What The AI Must Not Build
+
+The AI must not build a cron job, a Supabase pg_cron schedule, a Cloudflare Workers scheduled event, or any background process. The entire delivery system is triggered by user action — opening the chat.
+
+The AI must not use `is_sent` flag on the `scheduled_messages` table for tracking delivery. That approach only works with a single global delivery event. Pull-based delivery is per-session and tracked via the existence of rows in `pairing_messages`.
+
+The AI must not try to deliver messages at the exact configured time. The `send_time` field is for the creator's planning UI only.
+
+The AI must not make the delivery check block the chat from loading. It should run asynchronously after the chat mounts and the initial message history loads. The Realtime subscription handles showing any newly delivered messages without a page reload.
+
+The AI must not deliver messages to expired or completed sessions. The RPC function checks session status before doing anything.
+
+The AI must not allow the creator to delete a scheduled message that has already been delivered to any session. Check `pairing_messages` for references before allowing deletion.

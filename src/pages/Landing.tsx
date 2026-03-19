@@ -125,56 +125,184 @@ export const Landing = () => {
         if (!isLoggedIn || !currentUser) {
             setIsGenerating(true);
             setTimeout(() => {
-                // Save to localStorage
+                const resolvedTitle = title || (contentData.file ? contentData.file.name : (contentData.links[0]?.title || 'My Link'));
+
+                // Helper: convert empty strings to null
+                const s = (v: any): string | null => (typeof v === 'string' && v.trim() !== '') ? v : null;
+
+                // Build default configs for types that haven't been explicitly configured.
+                const resolvedEmailConfig = unlockType === 'email_subscribe'
+                    ? {
+                        newsletterName: emailConfig?.newsletterName || resolvedTitle,
+                        newsletterDescription: s(emailConfig?.newsletterDescription) ?? null,
+                        incentiveText: s(emailConfig?.incentiveText) ?? null,
+                        confirmationMessage: s(emailConfig?.confirmationMessage) ?? null,
+                        platform: emailConfig?.platform || 'direct',
+                        platformDisplayName: s(emailConfig?.platformDisplayName) ?? null,
+                        unlockText: s((emailConfig as any)?.unlockText) ?? null,
+                        unlockUrl: s((emailConfig as any)?.unlockUrl) ?? null,
+                        unlockUrlLabel: s((emailConfig as any)?.unlockUrlLabel) ?? null,
+                    }
+                    : null;
+
+                const resolvedSocialConfig = unlockType === 'social_follow'
+                    ? {
+                        customHeading: s(socialConfig?.customHeading) ?? null,
+                        followDescription: s(socialConfig?.followDescription) ?? null,
+                        unlockText: s((socialConfig as any)?.unlockText) ?? null,
+                        unlockUrl: s((socialConfig as any)?.unlockUrl) ?? null,
+                        unlockUrlLabel: s((socialConfig as any)?.unlockUrlLabel) ?? null,
+                        followTargets: (socialConfig?.followTargets || []).map((t: any, i: number) => ({
+                            type: t.type || 'platform',
+                            platform: s(t.platform) ?? null,
+                            handle: s(t.handle) ?? null,
+                            profileUrl: s(t.profileUrl) ?? null,
+                            customLabel: s(t.customLabel) ?? null,
+                            customUrl: s(t.customUrl) ?? null,
+                            customIcon: s(t.customIcon) ?? null,
+                            instructionText: s(t.instructionText) ?? null,
+                            sortOrder: i,
+                        })),
+                    }
+                    : null;
+
+                const resolvedSponsorConfig = unlockType === 'custom_sponsor'
+                    ? {
+                        brandName: customAd?.brandName || '',
+                        brandWebsite: s(customAd?.redirectUrl) ?? null,
+                        ctaButtonLabel: customAd?.ctaText || 'Visit Sponsor',
+                        requiresClick: !!(customAd?.redirectUrl),
+                        skipAfterSeconds: customAd?.skipAfter || 5,
+                        unlockText: null as string | null,
+                        unlockUrl: null as string | null,
+                        unlockUrlLabel: null as string | null,
+                    }
+                    : null;
+
+                // Build pairing config with all nested fields
+                let resolvedPairingConfig: any = null;
+                if (unlockType === 'follower_pairing' && followerPairingConfig) {
+                    const pc = followerPairingConfig as any;
+                    resolvedPairingConfig = {
+                        topic: pc.topic || resolvedTitle,
+                        description: s(pc.description) ?? null,
+                        commitmentPrompt: pc.commitmentPrompt || 'What specific goal will you commit to for this challenge?',
+                        durationDays: pc.durationDays || 7,
+                        checkInFrequency: pc.checkInFrequency || 'daily',
+                        guidelines: s(pc.guidelines) ?? null,
+                        creatorResourceUrl: s(pc.creatorResourceUrl) ?? null,
+                        creatorResourceLabel: s(pc.creatorResourceLabel) ?? null,
+                        isAccepting: pc.isAccepting !== false,
+                        scheduledMessages: (pc.scheduledMessages || []).map((m: any, i: number) => ({
+                            dayNumber: m.dayNumber,
+                            sendTime: m.sendTime || '09:00:00',
+                            content: m.content,
+                            linkUrl: s(m.linkUrl) ?? null,
+                            linkLabel: s(m.linkLabel) ?? null,
+                            youtubeUrl: s(m.youtubeUrl) ?? null,
+                            sortOrder: m.sortOrder ?? i,
+                        })),
+                        completionAsset: pc.completionAsset ? {
+                            resourceTitle: s(pc.completionAsset.resourceTitle) ?? null,
+                            resourceDescription: s(pc.completionAsset.resourceDescription) ?? null,
+                            bonusMessage: s(pc.completionAsset.bonusMessage) ?? null,
+                            additionalLinks: (pc.completionAsset.additionalLinks || pc.completionAsset.links || []).map((l: any) => ({
+                                url: l.url || '',
+                                label: s(l.label) ?? null,
+                            })),
+                            youtubeUrl: s(pc.completionAsset.youtubeUrl) ?? null,
+                        } : null,
+                        hasCompletionFile: !!(pc.completionAsset?.fileId || pc.completionAsset?.file),
+                        completionFileMetadata: (pc.completionAsset?.file) ? {
+                            name: pc.completionAsset.file.name,
+                            size: pc.completionAsset.file.size,
+                            type: pc.completionAsset.file.type,
+                            lastModified: pc.completionAsset.file.lastModified,
+                        } : null,
+                    };
+                }
+
+                const sponsorVideoFile = (customAd as any)?.file || null;
+
                 const pendingLink = {
-                version: 1,
-                savedAt: new Date().toISOString(),
-                title: title || (contentData.file ? contentData.file.name : (contentData.links[0]?.title || "My Link")),
-                description: desc || contentData.textContent || null,
-                mode: unlockType === 'follower_pairing' ? 'follower_pairing' : 'lock_content',
-                unlockType: unlockType,
-                youtubeUrl: contentData.youtubeUrl || null,
-                fileMetadata: contentData.file ? {
-                    name: contentData.file.name,
-                    size: contentData.file.size,
-                    type: contentData.file.type,
-                    lastModified: contentData.file.lastModified
-                } : null,
-                hasSponsorVideo: !!customAd?.fileName,
-                sponsorVideoMetadata: customAd && customAd.fileName ? {
-                    name: customAd.fileName,
-                    size: customAd.fileSize,
-                    type: customAd.fileMimeType,
-                    lastModified: Date.now()
-                } : null,
-                emailConfig: unlockType === 'email_subscribe' ? emailConfig : null,
-                socialConfig: unlockType === 'social_follow' ? socialConfig : null,
-                sponsorConfig: unlockType === 'custom_sponsor' ? {
-                    brandName: customAd?.brandName,
-                    brandWebsite: customAd?.redirectUrl || null,
-                    ctaButtonLabel: customAd?.ctaText || "Visit",
-                    requiresClick: !!customAd?.redirectUrl,
-                    skipAfterSeconds: customAd?.skipAfter || 5,
-                    unlockText: null,
-                    unlockUrl: null
-                } : null,
-                followerPairingConfig: unlockType === 'follower_pairing' ? followerPairingConfig : null
-            };
-            localStorage.setItem('hivaapp_pending_link', JSON.stringify(pendingLink));
-            
-            // Show as generated inline and delay prompt
-            setPendingMessage("Sign up to save your link. We've securely paused your upload and will automatically create your link once you're in.");
-            setIsGenerating(false);
-            setIsGenerated(true);
+                    version: 2,
+                    savedAt: new Date().toISOString(),
+                    title: resolvedTitle,
+                    description: s(desc) ?? s(contentData.textContent) ?? null,
+                    textContent: s(contentData.textContent) ?? null,
+                    contentLinks: contentData.links.length > 0
+                        ? contentData.links.map(l => ({ url: l.url, title: l.title }))
+                        : [],
+                    mode: unlockType === 'follower_pairing' ? 'follower_pairing' : 'lock_content',
+                    unlockType: unlockType as string,
+                    youtubeUrl: s(contentData.youtubeUrl) ?? null,
+                    donateEnabled: false,
+                    fileMetadata: contentData.file ? {
+                        name: contentData.file.name,
+                        size: contentData.file.size,
+                        type: contentData.file.type,
+                        lastModified: contentData.file.lastModified,
+                    } : null,
+                    hasSponsorVideo: !!(customAd?.fileName || sponsorVideoFile),
+                    sponsorVideoMetadata: sponsorVideoFile ? {
+                        name: sponsorVideoFile.name,
+                        size: sponsorVideoFile.size,
+                        type: sponsorVideoFile.type,
+                        lastModified: sponsorVideoFile.lastModified,
+                    } : null,
+                    emailConfig: resolvedEmailConfig,
+                    socialConfig: resolvedSocialConfig,
+                    sponsorConfig: resolvedSponsorConfig,
+                    pairingConfig: resolvedPairingConfig,
+                };
+
+                localStorage.setItem('hivaapp_pending_link', JSON.stringify(pendingLink));
+
+                // Persist the File object in in-memory store (survives within the same session)
+                // Note: files are lost if user refreshes the page; recovery handles this gracefully.
+                // (setContentFile / setSponsorVideo were already called by ContentBuilder / CustomSponsorForm)
+
+                setPendingMessage("Sign up to save your link. We'll automatically create it once you're in.");
+                setIsGenerating(false);
+                setIsGenerated(true);
             }, 1000);
             return;
         }
 
         setIsGenerating(true);
         try {
+            const resolvedTitle = title || (contentData.file ? contentData.file.name : (contentData.links[0]?.title || "My Link"));
+            
+            // Build pairingConfig with completionAsset properly mapped
+            let authedPairingConfig = null;
+            if (unlockType === 'follower_pairing' && followerPairingConfig) {
+                const fpc = followerPairingConfig as any;
+                authedPairingConfig = {
+                    ...fpc,
+                    completionAsset: fpc.completionAsset?.enabled ? {
+                        enabled: true,
+                        fileId: fpc.completionAsset.fileId || null,
+                        unlockMessage: fpc.completionAsset.unlockMessage || null,
+                        resourceTitle: resolvedTitle,
+                        resourceDescription: desc || contentData.textContent || null,
+                        bonusMessage: fpc.completionAsset.unlockMessage || null,
+                        links: fpc.completionAsset.links || [],
+                        additionalLinks: (fpc.completionAsset.links || []).map((l: any) => ({
+                            url: l.url || '',
+                            label: l.title || l.label || null,
+                        })),
+                        youtubeUrl: fpc.completionAsset.youtubeUrl || null,
+                    } : null,
+                };
+            }
+
             const linkDataPayload: any = {
-                title: title || (contentData.file ? contentData.file.name : (contentData.links[0]?.title || "My Link")),
+                title: resolvedTitle,
                 description: desc || contentData.textContent || null,
+                textContent: contentData.textContent || null,
+                contentLinks: contentData.links.length > 0
+                    ? contentData.links.map(l => ({ url: l.url, title: l.title }))
+                    : [],
                 mode: unlockType === 'follower_pairing' ? 'follower_pairing' : 'lock_content',
                 unlockType: unlockType,
                 fileId: contentData.fileId || null,
@@ -188,9 +316,10 @@ export const Landing = () => {
                     requiresClick: !!customAd?.redirectUrl,
                     skipAfterSeconds: customAd?.skipAfter || 5,
                     unlockText: null,
-                    unlockUrl: null
+                    unlockUrl: null,
+                    unlockUrlLabel: null,
                 } : null,
-                followerPairingConfig: unlockType === 'follower_pairing' ? followerPairingConfig : null,
+                pairingConfig: authedPairingConfig,
                 youtubeUrl: contentData.youtubeUrl || null,
                 status: 'active'
             };
@@ -226,19 +355,29 @@ export const Landing = () => {
     }, []);
 
     const handleSignInSuccess = () => {
-        if (isGenerated) {
-            navigate('/dashboard');
+        const returnTo = searchParams.get('returnTo');
+        if (returnTo) {
+            navigate(returnTo);
+        } else {
+            // Always navigate to dashboard — PendingLinkContext will handle recovery
+            // and redirect to /dashboard?tab=home&newLink=<slug> automatically
+            navigate('/dashboard?tab=home');
         }
     };
 
-    const isGenerateDisabled = !title || isGenerating || 
+    // Determine if the generate button should be disabled.
+    // For all unlock types: config errors always block generation — the user must complete
+    // the unlock setup before we can save a valid pending link or create an actual link.
+    // Exception: if hasConfiguredAdSetup is false on mobile, clicking Generate opens the config panel.
+    const hasConfigErrors =
+        (unlockType === 'custom_sponsor' && hasCustomAdErrors) ||
+        (unlockType === 'email_subscribe' && hasEmailErrors) ||
+        (unlockType === 'social_follow' && hasSocialErrors) ||
+        (unlockType === 'follower_pairing' && hasFollowerPairingErrors);
+
+    const isGenerateDisabled = !title || isGenerating ||
         (unlockType !== 'follower_pairing' && !(contentData.file || contentData.textContent.trim().length > 0 || contentData.links.length > 0)) ||
-        (hasConfiguredAdSetup && (
-            (unlockType === 'custom_sponsor' && hasCustomAdErrors) ||
-            (unlockType === 'email_subscribe' && hasEmailErrors) ||
-            (unlockType === 'social_follow' && hasSocialErrors) ||
-            (unlockType === 'follower_pairing' && hasFollowerPairingErrors)
-        ));
+        (hasConfiguredAdSetup && hasConfigErrors);
 
     return (
         <div className="flex flex-col items-center w-full min-h-screen bg-bg selection:bg-brandTint selection:text-brand">
@@ -330,37 +469,39 @@ export const Landing = () => {
 
                     <div className="h-px w-full bg-border my-2" />
 
-                    {/* Title and Description */}
-                    <div className="flex flex-col gap-4">
-                        <div className="flex flex-col gap-1.5 relative">
-                            <label className="text-[12px] font-extrabold text-textMid uppercase tracking-wide">Resource Title</label>
-                            <input
-                                type="text"
-                                className={`input-field h-[48px] text-[15px] font-bold ${title.length > 50 ? 'border-error/50 focus:border-error focus:ring-error focus:ring-1' : ''}`}
-                                value={title}
-                                onChange={(e) => setTitle(e.target.value)}
-                                maxLength={60}
-                                placeholder="e.g. Figma UI Kit - 2026 Edition"
-                            />
-                            <span className={`absolute bottom-3 right-3 text-[11px] font-bold ${title.length >= 50 ? 'text-error' : 'text-textLight'}`}>
-                                {title.length}/60
-                            </span>
-                        </div>
+                    {/* Title and Description - Hidden for follower pairing as they are handled inside FollowerPairingConfigForm relative to reward toggle */}
+                    {unlockType !== 'follower_pairing' && (
+                        <div className="flex flex-col gap-4">
+                            <div className="flex flex-col gap-1.5 relative">
+                                <label className="text-[12px] font-extrabold text-textMid uppercase tracking-wide">Resource Title</label>
+                                <input
+                                    type="text"
+                                    className={`input-field h-[48px] text-[15px] font-bold ${title.length > 50 ? 'border-error/50 focus:border-error focus:ring-error focus:ring-1' : ''}`}
+                                    value={title}
+                                    onChange={(e) => setTitle(e.target.value)}
+                                    maxLength={60}
+                                    placeholder="e.g. Figma UI Kit - 2026 Edition"
+                                />
+                                <span className={`absolute bottom-3 right-3 text-[11px] font-bold ${title.length >= 50 ? 'text-error' : 'text-textLight'}`}>
+                                    {title.length}/60
+                                </span>
+                            </div>
 
-                        <div className="flex flex-col gap-1.5 relative">
-                            <label className="text-[12px] font-extrabold text-textMid uppercase tracking-wide">Description <span className="text-textLight font-semibold capitalize tracking-normal">(optional)</span></label>
-                            <textarea
-                                className={`w-full border border-border rounded-[12px] p-3 text-[14px] font-semibold bg-white focus:outline-none focus:ring-1 focus:ring-brand focus:border-brand transition-colors h-[80px] resize-none ${desc.length > 140 ? 'border-error/50 focus:border-error focus:ring-error focus:ring-1' : ''}`}
-                                value={desc}
-                                onChange={(e) => setDesc(e.target.value)}
-                                maxLength={150}
-                                placeholder="Add a short description so users know what they are unlocking..."
-                            />
-                            <span className={`absolute bottom-3 right-3 text-[11px] font-bold ${desc.length >= 140 ? 'text-error' : 'text-textLight'}`}>
-                                {desc.length}/150
-                            </span>
+                            <div className="flex flex-col gap-1.5 relative">
+                                <label className="text-[12px] font-extrabold text-textMid uppercase tracking-wide">Description <span className="text-textLight font-semibold capitalize tracking-normal">(optional)</span></label>
+                                <textarea
+                                    className={`w-full border border-border rounded-[12px] p-3 text-[14px] font-semibold bg-white focus:outline-none focus:ring-1 focus:ring-brand focus:border-brand transition-colors h-[80px] resize-none ${desc.length > 140 ? 'border-error/50 focus:border-error focus:ring-error focus:ring-1' : ''}`}
+                                    value={desc}
+                                    onChange={(e) => setDesc(e.target.value)}
+                                    maxLength={150}
+                                    placeholder="Add a short description so users know what they are unlocking..."
+                                />
+                                <span className={`absolute bottom-3 right-3 text-[11px] font-bold ${desc.length >= 140 ? 'text-error' : 'text-textLight'}`}>
+                                    {desc.length}/150
+                                </span>
+                            </div>
                         </div>
-                    </div>
+                    )}
 
                     <div className="h-px w-full bg-border my-2" />
 
@@ -399,6 +540,10 @@ export const Landing = () => {
                                     value={followerPairingConfig}
                                     onChange={setFollowerPairingConfig}
                                     onErrorStateChange={setHasFollowerPairingErrors}
+                                    resourceTitle={title}
+                                    setResourceTitle={setTitle}
+                                    resourceDescription={desc}
+                                    setResourceDescription={setDesc}
                                 />
                             )}
                         </div>
@@ -431,7 +576,7 @@ export const Landing = () => {
                                         <>
                                             <div className="flex-1 h-[56px] rounded-[14px] border-2 px-4 flex items-center relative overflow-hidden transition-colors bg-brandTint border-brand/30">
                                                 <span className="text-[14px] sm:text-[15px] font-[900] text-black bg-[#F3F1EC] px-3 sm:px-4 py-2 sm:py-[10px] rounded-lg border-2 border-[#E6E2D9] tracking-tight">
-                                    {window.location.host}/r/{generatedSlug}
+                                    {window.location.origin}/r/{generatedSlug}
                                 </span>            </div>
                                             <button onClick={copyToClipboard} className={`h-[56px] w-[56px] rounded-[14px] flex items-center justify-center text-white transition-colors shrink-0 shadow-sm ${isCopied ? 'bg-success' : 'bg-brand hover:bg-brand-hover'}`}>
                                                 {isCopied ? <Check size={24} /> : <LinkIcon size={24} />}
@@ -506,37 +651,39 @@ export const Landing = () => {
                         </div>
                     </div>
 
-                    {/* Title and Description */}
-                    <div className="flex flex-col gap-4 mt-2 mb-2">
-                        <div className="flex flex-col gap-1.5 relative">
-                            <label className="text-[12px] font-extrabold text-textMid uppercase tracking-wide">Resource Title</label>
-                            <input
-                                type="text"
-                                className={`input-field h-[48px] text-[15px] font-bold ${title.length > 50 ? 'border-error/50 focus:border-error focus:ring-error focus:ring-1' : ''}`}
-                                value={title}
-                                onChange={(e) => setTitle(e.target.value)}
-                                maxLength={60}
-                                placeholder="e.g. Figma UI Kit - 2026 Edition"
-                            />
-                            <span className={`absolute bottom-3 right-3 text-[11px] font-bold ${title.length >= 50 ? 'text-error' : 'text-textLight'}`}>
-                                {title.length}/60
-                            </span>
-                        </div>
+                    {/* Title and Description - Hidden for pairing as they are inside form relative to reward toggle */}
+                    {unlockType !== 'follower_pairing' && (
+                        <div className="flex flex-col gap-4 mt-2 mb-2">
+                            <div className="flex flex-col gap-1.5 relative">
+                                <label className="text-[12px] font-extrabold text-textMid uppercase tracking-wide">Resource Title</label>
+                                <input
+                                    type="text"
+                                    className={`input-field h-[48px] text-[15px] font-bold ${title.length > 50 ? 'border-error/50 focus:border-error focus:ring-error focus:ring-1' : ''}`}
+                                    value={title}
+                                    onChange={(e) => setTitle(e.target.value)}
+                                    maxLength={60}
+                                    placeholder="e.g. Figma UI Kit - 2026 Edition"
+                                />
+                                <span className={`absolute bottom-3 right-3 text-[11px] font-bold ${title.length >= 50 ? 'text-error' : 'text-textLight'}`}>
+                                    {title.length}/60
+                                </span>
+                            </div>
 
-                        <div className="flex flex-col gap-1.5 relative">
-                            <label className="text-[12px] font-extrabold text-textMid uppercase tracking-wide">Description <span className="text-textLight font-semibold capitalize tracking-normal">(optional)</span></label>
-                            <textarea
-                                className={`w-full border border-border rounded-[12px] p-3 text-[14px] font-semibold bg-white focus:outline-none focus:ring-1 focus:ring-brand focus:border-brand transition-colors h-[80px] resize-none ${desc.length > 140 ? 'border-error/50 focus:border-error focus:ring-error focus:ring-1' : ''}`}
-                                value={desc}
-                                onChange={(e) => setDesc(e.target.value)}
-                                maxLength={150}
-                                placeholder="Add a short description so users know what they are unlocking..."
-                            />
-                            <span className={`absolute bottom-3 right-3 text-[11px] font-bold ${desc.length >= 140 ? 'text-error' : 'text-textLight'}`}>
-                                {desc.length}/150
-                            </span>
+                            <div className="flex flex-col gap-1.5 relative">
+                                <label className="text-[12px] font-extrabold text-textMid uppercase tracking-wide">Description <span className="text-textLight font-semibold capitalize tracking-normal">(optional)</span></label>
+                                <textarea
+                                    className={`w-full border border-border rounded-[12px] p-3 text-[14px] font-semibold bg-white focus:outline-none focus:ring-1 focus:ring-brand focus:border-brand transition-colors h-[80px] resize-none ${desc.length > 140 ? 'border-error/50 focus:border-error focus:ring-error focus:ring-1' : ''}`}
+                                    value={desc}
+                                    onChange={(e) => setDesc(e.target.value)}
+                                    maxLength={150}
+                                    placeholder="Add a short description so users know what they are unlocking..."
+                                />
+                                <span className={`absolute bottom-3 right-3 text-[11px] font-bold ${desc.length >= 140 ? 'text-error' : 'text-textLight'}`}>
+                                    {desc.length}/150
+                                </span>
+                            </div>
                         </div>
-                    </div>
+                    )}
 
                     {/* The Settings Summary Bar */}
                     <div className="w-full h-[52px] bg-white rounded-[14px] mt-[8px] flex overflow-hidden shadow-[0_1px_3px_rgba(0,0,0,0.06)] border border-[#E6E2D9]">
@@ -591,6 +738,8 @@ export const Landing = () => {
                                         value={customAd}
                                         onChange={setCustomAd}
                                         onErrorStateChange={setHasCustomAdErrors}
+                                        isAuthenticated={isLoggedIn}
+                                        onPendingFile={setSponsorVideo}
                                     />
                                 )}
                                 {unlockType === 'email_subscribe' && (
@@ -612,6 +761,10 @@ export const Landing = () => {
                                         value={followerPairingConfig}
                                         onChange={setFollowerPairingConfig}
                                         onErrorStateChange={setHasFollowerPairingErrors}
+                                        resourceTitle={title}
+                                        setResourceTitle={setTitle}
+                                        resourceDescription={desc}
+                                        setResourceDescription={setDesc}
                                     />
                                 )}
                             </div>

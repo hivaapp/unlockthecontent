@@ -47,8 +47,8 @@ const Footer = () => (
   <footer className="w-full bg-white border-t border-[#E6E2D9] py-12 px-4 flex flex-col items-center">
     <div className="w-full max-w-[1000px] flex flex-col md:flex-row justify-between items-center gap-6">
       <div className="flex items-center gap-2 opacity-80">
-        <div className="w-6 h-6 rounded-[6px] bg-[#21201C] text-white flex items-center justify-center font-black text-[10px] leading-none shrink-0">AG</div>
-        <span className="font-black text-[16px] tracking-tight text-[#21201C]">AdGate</span>
+        <div className="w-6 h-6 rounded-[6px] bg-[#21201C] text-white flex items-center justify-center font-black text-[10px] leading-none shrink-0">UC</div>
+        <span className="font-black text-[16px] tracking-tight text-[#21201C]">UnlockTheContent</span>
       </div>
       <div className="flex items-center gap-6 text-[13px] font-bold text-[#6B6860]">
         <Link to="/explore" className="hover:text-[#21201C] transition-colors">Explore</Link>
@@ -57,7 +57,7 @@ const Footer = () => (
         <Link to="/privacy" className="hover:text-[#21201C] transition-colors">Privacy</Link>
         <Link to="/contact" className="hover:text-[#21201C] transition-colors">Contact</Link>
       </div>
-      <div className="text-[12px] font-bold text-[#AAA49C]">© {new Date().getFullYear()} AdGate Inc.</div>
+      <div className="text-[12px] font-bold text-[#AAA49C]">© {new Date().getFullYear()} UnlockTheContent Inc.</div>
     </div>
   </footer>
 );
@@ -121,9 +121,9 @@ export const HowItWorks = () => {
 
   /* SEO */
   useEffect(() => {
-    document.title = 'How AdGate Works — Creator Guide';
+    document.title = 'How UnlockTheContent Works — Creator Guide';
     const m = document.querySelector('meta[name="description"]');
-    if (m) m.setAttribute('content', 'You create content. Your followers unlock it free. You both win. See exactly how AdGate works in under 5 minutes.');
+    if (m) m.setAttribute('content', 'You create content. Your followers unlock it free. You both win. See exactly how UnlockTheContent works in under 5 minutes.');
   }, []);
 
   /* Back-to-top fade */
@@ -155,7 +155,7 @@ export const HowItWorks = () => {
       {/* ── SECTION 1 — HERO ─────────────────────────────────────────── */}
       <section className="w-full bg-white pt-16 pb-20 flex flex-col items-center text-center px-6">
         <div ref={heroRef} className="w-full flex flex-col items-center">
-          <SectionLabel>How AdGate works</SectionLabel>
+          <SectionLabel>How UnlockTheContent works</SectionLabel>
 
           <h1 className="font-[900] text-[#111] leading-[1.15] text-center max-w-[520px]"
             style={{ fontSize: 'clamp(36px, 5vw, 52px)', marginTop: 16 }}>
@@ -206,7 +206,7 @@ export const HowItWorks = () => {
             {/* Left Card — Before AdGate */}
             <div className="w-full md:flex-1 max-w-[500px] rounded-[20px] bg-[#FAFAFA]"
                  style={{ border: '1.5px solid #F0F0F0', padding: '32px 28px' }}>
-              <div className="text-[11px] font-[900] uppercase tracking-[0.8px] text-[#AAAAAA] mb-6">Before AdGate</div>
+              <div className="text-[11px] font-[900] uppercase tracking-[0.8px] text-[#AAAAAA] mb-6">Before UnlockTheContent</div>
               
               <div className="flex flex-col items-center mt-2">
                 <div className="font-[900] text-[#111] leading-none text-[48px] md:text-[64px]">
@@ -247,13 +247,13 @@ export const HowItWorks = () => {
               <svg className="md:hidden block w-8 h-8 text-[#E8312A] my-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M12 5v14M5 12l7 7 7-7" />
               </svg>
-              <span className="hidden md:block text-[11px] font-[800] text-[#E8312A] mt-2">AdGate</span>
+              <span className="hidden md:block text-[11px] font-[800] text-[#E8312A] mt-2">UnlockTheContent</span>
             </div>
 
             {/* Right Card — With AdGate */}
             <div className="w-full md:flex-1 max-w-[500px] rounded-[20px] bg-[#111]"
                  style={{ padding: '32px 28px' }}>
-              <div className="text-[11px] font-[900] uppercase tracking-[0.8px] mb-6" style={{ color: 'rgba(255,255,255,0.4)' }}>With AdGate</div>
+              <div className="text-[11px] font-[900] uppercase tracking-[0.8px] mb-6" style={{ color: 'rgba(255,255,255,0.4)' }}>With UnlockTheContent</div>
               
               <div className="flex flex-col items-center mt-2">
                 <div className="font-[900] text-white leading-none text-[48px] md:text-[64px]">
@@ -297,7 +297,7 @@ export const HowItWorks = () => {
       {/* ── SECTION 3 — TWO PATHS ────────────────────────────────────── */}
       <section className="w-full py-20 px-6 bg-white">
         <div ref={s3Ref} className="w-full max-w-[1140px] mx-auto flex flex-col items-center">
-          <SectionLabel>Two ways to use AdGate</SectionLabel>
+          <SectionLabel>Two ways to use UnlockTheContent</SectionLabel>
           <h2 className="font-[900] text-[#111] text-center max-w-[480px] leading-[1.25]"
             style={{ fontSize: 'clamp(28px, 4vw, 40px)' }}>
             Do you have content to share — or habits to build?
@@ -413,7 +413,7 @@ export const HowItWorks = () => {
               resultBg="#166534"
               resultEmoji="📧"
               resultTitle="A confirmed email subscriber."
-              resultSub="On your platform. Yours to keep. Not AdGate's."
+              resultSub="On your platform. Yours to keep. Not UnlockTheContent's."
               feeLabel="0% fee"
               feeSub="No commission on subscribers."
             />
@@ -467,7 +467,7 @@ export const HowItWorks = () => {
               setupEmoji="⭐"
               setupTitle="Custom Sponsor"
               setupTitleColor="#6366F1"
-              setupDesc="Upload your sponsor's video and add their website link. AdGate tracks everything and generates your campaign report."
+              setupDesc="Upload your sponsor's video and add their website link. UnlockTheContent tracks everything and generates your campaign report."
               setupDescColor="#6366F1"
               setupPreview={
                 <div className="bg-white rounded-[10px] p-3 mt-4 flex flex-col gap-2">
@@ -530,7 +530,7 @@ export const HowItWorks = () => {
                 },
                 {
                   emoji: '🤝', title: 'They get paired',
-                  desc: 'They choose a matching preference. AdGate finds the most recently available partner. Match happens instantly.',
+                  desc: 'They choose a matching preference. UnlockTheContent finds the most recently available partner. Match happens instantly.',
                   example: null,
                   visual: (
                     <div className="flex items-center gap-2 mt-2">
@@ -592,7 +592,7 @@ export const HowItWorks = () => {
               {[
                 { emoji: '✏️', title: 'You configure', desc: 'Write your challenge topic, a commitment question, and how many days it runs. Take 20 minutes.', example: 'Topic: 14-Day Morning Routine' },
                 { emoji: '👆', title: 'They click your link', desc: 'They see your challenge and write their personal commitment.', example: 'Commit: Wake up at 6am and journal for 10 minutes.' },
-                { emoji: '🤝', title: 'They get paired', desc: 'AdGate finds the most recently available partner. Match happens instantly.' },
+                { emoji: '🤝', title: 'They get paired', desc: 'UnlockTheContent finds the most recently available partner. Match happens instantly.' },
                 { emoji: '💬', title: 'Private daily chat', desc: 'Only the two of them can see their chat. Your scheduled messages arrive automatically.', note: '🔒 You cannot read their chat. This is intentional.' },
                 { emoji: '✅', title: 'Challenge complete', desc: 'The chat closes. Both partners get a celebration screen. You get the data.', stat: '68 pairs · 21 days · 0 hours of facilitation' },
               ].map((node, i) => (
@@ -691,7 +691,7 @@ export const HowItWorks = () => {
           </div>
 
           <p className="mt-6 text-[14px] font-[700] text-center max-w-[420px]" style={{ color: '#888' }}>
-            A good exchange feels fair because it is fair. That is why AdGate converts.
+            A good exchange feels fair because it is fair. That is why UnlockTheContent converts.
           </p>
         </div>
       </section>
@@ -709,11 +709,11 @@ export const HowItWorks = () => {
             {[
               {
                 bg: '#EDFAF3', emoji: '📧', title: 'Your email list',
-                desc: 'Goes directly to your email platform. If you ever leave AdGate, every subscriber stays yours.',
+                desc: 'Goes directly to your email platform. If you ever leave UnlockTheContent, every subscriber stays yours.',
               },
               {
                 bg: '#EFF6FF', emoji: '👥', title: 'Your social following',
-                desc: 'Followers land on your Instagram, YouTube, or wherever. AdGate creates the gate — your platform owns the relationship.',
+                desc: 'Followers land on your Instagram, YouTube, or wherever. UnlockTheContent creates the gate — your platform owns the relationship.',
               },
               {
                 bg: '#F5F3FF', emoji: '💰', title: 'Your sponsor revenue',
@@ -737,7 +737,7 @@ export const HowItWorks = () => {
           </div>
 
           <div className="w-full max-w-[800px] mt-8 pt-6 text-center" style={{ borderTop: '1px solid #F0F0F0' }}>
-            <p className="text-[16px] font-[800] text-[#111]">AdGate is a tool. The audience is yours.</p>
+            <p className="text-[16px] font-[800] text-[#111]">UnlockTheContent is a tool. The audience is yours.</p>
           </div>
         </div>
       </section>

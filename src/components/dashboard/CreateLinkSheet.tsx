@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { BottomSheet } from '../ui/BottomSheet';
 import { useProgress } from '../../context/ProgressContext';
 import { useAuth } from '../../context/AuthContext';
@@ -17,13 +17,19 @@ interface CreateLinkSheetProps {
     onSuccess: () => void;
 }
 
+const INITIAL_CONTENT: ContentData = {
+    contentMode: 'both',
+    textContent: '',
+    links: [],
+    file: null,
+    fileId: null,
+    isUploading: false,
+    uploadProgress: 0,
+    uploadError: null,
+};
+
 export const CreateLinkSheet = ({ isOpen, onClose, onSuccess }: CreateLinkSheetProps) => {
-    const [contentData, setContentData] = useState<ContentData>({
-        contentMode: 'both',
-        textContent: '',
-        links: [],
-        file: null
-    });
+    const [contentData, setContentData] = useState<ContentData>(INITIAL_CONTENT);
     const [title, setTitle] = useState('');
     const [desc, setDesc] = useState('');
     const [unlockType, setUnlockType] = useState<UnlockType>('custom_sponsor');
@@ -45,6 +51,28 @@ export const CreateLinkSheet = ({ isOpen, onClose, onSuccess }: CreateLinkSheetP
     const { startProgress, stopProgress } = useProgress();
     const { currentUser, refreshProfile } = useAuth();
     const { showToast } = useToast();
+
+    // Reset ALL form state when sheet opens fresh
+    const prevOpen = useRef(false);
+    useEffect(() => {
+        if (isOpen && !prevOpen.current) {
+            // Sheet just opened — reset everything
+            setContentData(INITIAL_CONTENT);
+            setTitle('');
+            setDesc('');
+            setUnlockType('custom_sponsor');
+            setCustomAd(null);
+            setEmailConfig(null);
+            setSocialConfig(null);
+            setFollowerPairingConfig(null);
+            setHasCustomAdErrors(true);
+            setHasEmailErrors(true);
+            setHasSocialErrors(true);
+            setHasFollowerPairingErrors(true);
+            setIsSubmitting(false);
+        }
+        prevOpen.current = isOpen;
+    }, [isOpen]);
 
     const handleSubmit = async () => {
         if (!currentUser?.id) return;
@@ -172,10 +200,17 @@ export const CreateLinkSheet = ({ isOpen, onClose, onSuccess }: CreateLinkSheetP
                         dayNumber: m.dayNumber,
                         sendTime: m.sendTime || '09:00:00',
                         content: m.content,
+                        links: m.links || [],
+                        youtubeUrl: m.youtubeUrl || null,
+                        isSent: m.isSent || false,
                     })) || [],
-                    completionAsset: (followerPairingConfig.completionAsset?.enabled && followerPairingConfig.completionAsset?.fileName) ? {
+                    completionAsset: (followerPairingConfig.completionAsset?.enabled && (followerPairingConfig.completionAsset?.fileName || followerPairingConfig.completionAsset?.youtubeUrl || (followerPairingConfig.completionAsset?.links?.length || 0) > 0)) ? {
                         fileId: (followerPairingConfig.completionAsset as any).fileId || null,
                         unlockMessage: followerPairingConfig.completionAsset.unlockMessage || null,
+                        links: followerPairingConfig.completionAsset.links || [],
+                        youtubeUrl: followerPairingConfig.completionAsset.youtubeUrl || null,
+                        resourceTitle: title || null,
+                        resourceDescription: desc || null,
                     } : null,
                 };
             }
@@ -186,20 +221,20 @@ export const CreateLinkSheet = ({ isOpen, onClose, onSuccess }: CreateLinkSheetP
             stopProgress();
             onSuccess();
 
-            // Reset state after slight delay
+            // Reset all state after slight delay for animation
             setTimeout(() => {
-                setContentData({
-                    contentMode: 'both',
-                    textContent: '',
-                    links: [],
-                    file: null,
-                    fileId: null,
-                    isUploading: false,
-                    uploadProgress: 0,
-                    uploadError: null,
-                });
+                setContentData(INITIAL_CONTENT);
                 setTitle('');
                 setDesc('');
+                setUnlockType('custom_sponsor');
+                setCustomAd(null);
+                setEmailConfig(null);
+                setSocialConfig(null);
+                setFollowerPairingConfig(null);
+                setHasCustomAdErrors(true);
+                setHasEmailErrors(true);
+                setHasSocialErrors(true);
+                setHasFollowerPairingErrors(true);
             }, 300);
         } catch (err: any) {
             stopProgress();
@@ -279,37 +314,39 @@ export const CreateLinkSheet = ({ isOpen, onClose, onSuccess }: CreateLinkSheetP
                     )}
                 </div>
 
-                {/* Title and Description */}
-                <div className="flex flex-col gap-4">
-                    <div className="flex flex-col gap-1.5 relative">
-                        <label className="text-[12px] font-extrabold text-textMid uppercase tracking-wide">Resource Title</label>
-                        <input
-                            type="text"
-                            className={`input-field h-[48px] text-[15px] font-bold ${title.length > 50 ? 'border-error/50 focus:border-error focus:ring-error focus:ring-1' : ''}`}
-                            value={title}
-                            onChange={(e) => setTitle(e.target.value)}
-                            maxLength={60}
-                            placeholder="e.g. Figma UI Kit - 2026 Edition"
-                        />
-                        <span className={`absolute bottom-3 right-3 text-[11px] font-bold ${title.length >= 50 ? 'text-error' : 'text-textLight'}`}>
-                            {title.length}/60
-                        </span>
-                    </div>
+                {/* Title and Description - Hidden for follower pairing as they are handled inside FollowerPairingConfigForm relative to reward toggle */}
+                {unlockType !== 'follower_pairing' && (
+                    <div className="flex flex-col gap-4">
+                        <div className="flex flex-col gap-1.5 relative">
+                            <label className="text-[12px] font-extrabold text-textMid uppercase tracking-wide">Resource Title</label>
+                            <input
+                                type="text"
+                                className={`input-field h-[48px] text-[16px] font-bold ${title.length > 50 ? 'border-error/50 focus:border-error focus:ring-error focus:ring-1' : ''}`}
+                                value={title}
+                                onChange={(e) => setTitle(e.target.value)}
+                                maxLength={60}
+                                placeholder="e.g. Figma UI Kit - 2026 Edition"
+                            />
+                            <span className={`absolute bottom-3 right-3 text-[11px] font-bold ${title.length >= 50 ? 'text-error' : 'text-textLight'}`}>
+                                {title.length}/60
+                            </span>
+                        </div>
 
-                    <div className="flex flex-col gap-1.5 relative">
-                        <label className="text-[12px] font-extrabold text-textMid uppercase tracking-wide">Description <span className="text-textLight font-semibold capitalize tracking-normal">(optional)</span></label>
-                        <textarea
-                            className={`w-full border border-border rounded-[12px] p-3 text-[14px] font-semibold bg-white focus:outline-none focus:ring-1 focus:ring-brand focus:border-brand transition-colors h-[80px] resize-none ${desc.length > 140 ? 'border-error/50 focus:border-error focus:ring-error focus:ring-1' : ''}`}
-                            value={desc}
-                            onChange={(e) => setDesc(e.target.value)}
-                            maxLength={150}
-                            placeholder="Add a short description so users know what they are unlocking..."
-                        />
-                        <span className={`absolute bottom-3 right-3 text-[11px] font-bold ${desc.length >= 140 ? 'text-error' : 'text-textLight'}`}>
-                            {desc.length}/150
-                        </span>
+                        <div className="flex flex-col gap-1.5 relative">
+                            <label className="text-[12px] font-extrabold text-textMid uppercase tracking-wide">Description <span className="text-textLight font-semibold capitalize tracking-normal">(optional)</span></label>
+                            <textarea
+                                className={`w-full border border-border rounded-[12px] p-3 text-[16px] font-semibold bg-white focus:outline-none focus:ring-1 focus:ring-brand focus:border-brand transition-colors h-[80px] resize-none ${desc.length > 140 ? 'border-error/50 focus:border-error focus:ring-error focus:ring-1' : ''}`}
+                                value={desc}
+                                onChange={(e) => setDesc(e.target.value)}
+                                maxLength={150}
+                                placeholder="Add a short description so users know what they are unlocking..."
+                            />
+                            <span className={`absolute bottom-3 right-3 text-[11px] font-bold ${desc.length >= 140 ? 'text-error' : 'text-textLight'}`}>
+                                {desc.length}/150
+                            </span>
+                        </div>
                     </div>
-                </div>
+                )}
 
                 {/* Specific Config Forms */}
                 <div className="flex flex-col gap-3">
@@ -339,6 +376,10 @@ export const CreateLinkSheet = ({ isOpen, onClose, onSuccess }: CreateLinkSheetP
                             value={followerPairingConfig}
                             onChange={setFollowerPairingConfig}
                             onErrorStateChange={setHasFollowerPairingErrors}
+                            resourceTitle={title}
+                            setResourceTitle={setTitle}
+                            resourceDescription={desc}
+                            setResourceDescription={setDesc}
                         />
                     )}
                 </div>

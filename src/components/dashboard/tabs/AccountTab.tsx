@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '../../../context/AuthContext';
 import { useChatSessions } from '../../../context/ChatSessionsContext';
 import { ChevronRight, ChevronLeft, Copy, LogOut, AlertTriangle, MessageCircle, CreditCard, Sparkles } from 'lucide-react';
@@ -9,6 +9,9 @@ import { useProgress } from '../../../context/ProgressContext';
 import { useNavigate } from 'react-router-dom';
 import { getAvatarColor } from '../../../lib/utils';
 import type { User } from '../../../lib/mockData';
+import { TrustScoreBadge, getBand } from '../../shared/TrustScoreBadge';
+import { TRUST_EVENT_LABELS } from '../../../services/trustEventService';
+import type { TrustEventType } from '../../../services/trustEventService';
 
 export const AccountTab = () => {
     const { currentUser, logout, session } = useAuth();
@@ -57,7 +60,6 @@ export const AccountTab = () => {
                         <ChevronLeft size={24} />
                     </button>
                     <h2 className="text-[18px] font-black tracking-tight ml-2">
-                        {activeScreen === 'notifications' && 'Notification Preferences'}
                         {activeScreen === 'password' && 'Change Password'}
                         {activeScreen === 'edit_profile' && 'Edit Profile'}
                         {activeScreen === 'delete' && 'Delete Account'}
@@ -65,7 +67,6 @@ export const AccountTab = () => {
                     </h2>
                 </div>
                 <div className="px-4 flex-1">
-                    {activeScreen === 'notifications' && <ScreenNotifications onSave={goBack} />}
                     {activeScreen === 'password' && <ScreenPassword onSave={goBack} />}
                     {activeScreen === 'edit_profile' && <ScreenEditProfile user={currentUser} onSave={goBack} />}
                     {activeScreen === 'delete' && <ScreenDelete />}
@@ -113,13 +114,10 @@ export const AccountTab = () => {
                 <span className="text-[12px] font-extrabold text-textMid tracking-widest uppercase px-1">Trust Score</span>
                 <div className="w-full bg-white border border-border rounded-[16px] overflow-hidden shadow-sm flex flex-col">
                     <div className="p-4 flex items-center justify-between">
-                         <div className="flex flex-col">
-                              <span className="text-[28px] font-black leading-none mb-1" style={{ color: (currentUser?.trustScore || 75) >= 90 ? '#417A55' : (currentUser?.trustScore || 75) >= 70 ? '#A0622A' : '#C0392B' }}>{currentUser?.trustScore || 75}</span>
-                              <span className="text-[13px] font-bold text-textMid">
-                                {(currentUser?.trustScore || 75) >= 90 ? '⭐ Excellent standing' : (currentUser?.trustScore || 75) >= 70 ? '✓ Good standing' : '⚠️ Action needed'}
-                              </span>
+                         <div className="flex-1">
+                              <TrustScoreBadge score={currentUser?.trustScore || 75} size="lg" />
                          </div>
-                         <div className="w-12 h-12 rounded-full flex items-center justify-center text-[20px]" style={{ backgroundColor: (currentUser?.trustScore || 75) >= 90 ? '#EBF5EE' : (currentUser?.trustScore || 75) >= 70 ? '#FDF4EC' : '#FDECEA' }}>
+                         <div className="w-12 h-12 rounded-full flex items-center justify-center text-[20px] ml-4 shrink-0" style={{ backgroundColor: getBand(currentUser?.trustScore || 75).bg }}>
                               🛡️
                          </div>
                     </div>
@@ -130,17 +128,21 @@ export const AccountTab = () => {
                             <ChevronRight className="w-5 h-5 text-textLight group-open:rotate-90 transition-transform" />
                         </summary>
                         <div className="p-4 bg-white text-[13px] font-semibold text-textMid leading-relaxed border-t border-border flex flex-col gap-3">
-                            <p>Your Trust Score (0-100) measures your reliability in Follower Pairing challenges. It updates automatically based on your actions.</p>
+                            <p>Your Trust Score (0-100) measures your reliability. It updates automatically based on your actions. Recent events count more than older ones.</p>
                             <ul className="flex flex-col gap-2">
-                                <li className="flex items-center justify-between pt-1"><span className="flex items-center gap-2"><span className="text-success font-bold mt-[1px]">↑</span> Completing challenges</span> <span className="font-bold text-success">+5</span></li>
-                                <li className="flex items-center justify-between pt-1"><span className="flex items-center gap-2"><span className="text-success font-bold mt-[1px]">↑</span> Consistent daily messaging</span> <span className="font-bold text-success">+2</span></li>
-                                <li className="flex items-center justify-between pt-1"><span className="flex items-center gap-2"><span className="text-success font-bold mt-[1px]">↑</span> Positive partner ratings</span> <span className="font-bold text-success">+5</span></li>
-                                <li className="flex items-center justify-between pt-1 border-t border-border"><span className="flex items-center gap-2"><span className="text-error font-bold mt-[1px]">↓</span> Leaving a challenge early</span> <span className="font-bold text-error">-10</span></li>
-                                <li className="flex items-center justify-between pt-1"><span className="flex items-center gap-2"><span className="text-error font-bold mt-[1px]">↓</span> Ghosting (inactive 3+ days)</span> <span className="font-bold text-error">-15</span></li>
-                                <li className="flex items-center justify-between pt-1"><span className="flex items-center gap-2"><span className="text-error font-bold mt-[1px]">↓</span> Reported by partner</span> <span className="font-bold text-error">-30</span></li>
+                                <li className="flex items-center justify-between pt-1"><span className="flex items-center gap-2"><span className="text-success font-bold mt-[1px]">↑</span> Completing challenges</span> <span className="font-bold text-success">+8</span></li>
+                                <li className="flex items-center justify-between pt-1"><span className="flex items-center gap-2"><span className="text-success font-bold mt-[1px]">↑</span> Check-in streaks (7/14/30d)</span> <span className="font-bold text-success">+3 to +8</span></li>
+                                <li className="flex items-center justify-between pt-1"><span className="flex items-center gap-2"><span className="text-success font-bold mt-[1px]">↑</span> Completing your profile</span> <span className="font-bold text-success">+3</span></li>
+                                <li className="flex items-center justify-between pt-1"><span className="flex items-center gap-2"><span className="text-success font-bold mt-[1px]">↑</span> Content unlock milestones</span> <span className="font-bold text-success">+3 to +8</span></li>
+                                <li className="flex items-center justify-between pt-1"><span className="flex items-center gap-2"><span className="text-success font-bold mt-[1px]">↑</span> Campaign pair milestones</span> <span className="font-bold text-success">+3 to +8</span></li>
+                                <li className="flex items-center justify-between pt-1"><span className="flex items-center gap-2"><span className="text-success font-bold mt-[1px]">↑</span> First content subscription</span> <span className="font-bold text-success">+2</span></li>
+                                <li className="flex items-center justify-between pt-1 border-t border-border"><span className="flex items-center gap-2"><span className="text-error font-bold mt-[1px]">↓</span> Abandoning a challenge</span> <span className="font-bold text-error">-10</span></li>
+                                <li className="flex items-center justify-between pt-1"><span className="flex items-center gap-2"><span className="text-error font-bold mt-[1px]">↓</span> Report confirmed</span> <span className="font-bold text-error">-15</span></li>
                             </ul>
                         </div>
                     </details>
+
+                    <TrustEventHistory userId={currentUser?.id} />
                 </div>
             </div>
 
@@ -174,15 +176,15 @@ export const AccountTab = () => {
             {/* Settings Groups */}
             <div className="flex flex-col gap-6">
 
-                {/* Group 1: My Chats + Notifications */}
+                {/* Group 1: My Chats */}
                 <div className="flex flex-col w-full bg-white rounded-[16px] border border-border overflow-hidden shadow-sm">
                     <div
                         onClick={() => navigate('/chats')}
-                        className="h-[52px] w-full bg-white px-4 flex items-center justify-between cursor-pointer hover:bg-surfaceAlt active:bg-[#F8F8F8] transition-colors duration-[80ms] border-b border-border"
+                        className="h-[52px] w-full bg-white px-4 flex items-center justify-between cursor-pointer hover:bg-surfaceAlt active:bg-[#F8F8F8] transition-colors duration-[80ms]"
                     >
                         <div className="flex items-center gap-3">
                             <MessageCircle size={20} className="text-textMid" />
-                            <span className="text-[15px] font-extrabold text-text">My Chats</span>
+                            <span className="text-[16px] font-extrabold text-text">My Chats</span>
                         </div>
                         <div className="flex items-center gap-2">
                             {chatUnread > 0 && (
@@ -196,7 +198,6 @@ export const AccountTab = () => {
                             <ChevronRight className="w-5 h-5 text-textLight" />
                         </div>
                     </div>
-                    <SettingRow label="Notification Preferences" onClick={() => navigateTo('notifications')} />
                 </div>
 
 
@@ -210,7 +211,7 @@ export const AccountTab = () => {
                             onClick={() => navigateTo('delete')}
                             className="h-[52px] w-full bg-white px-4 flex items-center justify-between cursor-pointer hover:bg-errorBg/30 active:bg-[#F8F8F8] transition-colors duration-[80ms]"
                         >
-                            <span className="text-[15px] font-extrabold text-error">Delete Account</span>
+                            <span className="text-[16px] font-extrabold text-error">Delete Account</span>
                             <ChevronRight className="w-5 h-5 text-error" />
                         </div>
                     </div>
@@ -221,7 +222,7 @@ export const AccountTab = () => {
             {/* Logout Button */}
             <button
                 onClick={() => setIsLogoutConfirmOpen(true)}
-                className="w-full h-[52px] bg-white border border-border text-text font-extrabold text-[15px] rounded-[14px] mt-4 mb-2 flex items-center justify-center gap-2 hover:bg-surfaceAlt active:scale-95 transition-all shadow-sm"
+                className="w-full h-[52px] bg-white border border-border text-text font-extrabold text-[16px] rounded-[14px] mt-4 mb-2 flex items-center justify-center gap-2 hover:bg-surfaceAlt active:scale-95 transition-all shadow-sm"
             >
                 <LogOut size={18} strokeWidth={2.5} /> Log Out
             </button>
@@ -245,39 +246,13 @@ const SettingRow = ({ label, children, hasBorder = true, onClick }: { label: str
         onClick={onClick}
         className={`h-[52px] w-full bg-white px-4 flex items-center justify-between cursor-pointer hover:bg-surfaceAlt active:bg-[#F8F8F8] transition-colors duration-[80ms] ${hasBorder ? 'border-b border-border' : ''}`}
     >
-        <span className="text-[15px] font-extrabold text-text">{label}</span>
+        <span className="text-[16px] font-extrabold text-text">{label}</span>
         {children || <ChevronRight className="w-5 h-5 text-textLight" />}
     </div>
 );
 
 // --- Sub Screens ---
 
-const ToggleRow = ({ label, initial = true }: { label: string, initial?: boolean }) => {
-    const [on, setOn] = useState(initial);
-    return (
-        <div onClick={() => setOn(!on)} className="h-[52px] w-full flex items-center justify-between border-b border-border last:border-0 cursor-pointer active:bg-[#F8F8F8] transition-colors duration-[80ms]">
-            <span className="text-[14px] font-bold text-text">{label}</span>
-            <div className={`w-12 h-7 rounded-full px-1 flex items-center cursor-pointer transition-colors ${on ? 'bg-success' : 'bg-surfaceAlt border border-border'}`}>
-                <div className={`w-5 h-5 bg-white rounded-full shadow-sm transition-transform ${on ? 'translate-x-[20px]' : 'translate-x-0 border border-border'}`} />
-            </div>
-        </div>
-    );
-};
-
-const ScreenNotifications = ({ onSave }: { onSave: () => void }) => {
-    const { addToast } = useToast();
-    const handleSave = () => { addToast('Preferences saved', 'success'); onSave(); };
-    return (
-        <div className="flex flex-col h-full animate-fadeIn">
-            <div className="bg-white rounded-[16px] border border-border px-4 flex flex-col mb-6">
-                <ToggleRow label="Custom sponsor ad milestones" initial={false} />
-                <ToggleRow label="New follower on profile" initial={false} />
-                <ToggleRow label="Platform announcements" />
-            </div>
-            <button onClick={handleSave} className="w-full h-[52px] bg-brand text-white font-black rounded-[14px] mt-auto">Save Preferences</button>
-        </div>
-    );
-};
 
 const ScreenPassword = ({ onSave }: { onSave: () => void }) => {
     const { updatePassword } = useAuth();
@@ -331,7 +306,7 @@ const ScreenPassword = ({ onSave }: { onSave: () => void }) => {
                         type="password" 
                         placeholder="••••••••" 
                         disabled
-                        className="w-full h-[48px] bg-surfaceAlt border border-border rounded-[10px] px-3 font-semibold text-[15px] outline-none" 
+                        className="w-full h-[48px] bg-surfaceAlt border border-border rounded-[10px] px-3 font-semibold text-[16px] outline-none" 
                     />
                     <span className="text-[10px] font-bold text-textLight px-1 italic">Current password verification not required with active session</span>
                 </div>
@@ -342,7 +317,7 @@ const ScreenPassword = ({ onSave }: { onSave: () => void }) => {
                         value={pwd} 
                         onChange={e => setPwd(e.target.value)} 
                         placeholder="••••••••" 
-                        className="w-full h-[48px] bg-surfaceAlt border border-border rounded-[10px] px-3 font-semibold text-[15px] focus:border-brand outline-none" 
+                        className="w-full h-[48px] bg-surfaceAlt border border-border rounded-[10px] px-3 font-semibold text-[16px] focus:border-brand outline-none" 
                     />
                     <div className="flex items-center gap-1 mt-1 h-1.5 w-full">
                         {[1, 2, 3, 4].map(i => (
@@ -359,7 +334,7 @@ const ScreenPassword = ({ onSave }: { onSave: () => void }) => {
                         value={confirmPwd}
                         onChange={e => setConfirmPwd(e.target.value)}
                         placeholder="••••••••" 
-                        className="w-full h-[48px] bg-surfaceAlt border border-border rounded-[10px] px-3 font-semibold text-[15px] focus:border-brand outline-none" 
+                        className="w-full h-[48px] bg-surfaceAlt border border-border rounded-[10px] px-3 font-semibold text-[16px] focus:border-brand outline-none" 
                     />
                 </div>
             </div>
@@ -398,13 +373,13 @@ const ScreenEditProfile = ({ user, onSave }: { user: User | null | undefined, on
             <div className="bg-white rounded-[16px] border border-border p-5 flex flex-col gap-4 mb-6">
                 <div className="flex flex-col gap-1.5">
                     <label className="text-[13px] font-extrabold text-textMid uppercase tracking-wide">Display Name</label>
-                    <input type="text" value={name} onChange={e => setName(e.target.value)} className="w-full h-[48px] bg-surfaceAlt border border-border rounded-[10px] px-3 font-semibold text-[15px] focus:border-brand outline-none" />
+                    <input type="text" value={name} onChange={e => setName(e.target.value)} className="w-full h-[48px] bg-surfaceAlt border border-border rounded-[10px] px-3 font-semibold text-[16px] focus:border-brand outline-none" />
                 </div>
                 <div className="flex flex-col gap-1.5">
                     <label className="text-[13px] font-extrabold text-textMid uppercase tracking-wide">Username</label>
                     <div className="flex items-center w-full h-[48px] bg-surfaceAlt border border-border rounded-[10px] px-3 focus-within:border-brand focus-within:ring-1 focus-within:ring-brand">
                         <span className="text-textLight font-bold mr-1">@</span>
-                        <input type="text" value={handle} onChange={e => setHandle(e.target.value)} className="w-full h-full bg-transparent font-semibold text-[15px] outline-none" />
+                        <input type="text" value={handle} onChange={e => setHandle(e.target.value)} className="w-full h-full bg-transparent font-semibold text-[16px] outline-none" />
                     </div>
                 </div>
                 <div className="flex flex-col gap-1.5">
@@ -413,7 +388,7 @@ const ScreenEditProfile = ({ user, onSave }: { user: User | null | undefined, on
                 </div>
                 <div className="flex flex-col gap-1.5">
                     <label className="text-[13px] font-extrabold text-textMid uppercase tracking-wide">Website URL</label>
-                    <input type="url" value={website} onChange={e => setWebsite(e.target.value)} className="w-full h-[48px] bg-surfaceAlt border border-border rounded-[10px] px-3 font-semibold text-[15px] focus:border-brand outline-none" />
+                    <input type="url" value={website} onChange={e => setWebsite(e.target.value)} className="w-full h-[48px] bg-surfaceAlt border border-border rounded-[10px] px-3 font-semibold text-[16px] focus:border-brand outline-none" />
                 </div>
             </div>
             <button onClick={handleSave} className="w-full h-[52px] bg-brand text-white font-black rounded-[14px] mt-auto shrink-0 shadow-sm">Save Profile</button>
@@ -434,7 +409,7 @@ const ScreenDelete = () => {
                 </p>
                 <div className="w-full text-left flex flex-col gap-1.5">
                     <label className="text-[13px] font-bold text-error">Type "DELETE" to confirm</label>
-                    <input type="text" value={confirm} onChange={e => setConfirm(e.target.value)} className="w-full h-[48px] bg-white border border-error/30 rounded-[10px] px-3 font-bold text-[15px] text-error outline-none" />
+                    <input type="text" value={confirm} onChange={e => setConfirm(e.target.value)} className="w-full h-[48px] bg-white border border-error/30 rounded-[10px] px-3 font-bold text-[16px] text-error outline-none" />
                 </div>
             </div>
             <button disabled={confirm !== 'DELETE'} onClick={() => setOpenSheet(true)} className={`w-full h-[52px] font-black rounded-[14px] mt-auto transition-colors ${confirm === 'DELETE' ? 'bg-error text-white' : 'bg-surfaceAlt text-textLight'}`}>Delete My Account</button>
@@ -456,7 +431,7 @@ function ScreenSubscription({ user }: { user: User | null | undefined }) {
     const { addToast } = useToast();
     const { startProgress, stopProgress } = useProgress();
 
-    const stripeProLink = import.meta.env.VITE_STRIPE_PRO_LINK || 'https://buy.stripe.com/test_5kA7ti50o3sbgYU5kk';
+    const stripeProLink = import.meta.env.VITE_STRIPE_PRO_LINK || 'https://buy.stripe.com/test_00weVfdKm42Agwj4QafIs00';
     const upgradeLink = `${stripeProLink}?client_reference_id=${user?.id || 'anonymous'}&prefilled_email=${encodeURIComponent(user?.email || '')}`;
 
     const handleManageSubscription = async () => {
@@ -558,4 +533,96 @@ function ScreenSubscription({ user }: { user: User | null | undefined }) {
     );
 }
 
+// ── Trust Event History (collapsible, shows recent events) ──────────────────
+interface TrustEvent {
+    id: string;
+    event_type: TrustEventType;
+    points: number;
+    created_at: string;
+    notes: string | null;
+}
 
+const TrustEventHistory = ({ userId }: { userId?: string }) => {
+    const [events, setEvents] = useState<TrustEvent[]>([]);
+    const [isOpen, setIsOpen] = useState(false);
+    const [loaded, setLoaded] = useState(false);
+
+    useEffect(() => {
+        if (!userId || !isOpen || loaded) return;
+
+        const fetchEvents = async () => {
+            const { data, error } = await supabase
+                .from('trust_events')
+                .select('id, event_type, points, created_at, notes')
+                .eq('user_id', userId)
+                .order('created_at', { ascending: false })
+                .limit(10);
+
+            if (!error && data) {
+                setEvents(data as TrustEvent[]);
+            }
+            setLoaded(true);
+        };
+        fetchEvents();
+    }, [userId, isOpen, loaded]);
+
+    const formatEventDate = (ts: string) => {
+        const d = new Date(ts);
+        const now = new Date();
+        const diffMs = now.getTime() - d.getTime();
+        const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+
+        if (diffDays === 0) return 'Today';
+        if (diffDays === 1) return 'Yesterday';
+        if (diffDays < 7) return `${diffDays}d ago`;
+        return d.toLocaleDateString([], { month: 'short', day: 'numeric' });
+    };
+
+    return (
+        <details className="group" onToggle={(e) => setIsOpen((e.target as HTMLDetailsElement).open)}>
+            <summary className="h-[52px] w-full bg-surfaceAlt px-4 flex items-center justify-between cursor-pointer hover:bg-[#F3F1EC] transition-colors duration-[80ms] list-none select-none border-t border-border focus:outline-none [&::-webkit-details-marker]:hidden">
+                <span className="text-[14px] font-extrabold text-text">Recent Activity</span>
+                <ChevronRight className="w-5 h-5 text-textLight group-open:rotate-90 transition-transform" />
+            </summary>
+            <div className="bg-white border-t border-border">
+                {!loaded ? (
+                    <div className="p-4 flex items-center justify-center">
+                        <div className="w-5 h-5 rounded-full" style={{ border: '2px solid #E6E2D9', borderTopColor: '#D97757', animation: 'spin 0.8s linear infinite' }} />
+                    </div>
+                ) : events.length === 0 ? (
+                    <div className="p-4 text-center">
+                        <span className="text-[32px]">🛡️</span>
+                        <p className="text-[13px] font-bold text-textMid mt-2">No events yet</p>
+                        <p className="text-[12px] text-textLight mt-1">Complete actions to build your trust score</p>
+                    </div>
+                ) : (
+                    <div className="divide-y divide-border">
+                        {events.map((event) => {
+                            const info = TRUST_EVENT_LABELS[event.event_type as TrustEventType];
+                            if (!info) return null;
+                            const isPositive = event.points >= 0;
+
+                            return (
+                                <div key={event.id} className="px-4 py-3 flex items-center justify-between">
+                                    <div className="flex items-center gap-3 min-w-0">
+                                        <span className="text-[16px] shrink-0">{info.emoji}</span>
+                                        <div className="min-w-0">
+                                            <span className="text-[13px] font-bold text-text block truncate">{info.label}</span>
+                                            <span className="text-[11px] font-semibold text-textLight">{formatEventDate(event.created_at)}</span>
+                                        </div>
+                                    </div>
+                                    <span
+                                        className="text-[13px] font-black shrink-0 ml-3"
+                                        style={{ color: isPositive ? '#417A55' : '#C0392B' }}
+                                    >
+                                        {isPositive ? '+' : ''}{event.points}
+                                    </span>
+                                </div>
+                            );
+                        })}
+                    </div>
+                )}
+            </div>
+        </details>
+    );
+};

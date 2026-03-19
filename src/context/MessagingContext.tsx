@@ -45,6 +45,15 @@ export interface DMMessage {
   timestamp: string;
   type: 'text';
   isOpeningMessage?: boolean;
+  // Media sharing fields
+  message_type?: string;
+  media_r2_key?: string | null;
+  media_thumbnail_r2_key?: string | null;
+  media_original_name?: string | null;
+  media_mime_type?: string | null;
+  media_size_bytes?: number | null;
+  media_category?: string | null;
+  is_pro_storage?: boolean;
 }
 
 export interface DirectConversation {
@@ -70,7 +79,16 @@ interface MessagingContextType {
   sendRequest: (recipientId: string, openingMessage: string, sender: MessageSender) => Promise<string>;
   approveRequest: (requestId: string, currentUserProfile: DMParticipant) => Promise<void>;
   declineRequest: (requestId: string) => Promise<void>;
-  sendMessage: (conversationId: string, content: string, senderId: string) => Promise<void>;
+  sendMessage: (conversationId: string, content: string, senderId: string, mediaFields?: {
+    messageType?: string
+    mediaR2Key?: string | null
+    mediaThumbnailR2Key?: string | null
+    mediaOriginalName?: string | null
+    mediaMimeType?: string | null
+    mediaSizeBytes?: number | null
+    mediaCategory?: string | null
+    isProStorage?: boolean
+  }) => Promise<void>;
   markConversationRead: (conversationId: string) => Promise<void>;
   hasPendingRequestTo: (senderId: string, recipientId: string) => boolean;
   removeConversation: (conversationId: string) => void;
@@ -247,9 +265,18 @@ export const MessagingProvider = ({ children }: { children: ReactNode }) => {
     }
   }, [loadData]);
 
-  const sendMessageLocal = useCallback(async (conversationId: string, content: string, senderId: string) => {
+  const sendMessageLocal = useCallback(async (conversationId: string, content: string, senderId: string, mediaFields?: {
+    messageType?: string
+    mediaR2Key?: string | null
+    mediaThumbnailR2Key?: string | null
+    mediaOriginalName?: string | null
+    mediaMimeType?: string | null
+    mediaSizeBytes?: number | null
+    mediaCategory?: string | null
+    isProStorage?: boolean
+  }) => {
     try {
-      await messageService.sendMessage(conversationId, senderId, content);
+      await messageService.sendMessage(conversationId, senderId, content, false, mediaFields);
       loadData();
     } catch (err) {
       console.error(err);

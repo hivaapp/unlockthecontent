@@ -45,7 +45,7 @@ export const EmailConfigForm = ({ value, onChange, onErrorStateChange }: EmailCo
                 <label className="text-[12px] font-[700] text-textMid">Newsletter Name</label>
                 <input
                     type="text"
-                    className="w-full h-[44px] rounded-[14px] border border-[#E8E8E8] px-3 text-[14px] font-[600] focus:outline-none focus:border-[#166534] focus:ring-1 focus:ring-[#166534]"
+                    className="w-full h-[44px] rounded-[14px] border border-[#E8E8E8] px-3 text-[16px] font-[600] focus:outline-none focus:border-[#166534] focus:ring-1 focus:ring-[#166534]"
                     placeholder="e.g. Weekly Design Tips"
                     maxLength={50}
                     value={data.newsletterName}
@@ -57,7 +57,7 @@ export const EmailConfigForm = ({ value, onChange, onErrorStateChange }: EmailCo
             <div className="flex flex-col gap-1.5 relative">
                 <label className="text-[12px] font-[700] text-textMid">What subscribers receive</label>
                 <textarea
-                    className="w-full h-[80px] rounded-[14px] border border-[#E8E8E8] p-3 text-[14px] font-[600] resize-none focus:outline-none focus:border-[#166534] focus:ring-1 focus:ring-[#166534]"
+                    className="w-full h-[80px] rounded-[14px] border border-[#E8E8E8] p-3 text-[16px] font-[600] resize-none focus:outline-none focus:border-[#166534] focus:ring-1 focus:ring-[#166534]"
                     placeholder="Describe what your newsletter covers and how often you send it."
                     maxLength={150}
                     value={data.newsletterDescription}
@@ -69,7 +69,7 @@ export const EmailConfigForm = ({ value, onChange, onErrorStateChange }: EmailCo
             <div className="flex flex-col gap-1.5 relative">
                 <label className="text-[12px] font-[700] text-textMid">Why they should subscribe</label>
                 <textarea
-                    className="w-full h-[80px] rounded-[14px] border border-[#E8E8E8] p-3 text-[14px] font-[600] resize-none focus:outline-none focus:border-[#166534] focus:ring-1 focus:ring-[#166534]"
+                    className="w-full h-[80px] rounded-[14px] border border-[#E8E8E8] p-3 text-[16px] font-[600] resize-none focus:outline-none focus:border-[#166534] focus:ring-1 focus:ring-[#166534]"
                     placeholder="Tell viewers what they get by subscribing — the resource they are unlocking plus what to expect from your newsletter."
                     maxLength={200}
                     value={data.incentiveText}
@@ -82,7 +82,7 @@ export const EmailConfigForm = ({ value, onChange, onErrorStateChange }: EmailCo
                 <label className="text-[12px] font-[700] text-textMid">Message shown after subscribing</label>
                 <input
                     type="text"
-                    className="w-full h-[44px] rounded-[14px] border border-[#E8E8E8] px-3 text-[14px] font-[600] focus:outline-none focus:border-[#166534] focus:ring-1 focus:ring-[#166534]"
+                    className="w-full h-[44px] rounded-[14px] border border-[#E8E8E8] px-3 text-[16px] font-[600] focus:outline-none focus:border-[#166534] focus:ring-1 focus:ring-[#166534]"
                     placeholder="e.g. Check your inbox to confirm! You're all set."
                     maxLength={100}
                     value={data.confirmationMessage}

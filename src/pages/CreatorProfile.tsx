@@ -8,6 +8,7 @@ import { useToast } from '../context/ToastContext';
 import { BottomSheet } from '../components/ui/BottomSheet';
 import { AuthBottomSheet } from '../components/AuthBottomSheet';
 import { getCreatorProfile } from '../services/profileService';
+import { TrustScoreBadge } from '../components/shared/TrustScoreBadge';
 
 const getFileEmoji = (type: string) => {
     const t = type?.toUpperCase();
@@ -33,7 +34,7 @@ const CreatorNotFound = ({ username }: { username?: string }) => {
         <div className="w-full min-h-screen bg-[#FAF9F7] flex flex-col items-center justify-center p-6 text-center animate-fadeIn">
             <div className="text-[48px] mb-4">🔍</div>
             <h1 className="text-[20px] font-[900] text-[#111] mb-2 leading-tight">Creator not found</h1>
-            <p className="text-[14px] text-[#888] mb-8 font-semibold">@{username} does not exist on AdGate.</p>
+            <p className="text-[14px] text-[#888] mb-8 font-semibold">@{username} does not exist on UnlockTheContent.</p>
             <button onClick={() => navigate('/explore')} className="px-6 h-[44px] border-[1.5px] border-[#E8312A] text-[#E8312A] font-black text-[14px] rounded-[10px] hover:bg-[#FAF0EB] transition-colors">
                 Go to Explore &rarr;
             </button>
@@ -100,6 +101,7 @@ export const CreatorProfile = () => {
         location = '',
         joinedDate = '',
         isVerified = false,
+        trustScore = 75,
         socialHandles = {},
         stats = { totalLinks: 0, totalUnlocks: 0, totalFollowerPairingCampaigns: 0, totalPairsFormed: 0, treesPlanted: 0 },
         links = []
@@ -277,6 +279,12 @@ export const CreatorProfile = () => {
                                     )}
                                 </div>
                                 <span className="text-[14px] font-[600] text-[#AAAAAA] mt-0.5">@{username}</span>
+                                {/* Trust Score Badge — only show for non-owner profiles with score >= 75 */}
+                                {!isOwner && trustScore >= 75 && (
+                                    <div className="mt-1.5">
+                                        <TrustScoreBadge score={trustScore} size="md" />
+                                    </div>
+                                )}
                                 <div className="flex flex-col gap-0.5 mt-1.5">
                                     {location && <span className="text-[12px] font-[600] text-[#AAAAAA]">📍 {location}</span>}
                                     <span className="text-[11px] font-[600] text-[#BBBBBB]">{parseJoinedDate(joinedDate)}</span>

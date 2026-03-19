@@ -766,7 +766,7 @@ export const MyChatsHub = () => {
   // Render the two-panel layout on desktop, or just the list on mobile
   if (isDesktop) {
       return (
-          <div className="w-full flex bg-bg overflow-hidden" style={{ height: 'calc(100vh - 64px)' }}>
+          <div className="w-full flex bg-bg overflow-hidden h-[calc(100dvh-128px)] md:h-[calc(100vh-64px)]">
               <div className="w-[380px] flex flex-col shrink-0 border-r border-border z-10 overflow-hidden">
                   <MessagesSidebar 
                       activeTab={activeTab} 
@@ -807,7 +807,7 @@ export const MyChatsHub = () => {
 
   // Mobile layout - just the sidebar taking up the whole screen
   return (
-      <div className="h-screen w-full flex flex-col bg-bg overflow-hidden pb-[64px]"> {/* bottom nav buffer */}
+      <div className="h-[calc(100dvh-128px)] w-full flex flex-col bg-bg overflow-hidden">
          <MessagesSidebar activeTab={activeTab} setActiveTab={setActiveTab} />
       </div>
   );

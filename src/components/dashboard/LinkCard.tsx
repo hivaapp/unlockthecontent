@@ -14,24 +14,61 @@ export const LinkCard = ({ link, onEdit, onMore, onAnalytics, isPending }: LinkC
     const { showToast } = useToast();
     const isDisabled = link.status === 'disabled';
 
+    const handleCopy = async () => {
+        const text = link.url;
+        try {
+            if (navigator.clipboard && window.isSecureContext) {
+                await navigator.clipboard.writeText(text);
+                showToast({ message: 'Link copied to clipboard', type: 'success' });
+                return true;
+            } else {
+                throw new Error('Clipboard API unavailable');
+            }
+        } catch (err) {
+            // Legacy Fallback
+            try {
+                const textArea = document.createElement("textarea");
+                textArea.value = text;
+                textArea.style.position = "fixed";
+                textArea.style.left = "-9999px";
+                textArea.style.top = "0";
+                textArea.style.opacity = "0";
+                document.body.appendChild(textArea);
+                textArea.focus();
+                textArea.select();
+                const successful = document.execCommand('copy');
+                document.body.removeChild(textArea);
+                if (successful) {
+                    showToast({ message: 'Link copied to clipboard', type: 'success' });
+                    return true;
+                }
+            } catch (fallbackErr) {
+                console.error('Fallback copy failed', fallbackErr);
+            }
+            showToast({ message: 'Failed to copy link', type: 'error' });
+            return false;
+        }
+    };
+
     const handleShare = async () => {
         if (navigator.share) {
             try {
+                // Try native share
                 await navigator.share({
                     title: link.title,
                     url: link.url
                 });
             } catch (err) {
-                console.log('Share canceled', err);
+                // Only fallback to copy if it's a real failure, not an 'AbortError' (user canceled)
+                if (err instanceof Error && err.name !== 'AbortError' && err.name !== 'NotAllowedError') {
+                    console.error('Share failed:', err);
+                    handleCopy();
+                }
             }
         } else {
+            // Fallback for browsers that don't support Web Share API
             handleCopy();
         }
-    };
-
-    const handleCopy = () => {
-        navigator.clipboard.writeText(link.url);
-        showToast({ message: 'Link copied to clipboard', type: 'success' });
     };
 
     return (

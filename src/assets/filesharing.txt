@@ -1,0 +1,491 @@
+
+
+## Chat Media Sharing — Final Implementation Prompt
+
+---
+
+### Context — Read Before Writing Any Code
+
+Before implementing anything read the existing chat implementations completely. The pairing chat uses Supabase Realtime subscriptions on `pairing_messages`. The DM chat uses Supabase Realtime on `direct_messages`. Both chats already have a message composer with a text input and send button. The file upload service in `uploadService.js` is already fully working end-to-end — Email Subscribe uses it successfully. The `assets` R2 bucket already exists. The AI must reuse every existing piece without rebuilding anything. Read every file referenced in this prompt before writing a single line of code.
+
+---
+
+### The Architecture — Six Core Decisions
+
+**Decision 1 — Direct browser-to-R2 upload using existing presigned URL flow.** The file never passes through Supabase servers. The existing `generate-upload-url` and `confirm-upload` Edge Functions already handle this. Zero additional infrastructure for the upload path.
+
+**Decision 2 — Public R2 bucket with unguessable keys for media reads.** Instead of generating presigned GET URLs through an Edge Function every time a user opens a chat, the `assets` bucket is publicly readable via Cloudflare R2 public URL. The key itself contains enough entropy to be unguessable — it includes the user UUID, millisecond timestamp, and 8 random characters. The URL is never discoverable without already having access to the chat message via RLS-protected Supabase queries. This eliminates all Edge Function invocations for media reads entirely. WhatsApp, Telegram, and Discord all use this same approach for media CDN delivery. Security comes from RLS on the message rows that contain the keys, not from URL-level authentication.
+
+**Decision 3 — R2 keys stored in the database, never full URLs.** Store only the R2 object key in the message row. The client constructs the full CDN URL at render time by prepending the public bucket domain from an environment variable. When a file is deleted after 30 days the CDN URL returns a 404 which the client handles gracefully using message metadata, not network requests.
+
+**Decision 4 — R2 lifecycle rules for automatic free-tier deletion.** Free plan uploads go to `chat/temp/[userId]/[timestamp]-[random].[ext]`. Pro plan uploads go to `chat/perm/[userId]/[timestamp]-[random].[ext]`. A single R2 lifecycle rule deletes everything under the `chat/temp/` prefix after 30 days. No application code. No cron jobs. No cleanup Edge Functions. No cleanup tables. The lifecycle rule handles everything for V1.
+
+**Decision 5 — Client-side image compression and thumbnail generation before upload.** Images are compressed and resized client-side using the Canvas API before any upload begins. A phone photo averaging 6MB becomes roughly 300KB after compression to 1500px max width WebP at 0.8 quality. A 200px thumbnail is generated simultaneously for inline chat display. Only images are compressed — videos, documents, and audio are uploaded at original size. Animated GIFs skip compression entirely to preserve animation. Images under 200KB skip compression to avoid quality degradation from Canvas resampling.
+
+**Decision 6 — Each message supports exactly one media attachment.** The file input element has `multiple` set to false. A user can attach one file per message. They can include text alongside the single attachment. Multi-file sharing is explicitly deferred to a future version.
+
+---
+
+### Cloudflare R2 Dashboard Configuration
+
+Three manual configuration steps must be completed in the Cloudflare dashboard before any code runs.
+
+**Step 1 — Enable public access on the assets bucket.**
+
+In Cloudflare R2 dashboard go to the `adgate-assets` bucket then Settings then Public access. Either enable the `R2.dev subdomain` which gives a URL like `https://pub-xxxxxxxxxxxx.r2.dev`, or connect a custom subdomain like `media.hivaapp.com`. A custom subdomain is preferred because it enables the browser `download` attribute to work for same-origin downloads and looks more professional. Record whichever public URL is configured — it goes into the frontend environment variables.
+
+**Step 2 — Add CORS policy to the assets bucket.**
+
+In Cloudflare R2 dashboard go to the `adgate-assets` bucket then Settings then CORS policy. Add a rule with these settings:
+
+Allowed origins: `https://hivaapp.com`, `https://www.hivaapp.com`, `http://localhost:5173`, `http://localhost:3000`
+
+Allowed methods: `GET`, `HEAD`
+
+Allowed headers: `*`
+
+Max age seconds: `86400`
+
+Without this CORS configuration, video elements, audio elements, programmatic blob downloads, and HEAD requests from the frontend will be blocked by the browser. Image tags work without CORS for display but fail for programmatic download. This CORS rule is mandatory.
+
+**Step 3 — Add lifecycle rule for free-tier media deletion.**
+
+In Cloudflare R2 dashboard go to the `adgate-assets` bucket then Settings then Object lifecycle rules then Add rule.
+
+Rule name: `delete-temp-chat-media`
+Prefix filter: `chat/temp/`
+Action: Delete objects after 30 days
+
+This single rule handles all free-plan chat media deletion automatically. No application code is needed.
+
+---
+
+### Frontend Environment Variable
+
+Add to the frontend environment configuration:
+
+```
+VITE_R2_PUBLIC_URL=https://pub-xxxxxxxxxxxx.r2.dev
+```
+
+Replace with the actual public URL from Step 1 above. The client constructs media URLs as `${import.meta.env.VITE_R2_PUBLIC_URL}/${r2Key}` everywhere media is rendered. This is the only configuration the frontend needs.
+
+---
+
+### Database Changes
+
+Run these statements in the Supabase SQL editor. These add media metadata columns to both chat tables. Existing messages are unaffected because all new columns have defaults or allow null.
+
+```sql
+ALTER TABLE public.pairing_messages
+ADD COLUMN IF NOT EXISTS message_type TEXT DEFAULT 'text',
+ADD COLUMN IF NOT EXISTS media_r2_key TEXT,
+ADD COLUMN IF NOT EXISTS media_thumbnail_r2_key TEXT,
+ADD COLUMN IF NOT EXISTS media_original_name TEXT,
+ADD COLUMN IF NOT EXISTS media_mime_type TEXT,
+ADD COLUMN IF NOT EXISTS media_size_bytes BIGINT,
+ADD COLUMN IF NOT EXISTS media_category TEXT,
+ADD COLUMN IF NOT EXISTS is_pro_storage BOOLEAN DEFAULT false;
+
+ALTER TABLE public.direct_messages
+ADD COLUMN IF NOT EXISTS message_type TEXT DEFAULT 'text',
+ADD COLUMN IF NOT EXISTS media_r2_key TEXT,
+ADD COLUMN IF NOT EXISTS media_thumbnail_r2_key TEXT,
+ADD COLUMN IF NOT EXISTS media_original_name TEXT,
+ADD COLUMN IF NOT EXISTS media_mime_type TEXT,
+ADD COLUMN IF NOT EXISTS media_size_bytes BIGINT,
+ADD COLUMN IF NOT EXISTS media_category TEXT,
+ADD COLUMN IF NOT EXISTS is_pro_storage BOOLEAN DEFAULT false;
+```
+
+Column definitions:
+
+`message_type` — one of `text`, `image`, `video`, `document`, `audio`, `mixed`. Default is `text`. A `mixed` message has both text content and a media attachment.
+
+`media_r2_key` — the full R2 object key for the uploaded file. Example: `chat/temp/abc123-uuid/1719384732000-f8a2b9c1.webp`. Null for text-only messages.
+
+`media_thumbnail_r2_key` — the R2 key for the 200px compressed thumbnail. Only populated for image messages. Null for video, document, audio, and text messages.
+
+`media_original_name` — the user's original filename before any compression or renaming. Displayed in the chat UI. Example: `vacation-photo.jpg`.
+
+`media_mime_type` — the MIME type of the original file as selected by the user. Stored for display purposes — showing "JPEG" or "PDF" to the user. Example: `image/jpeg`. This is the original type even if the uploaded file was converted to WebP.
+
+`media_size_bytes` — the size of the original file in bytes before compression. Displayed as formatted file size in the UI.
+
+`media_category` — one of `image`, `video`, `document`, `audio`. Used to determine which renderer to use in the chat bubble. Null for text-only messages.
+
+`is_pro_storage` — true if the file was uploaded under the `chat/perm/` prefix. Used to determine whether to show expiry warnings. False for free plan uploads under `chat/temp/`.
+
+---
+
+### The Image Compression and Thumbnail Utility
+
+Create `src/utils/imageCompressor.js`. This utility runs entirely in the browser using the Canvas API. It is called before any upload begins. It has zero dependencies beyond browser APIs.
+
+Export one function: `compressImageForChat(file)`.
+
+The function returns a Promise that resolves with `{ compressed, thumbnail, skippedCompression }`.
+
+`compressed` is a File object — either the compressed WebP output or the original file if compression was skipped.
+
+`thumbnail` is a File object — the 200px WebP thumbnail. Always generated even if compression is skipped.
+
+`skippedCompression` is a boolean — true if the original file was used instead of the compressed version.
+
+**The compression logic:**
+
+First check if the file is an animated GIF. If `file.type === 'image/gif'` then skip compression entirely. Return the original file as `compressed`, generate only the thumbnail from the first frame (the Canvas API naturally captures only the first frame which is correct for thumbnails), and set `skippedCompression: true`. The original GIF is uploaded as-is to preserve animation.
+
+Next check if the file is under 200KB. If `file.size < 200 * 1024` then skip compression. Return the original file as `compressed`, generate the thumbnail, and set `skippedCompression: true`. Small images are already optimized and Canvas recompression may degrade quality through resampling artifacts.
+
+For all other images proceed with compression:
+
+Load the file into an Image element using `URL.createObjectURL(file)`. Wait for the `onload` event.
+
+Calculate target dimensions for the full compressed version. If the image width exceeds 1500px, scale down proportionally so width is 1500px. If width is 1500px or less, keep original dimensions. Height scales proportionally in both cases.
+
+Create a Canvas element at the calculated dimensions. Draw the image onto the canvas using `drawImage`. Export as WebP at 0.8 quality using `canvas.toBlob('image/webp', 0.8)`. If the browser does not support WebP output (check by verifying the blob type is `image/webp`), fall back to JPEG at 0.85 quality using `canvas.toBlob('image/jpeg', 0.85)`.
+
+Convert the blob to a File object. The filename is the original name with the extension replaced by `.webp` (or `.jpg` for the JPEG fallback).
+
+Compare the compressed file size to the original. If the compressed version is larger than or equal to the original, discard the compressed version and use the original file instead. Set `skippedCompression: true`.
+
+**The thumbnail logic (runs for all images including GIFs and small files):**
+
+Create a second Canvas element. Calculate dimensions so the max width is 200px with proportional height. Draw the image. Export as WebP at 0.7 quality (or JPEG 0.8 fallback). Convert to a File object with `_thumb` appended before the extension.
+
+Clean up the object URL with `URL.revokeObjectURL` after both operations complete.
+
+---
+
+### The `generate-upload-url` Edge Function — Changes
+
+The existing `generate-upload-url` Edge Function needs two additions. Do not modify any existing functionality — only add to it.
+
+**Addition 1 — Support `purpose: 'chat_media'`.**
+
+When `purpose` is `chat_media` in the request body, the Edge Function generates the R2 key under the correct prefix based on the user's plan status. Query the `users` table for the authenticated user's `is_pro` field. If the user is Pro, the key prefix is `chat/perm/`. If the user is free, the key prefix is `chat/temp/`. The full key format is `[prefix][userId]/[timestamp]-[random8chars].[ext]` where timestamp is `Date.now()` and random8chars is 8 random alphanumeric characters.
+
+The response includes an additional field `isPro: boolean` so the frontend knows which storage tier was used and can set `is_pro_storage` correctly on the message row.
+
+**Addition 2 — Support `purpose: 'chat_media_with_thumbnail'`.**
+
+This purpose generates two presigned URLs in a single Edge Function call — one for the full image and one for the thumbnail. This is critical for keeping Edge Function invocation costs low. An image upload with this batched approach costs 2 invocations total (one generate, one confirm) instead of 4.
+
+When `purpose` is `chat_media_with_thumbnail`, the request body includes metadata for both files: `mainFile: { fileName, fileSize, contentType }` and `thumbnailFile: { fileName, fileSize, contentType }`.
+
+The Edge Function generates two R2 keys under the same prefix (both `chat/temp/` or both `chat/perm/` — they always match). It generates two presigned PUT URLs. It creates two rows in the `files` table.
+
+The response includes `mainFileId`, `mainR2Key`, `mainPresignedUrl`, `thumbnailFileId`, `thumbnailR2Key`, `thumbnailPresignedUrl`, and `isPro`.
+
+Both files share the same user ID prefix and same storage tier. The thumbnail key uses the same timestamp and random characters as the main file but with `_thumb` inserted before the extension. Example: main key is `chat/temp/userId/1719384732000-f8a2b9c1.webp`, thumbnail key is `chat/temp/userId/1719384732000-f8a2b9c1_thumb.webp`.
+
+**Server-side file size enforcement:**
+
+When `purpose` is `chat_media` or `chat_media_with_thumbnail`, enforce file size limits based on plan status. Free plan maximum is 10MB (10485760 bytes) per file. Pro plan maximum is 100MB (104857600 bytes) per file. If the file size exceeds the limit, return a 400 response with `error: 'File too large'` and `maxSize: 10485760` or `104857600` and `isPro: false` or `true`. The thumbnail file size is not independently limited — it is always tiny.
+
+All other existing behavior of the Edge Function remains completely unchanged. Existing purposes like the one used by Email Subscribe continue to work identically.
+
+---
+
+### The `confirm-upload` Edge Function — Changes
+
+Add support for confirming two files in a single call when both `mainFileId` and `thumbnailFileId` are present in the request body. The function confirms both files in the `files` table. If only `fileId` is present (the existing field), it confirms one file as before — fully backward compatible.
+
+No other changes. Existing confirm-upload behavior is preserved.
+
+---
+
+### File Size Limits and Validation
+
+File size limits are enforced in two places — client-side before upload and server-side in the Edge Function.
+
+**Client-side validation** happens immediately when the user selects a file from the picker. For images, the size check happens after compression — compare the compressed file size (or original if compression was skipped) against the limit. For all other file types, compare the original file size.
+
+Free plan: 10MB maximum per file.
+Pro plan: 100MB maximum per file.
+
+When a free user selects a file that exceeds 10MB after compression, show an inline error in the composer area: "Files over 10MB require Pro plan." with a small "Upgrade" link. Do not proceed with upload.
+
+**Supported file types** for both plans:
+
+Images: `image/jpeg`, `image/png`, `image/gif`, `image/webp`
+Videos: `video/mp4`, `video/quicktime`, `video/webm`
+Documents: `application/pdf`, `application/vnd.openxmlformats-officedocument.wordprocessingml.document`, `application/vnd.openxmlformats-officedocument.spreadsheetml.sheet`, `application/vnd.openxmlformats-officedocument.presentationml.presentation`, `text/plain`
+Audio: `audio/mpeg`, `audio/mp4`, `audio/wav`
+
+When a user selects an unsupported file type, show an inline error: "This file type is not supported."
+
+---
+
+### The Complete Upload Flow
+
+The upload flow has two paths — one for images and one for everything else.
+
+**Image upload path (2 Edge Function invocations total):**
+
+Step 1 — User selects an image file from the picker.
+
+Step 2 — Client-side validation. Check that the MIME type starts with `image/`. Run `compressImageForChat(file)` to get `{ compressed, thumbnail, skippedCompression }`. Check that `compressed.size` is within the plan limit. If over the limit, show the error and stop.
+
+Step 3 — Show the upload preview card in the composer. Display the thumbnail using `URL.createObjectURL(thumbnail)` as a local preview. Show a progress bar at 0%. Disable the send button.
+
+Step 4 — Call `generate-upload-url` with `purpose: 'chat_media_with_thumbnail'`, passing `mainFile: { fileName: compressed.name, fileSize: compressed.size, contentType: compressed.type }` and `thumbnailFile: { fileName: thumbnail.name, fileSize: thumbnail.size, contentType: thumbnail.type }`. This is invocation 1 of 2. Receive `mainFileId`, `mainR2Key`, `mainPresignedUrl`, `thumbnailFileId`, `thumbnailR2Key`, `thumbnailPresignedUrl`, `isPro`.
+
+Step 5 — Upload both files to R2 in parallel using two XHR PUT requests to the presigned URLs. The Content-Type header for each request must match the actual file content type — `image/webp` for compressed WebP files, `image/gif` for GIFs that skipped compression, etc. Do not use the original MIME type if the file was converted. Track combined progress across both XHRs. Update the progress bar.
+
+Step 6 — When both uploads complete, call `confirm-upload` with `mainFileId` and `thumbnailFileId`. This is invocation 2 of 2. Store `mainFileId` and `thumbnailFileId` in sessionStorage under `pending_chat_uploads` for orphan cleanup.
+
+Step 7 — Upload complete. Show a checkmark on the preview card. Re-enable the send button. The user can now tap Send or type additional text before sending.
+
+**Non-image upload path (2 Edge Function invocations total):**
+
+Step 1 — User selects a non-image file from the picker.
+
+Step 2 — Client-side validation. Check MIME type is in the supported list. Check file size against plan limit. If invalid, show error and stop.
+
+Step 3 — Show the upload preview card. Display a file-type emoji, the filename, and formatted file size. Show progress bar at 0%. Disable send button.
+
+Step 4 — Call `generate-upload-url` with `purpose: 'chat_media'`, passing `fileName`, `fileSize`, `contentType`. Invocation 1 of 2. Receive `fileId`, `r2Key`, `presignedUrl`, `isPro`.
+
+Step 5 — Upload file to R2 via XHR PUT to the presigned URL. Content-Type header matches the file's actual MIME type. Track progress. Update progress bar.
+
+Step 6 — Call `confirm-upload` with `fileId`. Invocation 2 of 2. Store `fileId` in sessionStorage under `pending_chat_uploads`.
+
+Step 7 — Upload complete. Checkmark. Re-enable send button.
+
+**Cancel during upload:**
+
+The user can tap X on the preview card at any time during the upload. This aborts the in-progress XHR requests. If any files were already confirmed, call the existing `delete-file` Edge Function for each file ID (both main and thumbnail if applicable). Clear the preview card. Re-enable the send button. Clear the sessionStorage entry.
+
+---
+
+### Sending The Message
+
+When the user taps Send after a successful upload, the message is inserted into the appropriate Supabase table (`pairing_messages` or `direct_messages`) with these fields:
+
+For image messages with text:
+```
+content: "user's typed text" (or null if no text)
+message_type: "mixed" (if text + image) or "image" (if image only)
+media_r2_key: mainR2Key from upload
+media_thumbnail_r2_key: thumbnailR2Key from upload
+media_original_name: original filename before compression (e.g. "vacation.jpg")
+media_mime_type: original MIME type (e.g. "image/jpeg" even if uploaded as WebP)
+media_size_bytes: original file size before compression
+media_category: "image"
+is_pro_storage: isPro from upload response
+```
+
+For non-image messages with text:
+```
+content: "user's typed text" (or null if no text)
+message_type: "mixed" (if text + file) or the media_category value (if file only)
+media_r2_key: r2Key from upload
+media_thumbnail_r2_key: null
+media_original_name: original filename
+media_mime_type: file MIME type
+media_size_bytes: file size
+media_category: "video" or "document" or "audio"
+is_pro_storage: isPro from upload response
+```
+
+For text-only messages (no attachment):
+```
+content: "user's typed text"
+message_type: "text"
+(all media fields remain null/default)
+```
+
+After the message is successfully inserted, clear the sessionStorage `pending_chat_uploads` entry for the uploaded file IDs. The files are now referenced by a message and are no longer orphans.
+
+Clear the composer — both the text input and the media preview card. The Realtime subscription fires for both participants and the message appears in the chat.
+
+---
+
+### Receiving Messages Via Realtime
+
+The existing Realtime subscription on both `pairing_messages` and `direct_messages` automatically receives new messages including all the new media columns. No changes to the subscription setup are needed — Supabase Realtime delivers all columns of inserted rows.
+
+When a new message arrives via Realtime and it has a non-null `media_r2_key`, the chat renders it using the appropriate media renderer based on `media_category`. The CDN URL is constructed client-side as `${import.meta.env.VITE_R2_PUBLIC_URL}/${media_r2_key}`. No Edge Function call is needed to display received media.
+
+---
+
+### The Message Composer UI Changes
+
+Both the pairing chat composer and the DM chat composer use a single shared `ChatMediaButton` component. This component is placed inside the existing composer bar, to the left of the text input field.
+
+The component renders a paperclip icon button. Tapping it opens the device native file picker via a hidden `<input type="file">` element. The `accept` attribute lists all supported MIME types. The `multiple` attribute is explicitly `false` — one file at a time.
+
+The component receives these props from the parent composer:
+- `onFileSelected(file)` — callback when a valid file is selected
+- `disabled` — true when an upload is already in progress
+- `userIsPro` — boolean to determine file size limits
+
+The upload preview card renders above the text input area in the composer when a file is being uploaded or is ready to send. It shows:
+- For images: the local thumbnail preview (from createObjectURL), the original filename, compressed size
+- For other files: a file-type emoji (📄 for documents, 🎵 for audio, 🎬 for video), the filename, the file size
+- During upload: a horizontal progress bar filling left to right
+- After upload: a green checkmark replacing the progress bar
+- An X button in the top right corner to cancel/remove the attachment
+
+The text input remains functional while an upload is in progress. The user can type text while the file uploads. However the send button is disabled until the upload completes. When both the text input has content and the upload is complete, tapping send sends a `mixed` type message with both text and media.
+
+---
+
+### How Media Messages Render In Chat
+
+Create a set of media renderer components used by both the pairing chat and DM chat message lists. These are shared components.
+
+**Constructing the CDN URL — used by all renderers:**
+
+```
+const cdnUrl = `${import.meta.env.VITE_R2_PUBLIC_URL}/${message.media_r2_key}`
+const thumbnailUrl = message.media_thumbnail_r2_key
+  ? `${import.meta.env.VITE_R2_PUBLIC_URL}/${message.media_thumbnail_r2_key}`
+  : null
+```
+
+**Image messages (`media_category === 'image'`):**
+
+Display the thumbnail inline in the chat bubble using `thumbnailUrl` as the `<img>` `src`. Set `loading="lazy"` on the img element. The image container has a max width of 240px. Height scales proportionally using `object-fit: contain`. Rounded corners matching the chat bubble style.
+
+If `thumbnailUrl` is null (for GIFs or any image where thumbnail generation was skipped), use the full `cdnUrl` as the inline display with the same sizing constraints.
+
+Tapping the image opens a full-screen lightbox overlay. The lightbox loads the full image from `cdnUrl`. It has a dark semi-transparent backdrop, the image centered and scaled to fit the viewport, a close button (X) in the top-right corner, and a download button in the bottom or top bar.
+
+For GIF images specifically, the inline display uses the full `cdnUrl` (not the thumbnail) so the animation plays in the chat.
+
+**Video messages (`media_category === 'video'`):**
+
+Display a dark rounded rectangle 240px wide and 160px tall with a centered white play button circle overlay. Below the rectangle show `media_original_name` truncated to 24 characters with ellipsis, and the formatted `media_size_bytes` in gray text.
+
+Tapping opens a full-screen modal with a native HTML5 `<video>` element. The `src` is the full `cdnUrl`. Include `controls`, `playsinline`, and `preload="metadata"` attributes. The video streams directly from R2 public CDN. A close button (X) is in the top-right corner.
+
+**Document messages (`media_category === 'document'`):**
+
+Display as a horizontal file card inside the chat bubble. Left side shows a file-type emoji: 📄 for PDF, 📝 for DOCX/TXT, 📊 for XLSX, 📊 for PPTX. Right side shows `media_original_name` truncated with ellipsis and formatted `media_size_bytes` below in smaller gray text. A download icon button on the far right.
+
+Tapping the download button triggers a programmatic download: fetch the file as a blob from the `cdnUrl`, create a temporary object URL using `URL.createObjectURL(blob)`, create a temporary `<a>` element with `href` set to the object URL and `download` attribute set to `media_original_name`, click the anchor programmatically, then revoke the object URL with `URL.revokeObjectURL`. This approach works reliably for cross-origin downloads where the HTML `download` attribute alone is ignored by browsers.
+
+**Audio messages (`media_category === 'audio'`):**
+
+Display a compact inline audio player inside the chat bubble. Use a native HTML5 `<audio>` element with `controls` and `preload="metadata"`. The `src` is the full `cdnUrl`. Style the audio element to be compact — roughly 240px wide. Show `media_original_name` in small text above the player.
+
+**Mixed messages (`message_type === 'mixed'`):**
+
+Render the text content above the media attachment within the same chat bubble. The text appears first, then the appropriate media renderer below it, all inside a single bubble container with shared background and border radius.
+
+**Text-only messages (`message_type === 'text'`):**
+
+Render exactly as they do now. No changes to existing text message rendering.
+
+---
+
+### Expired Media Handling
+
+When `is_pro_storage` is false and the message `created_at` is older than 30 days, the R2 object has been deleted by the lifecycle rule. The CDN URL returns a 404.
+
+**Do not make any network request to detect expiry.** Use a pure client-side timestamp check:
+
+```
+const daysSinceCreated = Math.floor(
+  (Date.now() - new Date(message.created_at).getTime()) / (1000 * 60 * 60 * 24)
+)
+const isExpired = !message.is_pro_storage && daysSinceCreated >= 30
+const daysRemaining = 30 - daysSinceCreated
+```
+
+If `isExpired` is true, do not render the media element at all. Instead render a gray placeholder:
+
+A rounded gray box 240px wide, 80px tall. Inside it show the file-type emoji, `media_original_name` in 13px text, and "File no longer available" in 12px gray text below. This placeholder preserves the message in the conversation history — only the file bytes are gone.
+
+If `isExpired` is false but the `<img>` or `<video>` or `<audio>` element fires an `onError` event, this indicates a transient network error (not expiry since we already checked the timestamp). Show a small "Failed to load — Tap to retry" text. Tapping it resets the `src` attribute to trigger a reload.
+
+For Pro users (`is_pro_storage: true`), never show expiry warnings or expired placeholders. Pro files persist indefinitely.
+
+---
+
+### The Expiry Warning Banner and Per-Message Indicators
+
+**Chat-level banner:**
+
+For free plan users, show a small informational banner at the top of the chat area:
+
+"📎 Media is stored for 30 days on the free plan. Upgrade to Pro for permanent storage."
+
+This banner only renders if the current chat contains at least one message where `is_pro_storage === false` AND `media_r2_key !== null`. It does not appear for Pro users. It does not appear in text-only chats with no media messages.
+
+The banner is dismissible — the user can tap X to close it. Store the dismissal in localStorage per chat ID so it does not reappear in the same chat. It may reappear in a different chat.
+
+**Per-message expiry indicator:**
+
+For each media message where `is_pro_storage === false` and the message is not yet expired, show a subtle line of text below the media rendering:
+
+If `daysRemaining > 7`: show "Expires in X days" in 11px gray text.
+If `daysRemaining <= 7 && daysRemaining > 0`: show "Expires in X days" in 11px amber/orange text.
+If `daysRemaining <= 0`: the expired placeholder is shown instead (handled by the expiry logic above) so this indicator is never rendered for expired messages.
+
+Do not show any expiry indicator for Pro storage messages.
+
+---
+
+### Orphaned Upload Cleanup
+
+Uploads can become orphaned when the browser crashes, the tab is closed, or the user navigates away after uploading but before sending the message. The files exist in R2 and the `files` table but are never referenced by any message.
+
+**Client-side cleanup on component mount:**
+
+When the chat component mounts, check sessionStorage for any entries under `pending_chat_uploads`. For each pending file ID found, check if more than 5 minutes have elapsed since the upload started (store the timestamp alongside the file ID). If so, call the existing `delete-file` Edge Function for each stale file ID to clean up R2 and the `files` table. Remove the sessionStorage entries.
+
+**Client-side cleanup on navigate-away:**
+
+When the chat component unmounts (user navigates to a different page) and there are pending uploads that were completed but the message was never sent, call `delete-file` for each pending file ID. Clear sessionStorage entries. This handles the case where a user uploads a file, decides not to send it, and navigates away without explicitly canceling.
+
+**Lifecycle rule as safety net:**
+
+For free users, any orphaned uploads under `chat/temp/` are automatically deleted after 30 days by the R2 lifecycle rule regardless of whether the client-side cleanup ran. For Pro users, orphaned files under `chat/perm/` persist indefinitely. Accept this for V1 — Pro orphans are rare and small. A server-side orphan scan can be added in V2 if needed.
+
+---
+
+### Content-Type Headers
+
+When uploading files to R2 via presigned PUT URLs, the Content-Type header in the XHR request must match the actual content of the file being uploaded, not the original file's MIME type.
+
+For images that were compressed to WebP: the Content-Type header is `image/webp`.
+For images that were compressed to JPEG (fallback): the Content-Type header is `image/jpeg`.
+For GIFs that skipped compression: the Content-Type header is `image/gif`.
+For small images that skipped compression: the Content-Type header is whatever the original file's type is.
+For all non-image files: the Content-Type header matches `file.type`.
+
+The `media_mime_type` column in the database stores the **original** MIME type from the user's file picker (e.g. `image/jpeg`) for display purposes. The R2 object is stored with the **actual** content type (e.g. `image/webp`) for correct browser rendering. These may differ and that is intentional.
+
+---
+
+### What The AI Must Not Do
+
+Must not build a `get-chat-media-urls` Edge Function. The public R2 bucket eliminates the need for server-side URL generation for reads entirely. Media reads are direct CDN requests at zero cost with zero Edge Function invocations.
+
+Must not store presigned GET URLs or full CDN URLs in the database. Only R2 keys are stored. CDN URLs are constructed client-side by prepending the environment variable.
+
+Must not block chat loading while fetching media. Text messages load immediately from Supabase via the existing Realtime subscription and initial query. Media renders progressively as images and videos load from the public CDN using native browser lazy loading.
+
+Must not upload the original uncompressed image when compression produced a smaller file. Always upload the compressed version. The original file is never sent to R2 unless compression was skipped (GIFs, small images, or when compression increased file size).
+
+Must not apply compression to videos, documents, or audio. Only images go through the Canvas compression pipeline.
+
+Must not build the `media_cleanup_queue` table, the post-challenge cleanup database trigger, the `schedule_chat_media_cleanup` PostgreSQL function, or the `process-media-cleanup` Edge Function. All of this infrastructure is explicitly deferred to V2. The R2 lifecycle rule handles everything for V1.
+
+Must not generate per-session authentication tokens or presigned URLs for media reads. Security comes from RLS on the Supabase message rows that contain the R2 keys. Only conversation participants can see the keys. The keys themselves are unguessable.
+
+Must not load the full compressed image as the inline chat thumbnail. Always use `media_thumbnail_r2_key` for inline display in the chat list. The full image from `media_r2_key` only loads when the user opens the lightbox. Exception: animated GIFs where the full URL is used inline to preserve animation.
+
+Must not allow the upload of a file to block the text input. The user can type text while a file is uploading. Only the send button is disabled until upload completes.
+
+Must not allow multiple file attachments on a single message. The file input has `multiple` set to false. One file per message.
+
+Must not make network requests (HEAD, GET, or otherwise) to detect expired media. Use the client-side timestamp calculation comparing `created_at` against 30 days.
+
+Must not build a new upload service. Reuse the existing `uploadFile` function and `uploadService.js` patterns. Adapt them for the batched thumbnail flow but do not create a parallel upload infrastructure.
+
+Must not use the HTML anchor `download` attribute alone for cross-origin file downloads. Use the programmatic blob download approach (fetch blob, createObjectURL, click temporary anchor, revokeObjectURL) which works reliably across all browsers for cross-origin resources.

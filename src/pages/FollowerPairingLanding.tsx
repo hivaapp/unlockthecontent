@@ -54,7 +54,7 @@ export const FollowerPairingLanding = () => {
       {/* Nav */}
       <nav className="w-full h-[58px] bg-white flex items-center justify-between px-4 shrink-0" style={{ borderBottom: '1px solid #F0F0F0' }}>
         <Link to="/" className="flex items-center gap-1.5">
-          <span className="font-[900] text-[15px] tracking-tight text-[#111]">AdGate</span>
+          <span className="font-[900] text-[15px] tracking-tight text-[#111]">UnlockTheContent</span>
         </Link>
         <Link to="/" className="text-[14px] font-[700] text-[#E8312A] hover:underline">Sign in</Link>
       </nav>

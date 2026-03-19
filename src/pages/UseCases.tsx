@@ -79,7 +79,7 @@ const CARDS = [
         headerEmoji: "👥", headerTitle: "Developer Audience",
         badge: "👥 Social Follow", badgeColor: "#2563EB",
         creatorType: "Developer / Technical creator",
-        desc: "You built a useful script, a configuration file, a prompt template, or a code snippet that other developers want. Share it through AdGate with a YouTube or Twitter follow gate. Every developer who downloads your tool sees your handle and what content you create. The ones who follow are specifically interested in your technical work. Over time your channel grows with an audience that actively seeks developer tools and tutorials.",
+        desc: "You built a useful script, a configuration file, a prompt template, or a code snippet that other developers want. Share it through UnlockTheContent with a YouTube or Twitter follow gate. Every developer who downloads your tool sees your handle and what content you create. The ones who follow are specifically interested in your technical work. Over time your channel grows with an audience that actively seeks developer tools and tutorials.",
         uploads: ["💾 Scripts", "⚙️ Config files", "📦 CLI tools", "🧩 Prompt templates"],
         valueLabel: "Real value:",
         valueStmt: "Developer audiences on YouTube and Twitter convert technical content to course and tool purchases at higher rates than general audiences. 300 developer followers per month compounding over six months is 1,800 highly targeted followers — a meaningful foundation for selling a technical course, a SaaS tool, or a premium template pack.",
@@ -91,7 +91,7 @@ const CARDS = [
         headerEmoji: "🤝", headerTitle: "Accountability Community",
         badge: "🤝 Accountability", badgeColor: "#B45309",
         creatorType: "Fitness / Wellness coach",
-        desc: "Your audience's problem is not knowledge — they know what to eat and how to exercise. Their problem is consistency. A 14-day morning routine accountability challenge on AdGate pairs your audience members with each other for daily check-ins. You set the topic, the commitment prompt, the duration, and the guidelines. Your audience does the rest. You build a reputation as someone who helps people actually follow through — which is far more valuable than being another source of information.",
+        desc: "Your audience's problem is not knowledge — they know what to eat and how to exercise. Their problem is consistency. A 14-day morning routine accountability challenge on UnlockTheContent pairs your audience members with each other for daily check-ins. You set the topic, the commitment prompt, the duration, and the guidelines. Your audience does the rest. You build a reputation as someone who helps people actually follow through — which is far more valuable than being another source of information.",
         uploads: [], noFileNote: "📋 No file upload needed for this type",
         valueLabel: "Community value:",
         valueStmt: "A creator running a 14-day challenge with 60 participants forms 30 active pairs. Each pair exchanges at least one message per day for 14 days — that is 420 check-ins happening in your challenge community without you facilitating any of them. Participants who complete the challenge associate the result with your brand. They become your most vocal advocates.",
@@ -171,7 +171,7 @@ export const UseCases = () => {
     const [highlightedCard, setHighlightedCard] = useState<string | null>(null);
 
     useEffect(() => {
-        document.title = "AdGate Use Cases — Building Real Audiences";
+        document.title = "UnlockTheContent Use Cases — Building Real Audiences";
     }, []);
 
     const scrollToCard = (id: string, activateFilters?: string[]) => {
@@ -201,9 +201,7 @@ export const UseCases = () => {
                     ✦ Creator Use Cases
                 </div>
 
-                <h1 className="text-[26px] md:text-[36px] font-[900] text-[#111] leading-[1.25] text-center mb-4 max-w-[800px]">
-                    How creators use AdGate to build real audiences.
-                </h1>
+                <h1 className="text-[32px] lg:text-[48px] font-black text-text leading-[1.2] mb-6">How creators use UnlockTheContent</h1>
 
                 <p className="text-[15px] font-[600] text-[#666] leading-[1.6] text-center max-w-[480px] mb-8">
                     Four unlock types. Seven creator scenarios. One platform.
@@ -384,7 +382,7 @@ export const UseCases = () => {
                         Your best work deserves more than free.
                     </h2>
                     <p className="text-[14px] font-[600] text-[#555] leading-[1.75] max-w-[480px] mb-6">
-                        Photos, videos, raw files, extended cuts, behind-the-scenes content — you create media that your most engaged audience actively seeks. AdGate lets you lock it behind any unlock type you choose. Email subscribe to build your list. Social follow to grow your audience. Custom sponsor to earn from a brand deal on your most valuable content.
+                        Photos, videos, raw files, extended cuts, behind-the-scenes content — you create media that your most engaged audience actively seeks. UnlockTheContent lets you lock it behind any unlock type you choose. Email subscribe to build your list. Social follow to grow your audience. Custom sponsor to earn from a brand deal on your most valuable content.
                     </p>
                     <div className="flex flex-col sm:flex-row gap-4">
                         <button onClick={() => scrollToCard('card-9', ['premium'])} className="px-[24px] h-[36px] rounded-[14px] border-[1.5px] border-[#E8312A] text-[#E8312A] text-[13px] font-[700] hover:bg-[#FFF0EF] transition-colors min-w-[120px] shrink-0">
@@ -481,9 +479,9 @@ export const UseCases = () => {
                 <div className="w-full max-w-[800px] flex flex-col md:flex-row justify-between items-center gap-6">
                     <div className="flex items-center gap-2 opacity-80">
                         <div className="w-[24px] h-[24px] rounded-[8px] bg-[#21201C] text-white flex items-center justify-center font-[900] text-[10px] leading-none shrink-0">
-                            AG
+                            UC
                         </div>
-                        <span className="font-[900] text-[16px] tracking-tight text-[#21201C]">AdGate</span>
+                        <span className="font-[900] text-[16px] tracking-tight text-[#21201C]">UnlockTheContent</span>
                     </div>
 
                     <div className="flex items-center gap-6 text-[13px] font-[700] text-[#6B6860]">
@@ -494,10 +492,11 @@ export const UseCases = () => {
                     </div>
 
                     <div className="text-[12px] font-[700] text-[#AAA49C]">
-                        © {new Date().getFullYear()} AdGate Inc. All rights reserved.
+                        © {new Date().getFullYear()} UnlockTheContent Inc. All rights reserved.
                     </div>
                 </div>
             </footer>
         </div>
     );
 };
+

@@ -62,6 +62,8 @@ const FULL_LINK_SELECT = `
   slug,
   title,
   description,
+  text_content,
+  content_links,
   mode,
   unlock_type,
   youtube_url,
@@ -88,6 +90,7 @@ const FULL_LINK_SELECT = `
     confirmation_message,
     unlock_text,
     unlock_url,
+    unlock_url_label,
     platform,
     platform_display_name
   ),
@@ -97,6 +100,7 @@ const FULL_LINK_SELECT = `
     follow_description,
     unlock_text,
     unlock_url,
+    unlock_url_label,
     follow_targets (
       id,
       type,
@@ -119,6 +123,7 @@ const FULL_LINK_SELECT = `
     skip_after_seconds,
     unlock_text,
     unlock_url,
+    unlock_url_label,
     video_file:files (
       id,
       original_name,
@@ -146,6 +151,12 @@ const FULL_LINK_SELECT = `
     completion_asset:completion_assets (
       id,
       unlock_message,
+      resource_title,
+      resource_description,
+      bonus_message,
+      links,
+      additional_links,
+      youtube_url,
       file:files (
         id,
         original_name,
@@ -158,6 +169,11 @@ const FULL_LINK_SELECT = `
       day_number,
       send_time,
       content,
+      links,
+      youtube_url,
+      link_url,
+      link_label,
+      sort_order,
       is_sent,
       sent_at,
       delivered_count
@@ -352,6 +368,8 @@ export const createLink = async (creatorId, linkData) => {
   const {
     title,
     description,
+    textContent,
+    contentLinks,
     mode,
     unlockType,
     fileId,
@@ -375,6 +393,8 @@ export const createLink = async (creatorId, linkData) => {
       slug,
       title,
       description:   description || null,
+      text_content:  textContent || null,
+      content_links: contentLinks && contentLinks.length > 0 ? contentLinks : [],
       mode,
       unlock_type:   mode === 'follower_pairing' ? null : unlockType,
       file_id:       fileId || null,
@@ -401,6 +421,7 @@ export const createLink = async (creatorId, linkData) => {
           confirmation_message:   emailConfig.confirmationMessage || null,
           unlock_text:            emailConfig.unlockText || null,
           unlock_url:             emailConfig.unlockUrl || null,
+          unlock_url_label:       emailConfig.unlockUrlLabel || null,
           platform:               emailConfig.platform || 'direct',
           platform_display_name:  emailConfig.platformDisplayName || null,
         })
@@ -417,6 +438,7 @@ export const createLink = async (creatorId, linkData) => {
           follow_description: socialConfig.followDescription || null,
           unlock_text:        socialConfig.unlockText || null,
           unlock_url:         socialConfig.unlockUrl || null,
+          unlock_url_label:   socialConfig.unlockUrlLabel || null,
         })
         .select('id')
         .single()
@@ -457,6 +479,7 @@ export const createLink = async (creatorId, linkData) => {
           skip_after_seconds:  sponsorConfig.skipAfterSeconds || 5,
           unlock_text:         sponsorConfig.unlockText || null,
           unlock_url:          sponsorConfig.unlockUrl || null,
+          unlock_url_label:    sponsorConfig.unlockUrlLabel || null,
         })
       if (error) throw error
     }
@@ -488,7 +511,7 @@ export const createLink = async (creatorId, linkData) => {
         link_id:               link.id,
         topic:                 pairingConfig.topic,
         description:           pairingConfig.description || null,
-        commitment_prompt:     pairingConfig.commitmentPrompt,
+        commitment_prompt:     pairingConfig.commitmentPrompt || "What specific goal will you commit to for this challenge?",
         duration_days:         pairingConfig.durationDays,
         check_in_frequency:    pairingConfig.checkInFrequency || 'daily',
         guidelines:            pairingConfig.guidelines || null,
@@ -504,11 +527,16 @@ export const createLink = async (creatorId, linkData) => {
     
     // Insert scheduled messages if any
     if (pairingConfig.scheduledMessages?.length > 0) {
-      const messages = pairingConfig.scheduledMessages.map(m => ({
+      const messages = pairingConfig.scheduledMessages.map((m, i) => ({
         pairing_config_id: pc.id,
         day_number:        m.dayNumber,
         send_time:         m.sendTime || '09:00:00',
         content:           m.content,
+        links:             m.links || [],
+        youtube_url:       m.youtubeUrl || null,
+        link_url:          m.linkUrl || null,
+        link_label:        m.linkLabel || null,
+        sort_order:        m.sortOrder ?? i,
       }))
       const { error: msgError } = await supabase
         .from('scheduled_messages')
@@ -517,13 +545,24 @@ export const createLink = async (creatorId, linkData) => {
     }
     
     // Insert completion asset if provided
-    if (pairingConfig.completionAsset?.fileId) {
+    const ca = pairingConfig.completionAsset
+    const hasCompletionContent = ca && (
+      ca.enabled || ca.fileId || ca.youtubeUrl || ca.resourceTitle || ca.bonusMessage ||
+      (ca.links?.length || 0) > 0 || (ca.additionalLinks?.length || 0) > 0
+    )
+    if (hasCompletionContent) {
       const { error: caError } = await supabase
         .from('completion_assets')
         .insert({
-          pairing_config_id: pc.id,
-          file_id:           pairingConfig.completionAsset.fileId,
-          unlock_message:    pairingConfig.completionAsset.unlockMessage || null,
+          pairing_config_id:    pc.id,
+          file_id:              ca.fileId || null,
+          unlock_message:       ca.unlockMessage || null,
+          resource_title:       ca.resourceTitle || null,
+          resource_description: ca.resourceDescription || null,
+          bonus_message:        ca.bonusMessage || null,
+          links:                ca.links || [],
+          additional_links:     ca.additionalLinks || [],
+          youtube_url:          ca.youtubeUrl || null,
         })
       if (caError) throw caError
     }
@@ -541,6 +580,8 @@ export const updateLink = async (linkId, creatorId, updates) => {
   const {
     title,
     description,
+    textContent,
+    contentLinks,
     fileId,
     youtubeUrl,
     donateEnabled,
@@ -555,6 +596,8 @@ export const updateLink = async (linkId, creatorId, updates) => {
   const linkUpdates = {}
   if (title !== undefined)         linkUpdates.title = title
   if (description !== undefined)   linkUpdates.description = description || null
+  if (textContent !== undefined)   linkUpdates.text_content = textContent || null
+  if (contentLinks !== undefined)  linkUpdates.content_links = contentLinks || []
   if (fileId !== undefined)        linkUpdates.file_id = fileId || null
   if (youtubeUrl !== undefined)    linkUpdates.youtube_url = youtubeUrl || null
   if (donateEnabled !== undefined) linkUpdates.donate_enabled = donateEnabled
@@ -580,6 +623,7 @@ export const updateLink = async (linkId, creatorId, updates) => {
         confirmation_message:   emailConfig.confirmationMessage || null,
         unlock_text:            emailConfig.unlockText || null,
         unlock_url:             emailConfig.unlockUrl || null,
+        unlock_url_label:       emailConfig.unlockUrlLabel || null,
         platform:               emailConfig.platform || 'direct',
       })
       .eq('link_id', linkId)
@@ -593,6 +637,9 @@ export const updateLink = async (linkId, creatorId, updates) => {
       .update({
         custom_heading:     socialConfig.customHeading || null,
         follow_description: socialConfig.followDescription || null,
+        unlock_text:        socialConfig.unlockText || null,
+        unlock_url:         socialConfig.unlockUrl || null,
+        unlock_url_label:   socialConfig.unlockUrlLabel || null,
       })
       .eq('link_id', linkId)
       .select('id')
@@ -656,21 +703,44 @@ export const updateLink = async (linkId, creatorId, updates) => {
       .single()
     
     if (pc && pairingConfig.scheduledMessages) {
-      // Replace scheduled messages — only replace unsent ones
-      await supabase
+      // Only delete scheduled messages that haven't been delivered to any session
+      // A message is considered delivered if any pairing_messages row references it
+      const { data: existingMsgs } = await supabase
         .from('scheduled_messages')
-        .delete()
+        .select('id')
         .eq('pairing_config_id', pc.id)
-        .eq('is_sent', false)
       
+      if (existingMsgs && existingMsgs.length > 0) {
+        // Check which messages have been delivered
+        const { data: deliveredRefs } = await supabase
+          .from('pairing_messages')
+          .select('scheduled_message_id')
+          .in('scheduled_message_id', existingMsgs.map(m => m.id))
+          .eq('message_type', 'scheduled')
+        
+        const deliveredIds = new Set((deliveredRefs || []).map(r => r.scheduled_message_id))
+        const deletableIds = existingMsgs.filter(m => !deliveredIds.has(m.id)).map(m => m.id)
+        
+        if (deletableIds.length > 0) {
+          await supabase
+            .from('scheduled_messages')
+            .delete()
+            .in('id', deletableIds)
+        }
+      }
+      
+      // Insert new/updated messages that don't already exist as delivered
       const unsent = pairingConfig.scheduledMessages.filter(m => !m.isSent)
       if (unsent.length > 0) {
         await supabase.from('scheduled_messages').insert(
-          unsent.map(m => ({
+          unsent.map((m, i) => ({
             pairing_config_id: pc.id,
             day_number:        m.dayNumber,
             send_time:         m.sendTime || '09:00:00',
             content:           m.content,
+            links:             m.links || [],
+            youtube_url:       m.youtubeUrl || null,
+            sort_order:        i,
           }))
         )
       }
@@ -678,13 +748,18 @@ export const updateLink = async (linkId, creatorId, updates) => {
     
     // Update completion asset
     if (pairingConfig.completionAsset !== undefined) {
-      if (pairingConfig.completionAsset?.fileId) {
+      const ca = pairingConfig.completionAsset;
+      if (ca.enabled && (ca.fileId || ca.youtubeUrl || (ca.links?.length || 0) > 0)) {
         await supabase
           .from('completion_assets')
           .upsert({
             pairing_config_id: pc.id,
-            file_id:           pairingConfig.completionAsset.fileId,
-            unlock_message:    pairingConfig.completionAsset.unlockMessage || null,
+            file_id:           ca.fileId || null,
+            unlock_message:    ca.unlockMessage || null,
+            links:             ca.links || [],
+            youtube_url:       ca.youtubeUrl || null,
+            resource_title:    ca.resourceTitle || null,
+            resource_description: ca.resourceDescription || null,
           }, { onConflict: 'pairing_config_id' })
       } else {
         // Completion asset removed
@@ -762,7 +837,7 @@ export const trackLinkView = async (linkId, sessionKey, viewerId = null) => {
     .select('id')
     .eq('link_id', linkId)
     .eq('session_key', sessionKey)
-    .gte('created_at', new Date(Date.now() - 30 * 60 * 1000).toISOString())
+    .gte('created_at', new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString())
     .maybeSingle()
   
   if (recent) return  // already counted

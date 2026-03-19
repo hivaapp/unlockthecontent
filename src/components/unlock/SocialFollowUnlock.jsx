@@ -13,6 +13,7 @@ import {
 } from '../../services/socialFollowService'
 import { getFileEmoji, formatFileSize } from '../../services/uploadService'
 import { socialIcons } from '../../assets/socialIcons'
+import { getYoutubeEmbedUrl } from '../../lib/utils'
 
 const SocialFollowUnlock = ({ link, currentUser, isLoggedIn, sessionKey, onUnlockSuccess }) => {
   const navigate = useNavigate()
@@ -98,123 +99,208 @@ const SocialFollowUnlock = ({ link, currentUser, isLoggedIn, sessionKey, onUnloc
 
   if (screen === 'already_unlocked') {
     return (
-      <div className="w-full">
-        <div className="bg-successBg border border-success/20 rounded-xl p-4 mb-4 text-center">
-          <div className="text-xl mb-1">✅</div>
-          <h3 className="text-success font-black mb-1">Already unlocked</h3>
-          <p className="text-[12px] text-success/80 mb-3 leading-relaxed">
-            You already followed all accounts.
-          </p>
-          <button
-            onClick={handleUnlock}
-            disabled={isUnlocking}
-            className="w-full h-10 bg-success text-white rounded-xl text-sm font-black flex items-center justify-center gap-2"
-          >
-            {isUnlocking ? 'Loading...' : 'Access Content →'}
-          </button>
+      <div className="w-full flex flex-col items-center">
+        <div className="w-16 h-16 bg-successBg rounded-full flex items-center justify-center text-3xl mb-4 border border-success/20">
+          ✅
         </div>
+        <h2 className="text-2xl font-black text-text mb-2 text-center">
+          Already unlocked
+        </h2>
+        <p className="text-[14px] text-textMid text-center mb-8 max-w-[280px]">
+          You already followed all accounts.
+        </p>
+        <button
+          onClick={handleUnlock}
+          disabled={isUnlocking}
+          className="w-full h-12 bg-success hover:bg-success/90 text-white rounded-xl text-[15px] font-black flex items-center justify-center gap-2 max-w-[340px] transition-all shadow-sm"
+        >
+          {isUnlocking ? 'Loading...' : 'Access Content →'}
+        </button>
       </div>
     )
   }
 
   if (screen === 'unlocked') {
     return (
-      <div className="w-full animate-pop-in">
-        <div className="text-center mb-4">
-          <div className="text-3xl mb-1">🎉</div>
-          <h2 className="text-lg font-black text-text mb-0.5">Content unlocked!</h2>
-          <p className="text-[12px] text-textMid">Enjoy your resource.</p>
+      <div className="w-full flex flex-col items-center animate-pop-in">
+        <div className="w-16 h-16 bg-successBg rounded-full flex items-center justify-center text-3xl mb-4 border border-success/20">
+          🎉
         </div>
+        
+        <h2 className="text-2xl font-black text-text mb-2 text-center">
+          Content unlocked!
+        </h2>
+        
+        <p className="text-[14px] text-textMid text-center mb-8">
+          Enjoy your resource.
+        </p>
 
-        {file && (
-          <div className="bg-white border border-border rounded-xl p-4 mb-4">
-            <div className="flex items-center gap-4 mb-4">
-              <div className="w-12 h-12 rounded-lg bg-surfaceAlt flex items-center justify-center text-2xl">
-                {getFileEmoji(file.original_name, file.mime_type)}
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="text-sm font-black text-text truncate">{link.title}</div>
-                <div className="text-[11px] text-textLight font-bold">
-                  {file.original_name} · {formatFileSize(file.size_bytes)}
-                </div>
-              </div>
+        <div className="w-full max-w-[400px] flex flex-col gap-6">
+          {socialConfig?.unlock_text && (
+            <div className="text-center">
+              <p className="text-[15px] font-[500] text-text leading-relaxed whitespace-pre-wrap">
+                {socialConfig.unlock_text}
+              </p>
             </div>
-            <button
-              onClick={handleDownload}
-              disabled={!downloadUrl}
-              className={`w-full h-12 rounded-xl text-sm font-black flex items-center justify-center gap-2 transition-all ${
-                downloadStarted ? 'bg-success text-white' : !downloadUrl ? 'bg-border text-textLight' : 'bg-brand text-white'
-              }`}
-            >
-              {!downloadUrl ? 'Preparing...' : downloadStarted ? '✅ Downloaded' : '⬇️ Download Now'}
-            </button>
-          </div>
-        )}
+          )}
 
-        {socialConfig?.unlock_url && (
+          {link.text_content && (
+            <div className="w-full bg-surfaceAlt rounded-xl p-4 border border-border">
+              <p className="text-[14px] font-medium text-text leading-relaxed whitespace-pre-wrap">
+                {link.text_content}
+              </p>
+            </div>
+          )}
+
+          {link.content_links && link.content_links.length > 0 && (
+            <div className="w-full flex flex-col gap-2">
+              {link.content_links.map((cl, idx) => {
+                const getDomainInitial = (url) => {
+                  try { return new URL(url).hostname.replace(/^www\./, '').charAt(0).toUpperCase(); } catch { return '?'; }
+                };
+                const getDomainColor = (url) => {
+                  const colors = ['#E8312A', '#4F46E5', '#0EA5E9', '#10B981', '#F59E0B', '#8B5CF6', '#EC4899'];
+                  let hash = 0;
+                  for (let i = 0; i < url.length; i++) hash = url.charCodeAt(i) + ((hash << 5) - hash);
+                  return colors[Math.abs(hash) % colors.length];
+                };
+                const getDomainName = (url) => {
+                  try { return new URL(url).hostname.replace(/^www\./, ''); } catch { return url; }
+                };
+                return (
+                  <a key={idx} href={cl.url} target="_blank" rel="noopener noreferrer"
+                    className="w-full h-[52px] bg-white rounded-[12px] border border-border flex items-center px-3 gap-3 no-underline hover:bg-surfaceAlt transition-colors"
+                  >
+                    <div className="w-[32px] h-[32px] rounded-[6px] flex items-center justify-center text-white font-[900] text-[14px] shrink-0"
+                      style={{ backgroundColor: getDomainColor(cl.url) }}
+                    >
+                      {getDomainInitial(cl.url)}
+                    </div>
+                    <div className="flex flex-col min-w-0 flex-1">
+                      <span className="text-[13px] font-[800] text-text truncate leading-tight">{cl.title || getDomainName(cl.url)}</span>
+                      <span className="text-[11px] text-textLight truncate leading-tight">{getDomainName(cl.url)}</span>
+                    </div>
+                  </a>
+                );
+              })}
+            </div>
+          )}
+
+          {link.youtube_url && (
+            <div className="w-full aspect-video rounded-xl overflow-hidden border border-border shadow-sm">
+              <iframe
+                src={getYoutubeEmbedUrl(link.youtube_url)}
+                className="w-full h-full border-none"
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                allowFullScreen
+                title="YouTube video player"
+              />
+            </div>
+          )}
+
+          {socialConfig?.unlock_url && (
             <a
               href={socialConfig.unlock_url}
               target="_blank"
               rel="noopener noreferrer"
-              className="w-full h-12 bg-text text-white rounded-xl text-sm font-black flex items-center justify-center gap-2 no-underline"
+              className="w-full h-12 bg-white border border-border text-text rounded-xl text-sm font-black flex items-center justify-center gap-2 hover:bg-surfaceAlt transition-colors no-underline shadow-sm"
             >
-              Access Resource →
+              {socialConfig.unlock_url_label || 'Access Link'} →
             </a>
-        )}
+          )}
+
+          {file && (
+            <div className="w-full flex items-center justify-between py-3 border-t border-border mt-2">
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="text-2xl shrink-0">
+                  {getFileEmoji(file.original_name, file.mime_type)}
+                </div>
+                <div className="flex flex-col min-w-0">
+                  <span className="text-[14px] font-black text-text truncate">
+                    {link.title}
+                  </span>
+                  <span className="text-[12px] text-textLight font-medium">
+                    {formatFileSize(file.size_bytes)}
+                  </span>
+                </div>
+              </div>
+              <button
+                onClick={handleDownload}
+                disabled={!downloadUrl}
+                className={`h-10 px-4 rounded-lg text-[13px] font-bold transition-all shrink-0 ml-4 ${
+                  downloadStarted ? 'bg-success text-white' : !downloadUrl ? 'bg-border text-textLight' : 'bg-brand text-white hover:bg-brandHover shadow-sm'
+                }`}
+              >
+                {!downloadUrl ? 'Wait' : downloadStarted ? 'Got it' : 'Download'}
+              </button>
+            </div>
+          )}
+        </div>
       </div>
     )
   }
 
   return (
-    <div className="w-full">
-      <div className="bg-blue-50 border border-blue-200 rounded-xl p-3 mb-4 flex gap-3 items-start">
-        <span className="text-xl">👥</span>
-        <div>
-          <div className="text-[13px] font-black text-blue-600 leading-tight mb-0.5">
-            {socialConfig?.custom_heading || 'Follow to unlock'}
-          </div>
-          {socialConfig?.follow_description && (
-            <p className="text-[11px] text-blue-600/80 leading-normal">
-              {socialConfig.follow_description}
-            </p>
-          )}
-        </div>
-      </div>
+    <div className="w-full flex flex-col items-center">
 
-      <div className="mb-3">
-        <div className="flex justify-between items-center mb-1 px-1">
-          <span className="text-[10px] font-black text-textMid uppercase tracking-wider">
+      
+      <h2 className="text-2xl font-black text-text mb-3 text-center leading-tight">
+        {socialConfig?.custom_heading || 'Follow to unlock'}
+      </h2>
+      
+      {socialConfig?.follow_description && (
+        <p className="text-[14px] text-textMid text-center max-w-[320px] mb-8 leading-relaxed">
+          {socialConfig.follow_description}
+        </p>
+      )}
+
+      <div className="w-full max-w-[400px]">
+        <div className="flex justify-between items-center mb-2 px-1">
+          <span className="text-[11px] font-black text-textMid uppercase tracking-wider">
             Progress: {visitedCount}/{totalTargets}
           </span>
-          {allVisited && <span className="text-[9px] font-black text-success uppercase tracking-wider">Complete ✓</span>}
+          {allVisited && <span className="text-[11px] font-black text-success uppercase tracking-wider">Complete ✓</span>}
         </div>
-        <div className="h-1.5 bg-surfaceAlt rounded-full overflow-hidden">
+        
+        <div className="h-1.5 bg-surfaceAlt rounded-full overflow-hidden mb-6">
           <div 
-            className={`h-full transition-all duration-500 rounded-full ${allVisited ? 'bg-success' : 'bg-blue-500'}`}
+            className={`h-full transition-all duration-500 rounded-full ${allVisited ? 'bg-success' : 'bg-brand'}`}
             style={{ width: `${progressPercent}%` }}
           />
         </div>
-      </div>
 
-      <div className="flex flex-col gap-2 mb-2">
-        {followTargets.map((target) => (
-          <FollowTargetCard
-            key={target.id}
-            target={target}
-            isVisited={visitedIds.includes(target.id)}
-            onClick={() => handleTargetClick(target)}
-          />
-        ))}
-      </div>
-
-      {isUnlocking && (
-        <div className="text-center py-4">
-          <div className="w-6 h-6 border-2 border-border border-t-blue-500 rounded-full animate-spin inline-block" />
-          <p className="text-[11px] font-bold text-textMid mt-2">Unlocking...</p>
+        <div className="flex flex-col gap-0 mb-6 border-t border-border">
+          {followTargets.map((target) => (
+            <FollowTargetCard
+              key={target.id}
+              target={target}
+              isVisited={visitedIds.includes(target.id)}
+              onClick={() => handleTargetClick(target)}
+            />
+          ))}
         </div>
-      )}
 
-      {error && <div className="bg-errorBg text-error text-[11px] font-bold p-3 rounded-lg mb-4 text-center">{error}</div>}
+        <button
+          onClick={handleUnlock}
+          disabled={!allVisited || isUnlocking}
+          className={`w-full h-12 rounded-xl text-[15px] font-black flex items-center justify-center gap-2 transition-all shadow-sm ${
+            allVisited 
+              ? 'bg-brand hover:bg-brandHover text-white active:scale-[0.98]' 
+              : 'bg-surfaceAlt text-textLight cursor-not-allowed hidden'
+          }`}
+        >
+          {isUnlocking ? (
+            <>
+              <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+              Unlocking...
+            </>
+          ) : (
+            'Continue to Resource →'
+          )}
+        </button>
+
+        {error && <p className="text-[12px] font-bold text-error mt-4 text-center">{error}</p>}
+      </div>
     </div>
   )
 }
@@ -227,15 +313,13 @@ const FollowTargetCard = ({ target, isVisited, onClick }) => {
   return (
     <button
       onClick={onClick}
-      className={`w-full h-14 flex items-center gap-3 px-3 rounded-xl border transition-all text-left ${
-        isVisited ? 'bg-successBg border-success/20' : 'bg-white border-border hover:border-brand/50'
-      }`}
+      className="w-full h-16 flex items-center gap-4 py-2 border-b border-border transition-colors text-left bg-transparent hover:bg-surfaceAlt group"
     >
-      <div className={`w-9 h-9 rounded-lg flex items-center justify-center transition-colors overflow-hidden ${
-        isVisited ? 'bg-success/10' : 'bg-surfaceAlt'
+      <div className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors shrink-0 ${
+        isVisited ? 'bg-success/10 text-success' : 'bg-surfaceAlt text-textMid group-hover:bg-white border border-border/50'
       }`}>
         {isVisited ? (
-          <span className="text-lg">✅</span>
+          <span className="text-lg">✓</span>
         ) : (target.type === 'platform' && socialIcons[target.platform]) ? (
           <img 
             src={socialIcons[target.platform]} 
@@ -246,20 +330,18 @@ const FollowTargetCard = ({ target, isVisited, onClick }) => {
           <span className="text-lg">{icon}</span>
         )}
       </div>
-      <div className="flex-1 min-w-0">
-        <div className={`text-[13px] font-black truncate ${isVisited ? 'text-success' : 'text-text'}`}>
+      <div className="flex-1 min-w-0 flex flex-col justify-center">
+        <div className={`text-[14px] font-[700] truncate ${isVisited ? 'text-textMid line-through' : 'text-text'}`}>
           {label}
         </div>
-        {target.instruction_text && (
-          <div className="text-[10px] font-bold text-textLight truncate opacity-80">
+        {target.instruction_text && !isVisited && (
+          <div className="text-[12px] font-medium text-textLight truncate">
             {target.instruction_text}
           </div>
         )}
       </div>
-      <div className={`w-7 h-7 rounded-lg flex items-center justify-center text-xs transition-all ${
-        isVisited ? 'bg-success text-white' : 'bg-surfaceAlt text-textLight'
-      }`}>
-        {isVisited ? '✓' : '→'}
+      <div className="w-8 h-8 flex items-center justify-end text-textLight transition-colors shrink-0">
+        {isVisited ? null : <span className="text-lg group-hover:text-text transition-colors">↗</span>}
       </div>
     </button>
   )

@@ -104,16 +104,45 @@ export const createConversation = async (requestId: string, participantAId: stri
   return data;
 };
 
-export const sendMessage = async (conversationId: string, senderId: string, content: string, isOpeningMessage = false) => {
+export const sendMessage = async (
+  conversationId: string,
+  senderId: string,
+  content: string,
+  isOpeningMessage = false,
+  mediaFields?: {
+    messageType?: string
+    mediaR2Key?: string | null
+    mediaThumbnailR2Key?: string | null
+    mediaOriginalName?: string | null
+    mediaMimeType?: string | null
+    mediaSizeBytes?: number | null
+    mediaCategory?: string | null
+    isProStorage?: boolean
+  }
+) => {
+  const insertData: Record<string, unknown> = {
+    conversation_id: conversationId,
+    sender_id: senderId,
+    content,
+    type: 'text',
+    is_opening_message: isOpeningMessage,
+    message_type: mediaFields?.messageType || 'text',
+  }
+
+  // Only include media fields if there's a media attachment
+  if (mediaFields?.mediaR2Key) {
+    insertData.media_r2_key = mediaFields.mediaR2Key
+    insertData.media_thumbnail_r2_key = mediaFields.mediaThumbnailR2Key
+    insertData.media_original_name = mediaFields.mediaOriginalName
+    insertData.media_mime_type = mediaFields.mediaMimeType
+    insertData.media_size_bytes = mediaFields.mediaSizeBytes
+    insertData.media_category = mediaFields.mediaCategory
+    insertData.is_pro_storage = mediaFields.isProStorage || false
+  }
+
   const { data, error } = await supabase
     .from('direct_messages')
-    .insert({
-      conversation_id: conversationId,
-      sender_id: senderId,
-      content,
-      type: 'text',
-      is_opening_message: isOpeningMessage
-    })
+    .insert(insertData)
     .select('*')
     .single();
 

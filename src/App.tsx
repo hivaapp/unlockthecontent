@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate, Link, useParams } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate, Link, useParams, useLocation } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { ToastProvider } from './context/ToastContext';
 import { ProgressProvider } from './context/ProgressContext';
@@ -61,9 +61,9 @@ const NotFound = () => (
 
     <div className="flex items-center gap-1.5 opacity-60">
       <div className="w-5 h-5 rounded-[6px] bg-text text-white flex items-center justify-center font-black text-[9px] leading-none">
-        AG
+        UC
       </div>
-      <span className="font-black text-[13px] tracking-tight text-text">AdGate</span>
+      <span className="font-black text-[13px] tracking-tight text-text">UnlockTheContent</span>
     </div>
   </div>
 );
@@ -80,6 +80,12 @@ const RootProfileRoute = () => {
   return <NotFound />;
 };
 
+const AuthRedirect = ({ type }: { type: 'signIn' | 'signUp' | 'forgot' }) => {
+  const { search } = useLocation();
+  const param = type === 'signIn' ? 'signIn=true' : type === 'signUp' ? 'signUp=true' : 'forgot=true';
+  return <Navigate to={`/?${param}${search.replace('?', '&')}`} replace />;
+};
+
 const AppRoutes = () => {
   const { isLoading } = useAuth();
 
@@ -91,7 +97,7 @@ const AppRoutes = () => {
       }}>
         <div style={{ textAlign: 'center' }}>
           <div style={{ fontSize: '28px', fontWeight: 900, color: '#21201C', marginBottom: '16px' }}>
-            AdGate
+            UnlockTheContent
           </div>
           <div style={{
             width: '36px', height: '36px', margin: '0 auto',
@@ -125,9 +131,9 @@ const AppRoutes = () => {
           </PublicOnlyRoute>
         }
       />
-      <Route path="/signin" element={<Navigate to="/?signIn=true" replace />} />
-      <Route path="/signup" element={<Navigate to="/?signUp=true" replace />} />
-      <Route path="/forgot-password" element={<Navigate to="/?forgot=true" replace />} />
+      <Route path="/signin" element={<AuthRedirect type="signIn" />} />
+      <Route path="/signup" element={<AuthRedirect type="signUp" />} />
+      <Route path="/forgot-password" element={<AuthRedirect type="forgot" />} />
 
       {/* Protected routes */}
       <Route
@@ -148,7 +154,7 @@ const AppRoutes = () => {
       <Route path="/r/:slug/matching" element={<FollowerPairingMatching />} />
 
       {/* Protected routes */}
-      <Route path="/chats/:sessionId" element={<ProtectedRoute><FollowerPairingChat /></ProtectedRoute>} />
+      <Route path="/chats/:sessionId" element={<ProtectedRoute><AppLayout><FollowerPairingChat /></AppLayout></ProtectedRoute>} />
       <Route path="/messages/:conversationId" element={<ProtectedRoute><AppLayout><DMConversation /></AppLayout></ProtectedRoute>} />
       <Route path="/chats" element={<ProtectedRoute><AppLayout><MyChatsHub /></AppLayout></ProtectedRoute>} />
       <Route path="/my-chats" element={<Navigate to="/chats" replace />} />

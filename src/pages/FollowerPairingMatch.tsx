@@ -99,7 +99,7 @@ export const FollowerPairingMatch = () => {
       <nav className="w-full h-[58px] bg-surface flex items-center justify-between px-4 shrink-0" style={{ borderBottom: '1px solid #E6E2D9' }}>
         <button onClick={() => navigate(-1)} className="w-[44px] h-[44px] flex items-center justify-center text-text text-[20px]">←</button>
         <Link to="/" className="flex items-center gap-1.5">
-          <span className="font-[900] text-[15px] tracking-tight text-text">AdGate</span>
+          <span className="font-[900] text-[15px] tracking-tight text-text">UnlockTheContent</span>
         </Link>
         {isLoggedIn ? (
           <div className="w-[44px]" />

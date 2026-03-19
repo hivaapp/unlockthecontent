@@ -53,6 +53,16 @@ export const FILE_RULES = {
       'text/plain',
     ],
   },
+  reward: {
+    maxSizeBytes: 20 * 1024 * 1024,
+    maxSizeMB: 20,
+    allowedExtensions: ['zip', 'pdf', 'mp4'],
+    allowedMimeTypes: [
+      'application/zip', 'application/x-zip-compressed',
+      'application/pdf',
+      'video/mp4',
+    ],
+  },
 }
 
 // ── Client-side validation ────────────────────────────────────────────────
@@ -154,6 +164,10 @@ export const uploadFile = async (file: File, bucket: string = 'content', options
   const validation = validateFile(file, bucket as any)
   if (!validation.valid) throw new Error(validation.error || 'Validation failed')
 
+  // Map client-only bucket types to server bucket names
+  // 'reward' uses 'assets' R2 bucket on server but has 20MB client-side validation
+  const serverBucket = bucket === 'reward' ? 'assets' : bucket
+
   // ── Step 2: Get presigned URL from Edge Function ─────────────────────
   onStageChange('preparing')
   onProgress(5)
@@ -168,7 +182,7 @@ export const uploadFile = async (file: File, bucket: string = 'content', options
       fileName: file.name,
       mimeType: file.type || 'application/octet-stream',
       sizeBytes: file.size,
-      bucket,
+      bucket: serverBucket,
     }),
   })
 

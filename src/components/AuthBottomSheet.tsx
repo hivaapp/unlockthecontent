@@ -97,19 +97,36 @@ export const AuthBottomSheet: React.FC<AuthBottomSheetProps> = ({
     return () => clearTimeout(timer);
   }, [resendCountdown]);
 
+  const containerRef = useRef<HTMLDivElement>(null);
+
   // Handle keyboard on mobile
   useEffect(() => {
+    if (!isOpen) return;
+    
     const handleResize = () => {
       const visualViewportHeight = window.visualViewport?.height ?? window.innerHeight;
+      const offsetTop = window.visualViewport?.offsetTop ?? 0;
+      
+      const containerEl = containerRef.current;
+      if (containerEl) {
+        containerEl.style.height = `${visualViewportHeight}px`;
+        containerEl.style.top = `${offsetTop}px`;
+      }
+
       const sheetEl = sheetRef.current;
       if (sheetEl) {
-        sheetEl.style.maxHeight = `${visualViewportHeight - 20}px`;
+        sheetEl.style.maxHeight = `${visualViewportHeight - 10}px`;
       }
     };
 
     window.visualViewport?.addEventListener('resize', handleResize);
-    handleResize();
-    return () => window.visualViewport?.removeEventListener('resize', handleResize);
+    window.visualViewport?.addEventListener('scroll', handleResize);
+    setTimeout(handleResize, 10);
+    
+    return () => {
+      window.visualViewport?.removeEventListener('resize', handleResize);
+      window.visualViewport?.removeEventListener('scroll', handleResize);
+    };
   }, [isOpen]);
 
   const goToForgotPassword = () => {
@@ -236,21 +253,36 @@ export const AuthBottomSheet: React.FC<AuthBottomSheetProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center animate-fade-in shadow-2xl">
+    <>
       <div
-        className="absolute inset-0 bg-black/40 backdrop-blur-sm"
+        className="fixed inset-0 z-[99] bg-black/40 backdrop-blur-sm animate-fade-in"
         onClick={onClose}
       />
-
       <div
-        ref={sheetRef}
-        className="relative w-full max-w-[400px] bg-white rounded-t-[24px] sm:rounded-[24px] overflow-hidden flex flex-col animate-slide-up sm:animate-pop-in transition-all duration-300 ease-in-out"
-        style={{ maxHeight: 'calc(100vh - 20px)' }}
+        ref={containerRef}
+        className="fixed inset-x-0 z-[100] flex items-end sm:items-center justify-center pointer-events-none"
+        style={{ top: 0, height: '100dvh' }}
       >
+        <div
+          ref={sheetRef}
+          className="relative w-full max-w-[400px] bg-white rounded-t-[24px] sm:rounded-[24px] overflow-hidden flex flex-col animate-slide-up sm:animate-pop-in transition-all duration-300 ease-in-out pointer-events-auto shadow-2xl"
+          style={{ maxHeight: 'calc(100vh - 10px)' }}
+          onClick={(e) => e.stopPropagation()}
+        >
         {/* Handle bar */}
         <div className="w-10 h-1 bg-[#E8E8E8] rounded-full mx-auto mt-3 mb-1 sm:hidden flex-shrink-0" />
 
-        <div className="flex-1 overflow-y-auto overscroll-contain">
+        <button
+          onClick={onClose}
+          className="absolute top-4 right-4 z-10 p-2 text-[#AAAAAA] hover:text-[#555] transition-colors rounded-full hover:bg-black/5"
+        >
+          <X size={20} />
+        </button>
+
+        <div 
+          className="flex-1 overflow-y-auto overflow-x-hidden overscroll-contain"
+          style={{ touchAction: 'pan-y' }}
+        >
           <div 
             className="flex transition-transform duration-300 ease-out h-full"
             style={{ 
@@ -259,10 +291,10 @@ export const AuthBottomSheet: React.FC<AuthBottomSheetProps> = ({
             }}
           >
             {/* Screen 1 — Sign In */}
-            <div className="w-1/4 p-4 pt-2">
+            <div className="w-1/4 p-4 pt-2 flex-shrink-0">
               <div className="px-4 mt-4">
                 <h2 className="text-[22px] font-black text-[#111]">Welcome back</h2>
-                <p className="text-[13px] font-semibold text-[#888] mt-1">Sign in to your AdGate account</p>
+                <p className="text-[13px] font-semibold text-[#888] mt-1">Sign in to your UnlockTheContent account</p>
               </div>
 
               {contextualMessage && (
@@ -284,7 +316,7 @@ export const AuthBottomSheet: React.FC<AuthBottomSheetProps> = ({
                       if (error) setError(null);
                     }}
                     placeholder="Email address"
-                    className="w-full h-[52px] border-[1.5px] border-[#E8E8E8] rounded-[12px] px-4 text-[15px] text-[#111] focus:border-[#E8312A] focus:ring-[3px] focus:ring-[#E8312A14] transition-all outline-none"
+                    className="w-full h-[52px] border-[1.5px] border-[#E8E8E8] rounded-[12px] px-4 text-[16px] text-[#111] focus:border-[#E8312A] focus:ring-[3px] focus:ring-[#E8312A14] transition-all outline-none"
                   />
                 </div>
 
@@ -299,7 +331,7 @@ export const AuthBottomSheet: React.FC<AuthBottomSheetProps> = ({
                       if (error) setError(null);
                     }}
                     placeholder="Password"
-                    className="w-full h-[52px] border-[1.5px] border-[#E8E8E8] rounded-[12px] px-4 text-[15px] text-[#111] focus:border-[#E8312A] focus:ring-[3px] focus:ring-[#E8312A14] transition-all outline-none pr-12"
+                    className="w-full h-[52px] border-[1.5px] border-[#E8E8E8] rounded-[12px] px-4 text-[16px] text-[#111] focus:border-[#E8312A] focus:ring-[3px] focus:ring-[#E8312A14] transition-all outline-none pr-12"
                   />
                   <button
                     type="button"
@@ -329,7 +361,7 @@ export const AuthBottomSheet: React.FC<AuthBottomSheetProps> = ({
                 <button
                   type="submit"
                   disabled={isLoading}
-                  className="w-full h-[52px] bg-[#E8312A] text-white rounded-[12px] font-black text-[15px] flex items-center justify-center gap-2 hover:bg-[#C4663F] transition-colors disabled:opacity-70"
+                  className="w-full h-[52px] bg-[#E8312A] text-white rounded-[12px] font-black text-[16px] flex items-center justify-center gap-2 hover:bg-[#C4663F] transition-colors disabled:opacity-70"
                 >
                   {isLoading ? (
                     <Loader2 size={20} className="animate-spin" />
@@ -373,7 +405,7 @@ export const AuthBottomSheet: React.FC<AuthBottomSheetProps> = ({
             </div>
 
             {/* Screen 2 — Sign Up */}
-            <div className="w-1/4 p-4 pt-2">
+            <div className="w-1/4 p-4 pt-2 flex-shrink-0">
               <div className="px-4 mt-4">
                 <h2 className="text-[22px] font-black text-[#111]">Create your account</h2>
                 <p className="text-[13px] font-semibold text-[#888] mt-1">Free forever. No credit card.</p>
@@ -397,7 +429,7 @@ export const AuthBottomSheet: React.FC<AuthBottomSheetProps> = ({
                       if (errors.name) setErrors({ ...errors, name: '' });
                     }}
                     placeholder="Your name"
-                    className={`w-full h-[52px] border-[1.5px] rounded-[12px] px-4 text-[15px] text-[#111] focus:ring-[3px] focus:ring-[#E8312A14] transition-all outline-none ${
+                    className={`w-full h-[52px] border-[1.5px] rounded-[12px] px-4 text-[16px] text-[#111] focus:ring-[3px] focus:ring-[#E8312A14] transition-all outline-none ${
                       errors.name ? 'border-[#E8312A]' : 'border-[#E8E8E8] focus:border-[#E8312A]'
                     }`}
                   />
@@ -415,7 +447,7 @@ export const AuthBottomSheet: React.FC<AuthBottomSheetProps> = ({
                       if (errors.email) setErrors({ ...errors, email: '' });
                     }}
                     placeholder="Email address"
-                    className={`w-full h-[52px] border-[1.5px] rounded-[12px] px-4 text-[15px] text-[#111] focus:ring-[3px] focus:ring-[#E8312A14] transition-all outline-none ${
+                    className={`w-full h-[52px] border-[1.5px] rounded-[12px] px-4 text-[16px] text-[#111] focus:ring-[3px] focus:ring-[#E8312A14] transition-all outline-none ${
                       errors.email ? 'border-[#E8312A]' : 'border-[#E8E8E8] focus:border-[#E8312A]'
                     }`}
                   />
@@ -434,7 +466,7 @@ export const AuthBottomSheet: React.FC<AuthBottomSheetProps> = ({
                         if (errors.password) setErrors({ ...errors, password: '' });
                       }}
                       placeholder="Password"
-                      className={`w-full h-[52px] border-[1.5px] rounded-[12px] px-4 pr-12 text-[15px] text-[#111] focus:ring-[3px] focus:ring-[#E8312A14] transition-all outline-none ${
+                      className={`w-full h-[52px] border-[1.5px] rounded-[12px] px-4 pr-12 text-[16px] text-[#111] focus:ring-[3px] focus:ring-[#E8312A14] transition-all outline-none ${
                         errors.password ? 'border-[#E8312A]' : 'border-[#E8E8E8] focus:border-[#E8312A]'
                       }`}
                     />
@@ -480,7 +512,7 @@ export const AuthBottomSheet: React.FC<AuthBottomSheetProps> = ({
                         if (errors.confirmPassword) setErrors({ ...errors, confirmPassword: '' });
                       }}
                       placeholder="Confirm password"
-                      className={`w-full h-[52px] border-[1.5px] rounded-[12px] px-4 pr-12 text-[15px] text-[#111] focus:ring-[3px] focus:ring-[#E8312A14] transition-all outline-none ${
+                      className={`w-full h-[52px] border-[1.5px] rounded-[12px] px-4 pr-12 text-[16px] text-[#111] focus:ring-[3px] focus:ring-[#E8312A14] transition-all outline-none ${
                         errors.confirmPassword ? 'border-[#E8312A]' : 'border-[#E8E8E8] focus:border-[#E8312A]'
                       }`}
                     />
@@ -527,7 +559,7 @@ export const AuthBottomSheet: React.FC<AuthBottomSheetProps> = ({
                 <button
                   type="submit"
                   disabled={isLoading}
-                  className="w-full h-[52px] bg-[#E8312A] text-white rounded-[12px] font-black text-[15px] flex items-center justify-center gap-2 hover:bg-[#C4663F] transition-colors mt-2 disabled:opacity-70"
+                  className="w-full h-[52px] bg-[#E8312A] text-white rounded-[12px] font-black text-[16px] flex items-center justify-center gap-2 hover:bg-[#C4663F] transition-colors mt-2 disabled:opacity-70"
                 >
                   {isLoading ? (
                     <Loader2 size={20} className="animate-spin" />
@@ -580,7 +612,7 @@ export const AuthBottomSheet: React.FC<AuthBottomSheetProps> = ({
             </div>
 
             {/* Screen 3 — Forgot Password */}
-            <div className="w-1/4 p-4 pt-2">
+            <div className="w-1/4 p-4 pt-2 flex-shrink-0">
               <div className="px-4 mt-2">
                 <button
                   onClick={() => setScreen('signin')}
@@ -607,7 +639,7 @@ export const AuthBottomSheet: React.FC<AuthBottomSheetProps> = ({
                             if (errors.resetEmail) setErrors({ ...errors, resetEmail: '' });
                           }}
                           placeholder="Email address"
-                          className={`w-full h-[52px] border-[1.5px] rounded-[12px] px-4 text-[15px] text-[#111] focus:ring-[3px] focus:ring-[#E8312A14] transition-all outline-none ${
+                          className={`w-full h-[52px] border-[1.5px] rounded-[12px] px-4 text-[16px] text-[#111] focus:ring-[3px] focus:ring-[#E8312A14] transition-all outline-none ${
                             errors.resetEmail ? 'border-[#E8312A]' : 'border-[#E8E8E8] focus:border-[#E8312A]'
                           }`}
                         />
@@ -623,7 +655,7 @@ export const AuthBottomSheet: React.FC<AuthBottomSheetProps> = ({
                       <button
                         type="submit"
                         disabled={isLoading}
-                        className="w-full h-[52px] bg-[#E8312A] text-white rounded-[12px] font-black text-[15px] flex items-center justify-center gap-2 hover:bg-[#C4663F] transition-colors disabled:opacity-70"
+                        className="w-full h-[52px] bg-[#E8312A] text-white rounded-[12px] font-black text-[16px] flex items-center justify-center gap-2 hover:bg-[#C4663F] transition-colors disabled:opacity-70"
                       >
                         {isLoading ? (
                           <Loader2 size={20} className="animate-spin" />
@@ -645,7 +677,7 @@ export const AuthBottomSheet: React.FC<AuthBottomSheetProps> = ({
 
                     <button
                       onClick={() => setScreen('signin')}
-                      className="w-full h-[52px] bg-white border-[1.5px] border-[#E8E8E8] rounded-[12px] font-bold text-[#333] text-[15px] hover:bg-[#F6F6F6] transition-colors mb-4"
+                      className="w-full h-[52px] bg-white border-[1.5px] border-[#E8E8E8] rounded-[12px] font-bold text-[#333] text-[16px] hover:bg-[#F6F6F6] transition-colors mb-4"
                     >
                       Back to Sign In
                     </button>
@@ -670,7 +702,7 @@ export const AuthBottomSheet: React.FC<AuthBottomSheetProps> = ({
             </div>
 
             {/* Screen 4 — Confirm Email */}
-            <div className="w-1/4 p-4 pt-2">
+            <div className="w-1/4 p-4 pt-2 flex-shrink-0">
               <div className="px-4 mt-4 text-center py-8">
                 <div className="text-[48px] mb-6">✉️</div>
                 
@@ -742,6 +774,7 @@ export const AuthBottomSheet: React.FC<AuthBottomSheetProps> = ({
           animation: shake 200ms ease-in-out;
         }
       `}</style>
-    </div>
+      </div>
+    </>
   );
 };

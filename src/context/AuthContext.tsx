@@ -4,7 +4,7 @@ import type { Session } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
 import { mockActivity } from '../lib/mockData';
 import type { User } from '../lib/mockData';
-import { clearAll } from '../stores/pendingFileStore';
+import { recordTrustEvent } from '../services/trustEventService';
 
 export interface LinkData {
     id: string;
@@ -239,8 +239,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
                     setSession(null);
                     setCurrentUser(null);
                     setIsLoggedIn(false);
-                    localStorage.removeItem('hivaapp_pending_link');
-                    clearAll();
+                    // NOTE: Do NOT clear hivaapp_pending_link or pendingFileStore here.
+                    // A user may sign out to switch accounts while still having a pending
+                    // link they created as a guest. PendingLinkContext owns that data's
+                    // lifecycle and will clear it only on successful recovery.
                 }
 
                 if (event === 'USER_UPDATED') {
@@ -340,9 +342,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     const logout = async () => {
         const { error } = await supabase.auth.signOut();
         if (error) throw error;
-        localStorage.removeItem('hivaapp_pending_link');
-        clearAll();
-        // onAuthStateChange SIGNED_OUT fires and clears state.
+        // NOTE: Do NOT clear hivaapp_pending_link here. The user may have created
+        // a new link as a guest in the same session and needs it recovered on re-login.
+        // PendingLinkContext exclusively manages that data's lifecycle.
+        // onAuthStateChange SIGNED_OUT fires and clears auth state.
     };
 
     // ── Send Password Reset Email ──────────────────────────────────────────
@@ -396,7 +399,18 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
         // Refresh local state
         const updatedProfile = await fetchUserProfile(currentUser.id);
-        if (updatedProfile) setCurrentUser(updatedProfile);
+        if (updatedProfile) {
+            setCurrentUser(updatedProfile);
+
+            // Fire profile_completed trust event if all key fields are filled
+            const hasName = !!updatedProfile.name?.trim();
+            const hasBio = !!updatedProfile.bio?.trim();
+            const hasLocation = !!updatedProfile.location?.trim();
+            const hasSocials = updatedProfile.socialHandles && Object.values(updatedProfile.socialHandles).some((h: unknown) => !!h);
+            if (hasName && hasBio && hasLocation && hasSocials) {
+                recordTrustEvent(currentUser.id, 'profile_completed');
+            }
+        }
     };
 
     // ── Update Auth Email ──────────────────────────────────────────────────

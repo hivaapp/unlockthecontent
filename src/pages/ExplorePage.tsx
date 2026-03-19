@@ -528,9 +528,9 @@ export const ExplorePage = () => {
                 <div className="w-full max-w-[1000px] flex flex-col md:flex-row justify-between items-center gap-6">
                     <div className="flex items-center gap-2 opacity-80">
                         <div className="w-6 h-6 rounded-[14px] bg-text text-white flex items-center justify-center font-black text-[10px] leading-none shrink-0">
-                            AG
+                            UC
                         </div>
-                        <span className="font-black text-[16px] tracking-tight text-text">AdGate</span>
+                        <span className="font-black text-[16px] tracking-tight text-text">UnlockTheContent</span>
                     </div>
 
                     <div className="flex items-center gap-6 text-[13px] font-bold text-textMid">
@@ -541,7 +541,7 @@ export const ExplorePage = () => {
                     </div>
 
                     <div className="text-[12px] font-bold text-textLight">
-                        © {new Date().getFullYear()} AdGate Inc. All rights reserved.
+                        © {new Date().getFullYear()} UnlockTheContent Inc. All rights reserved.
                     </div>
                 </div>
             </footer>

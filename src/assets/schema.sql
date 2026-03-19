@@ -394,6 +394,10 @@ CREATE TABLE public.scheduled_messages (
   -- Optional image attachment
   image_file_id     UUID REFERENCES public.files(id) ON DELETE SET NULL,
   
+  -- Links and Media
+  links             JSONB NOT NULL DEFAULT '[]',
+  youtube_url       TEXT,
+  
   is_sent           BOOLEAN NOT NULL DEFAULT false,
   sent_at           TIMESTAMPTZ,
   delivered_count   INTEGER NOT NULL DEFAULT 0,

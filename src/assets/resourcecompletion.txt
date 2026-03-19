@@ -1,0 +1,145 @@
+## Reward for Completions — Complete Implementation Prompt
+
+---
+
+### Context Your AI Must Read First
+
+Before implementing anything the AI must read and fully understand two existing implementations. First the Email Subscribe flow — specifically how it uploads files to R2. The exact sequence is: file selection triggers `uploadFile` from `uploadService.js`, which calls the `generate-upload-url` Edge Function with the file metadata to get a presigned PUT URL, then sends the file bytes directly from the browser to R2 via XHR PUT with only the Content-Type header, then calls `confirm-upload` Edge Function to set `is_placeholder = false` on the `files` table row. This exact sequence must be reused without modification for the reward file upload. The AI must not invent a new upload mechanism.
+
+Second the Scheduled Messages pull-based delivery system just implemented. The reward delivery follows the same pull-based pattern — delivered when the participant opens the chat on the final day, not by a background cron job.
+
+The AI must also read the existing `completion_assets` table from the Part 1 schema and the `get-download-url` Edge Function which already has a `completion_asset` unlock type case. Both are already built and must be connected, not rebuilt.
+
+---
+
+### The 20MB File Size Limit For Reward Files
+
+The reward file uses the `assets` bucket in R2, not the `content` bucket. The `assets` bucket currently has a 100MB limit in `FILE_RULES` inside both `uploadService.js` and the `generate-upload-url` Edge Function. The AI must add a separate validation rule specifically for reward file uploads that caps at 20MB. This is enforced in two places — client-side in the `FileUploadZone` component when it is used for the reward upload (pass a custom `maxSizeMB={20}` prop or a `bucket="reward"` variant), and server-side in the Edge Function.
+
+The simplest approach is to pass the max size as a parameter to the upload zone and validate client-side before calling `uploadFile`. The server-side `assets` bucket limit remains 100MB for other uses like chat attachments. The 20MB constraint for reward files is purely a product decision enforced at the UI level before the upload starts.
+
+The file input for the reward accepts ZIP, PDF, and MP4 as shown in the UI screenshot. The MIME types to allow are `application/zip`, `application/x-zip-compressed`, `application/pdf`, `video/mp4`. Any other file type shows an error "Only ZIP, PDF, and MP4 files are allowed for rewards."
+
+---
+
+### Phase 1 — Creator Configures The Reward
+
+#### What Gets Stored
+
+The reward configuration has these fields that map directly to the `completion_assets` table and related data:
+
+**Reward file** — the uploaded file. Stored in R2 `assets` bucket. The `files` table row gets a confirmed `fileId`. This `fileId` is stored on the `completion_assets` row as `file_id`.
+
+**Bonus message** — up to 200 characters. A personal note from the creator that appears with the reward. Stored as `unlock_message` on `completion_assets`.
+
+**Additional links** — one or more external URLs with optional labels. These are stored as a JSON array on `completion_assets` in a column called `additional_links`. Each entry has `url` and `label` fields.
+
+**YouTube URL** — one YouTube video URL. Stored as `youtube_url` on `completion_assets`.
+
+**Resource title** — up to 60 characters. The name of the reward shown to participants. Stored as `resource_title` on `completion_assets`.
+
+**Resource description** — up to 150 characters. A short description of what participants will receive. Stored as `resource_description` on `completion_assets`.
+
+The `completion_assets` table from Part 1 already has `file_id`, `unlock_message`, and `pairing_config_id`. The AI must add the missing columns — `additional_links` as JSONB defaulting to empty array, `youtube_url` as text nullable, `resource_title` as text nullable, `resource_description` as text nullable. Run these as ALTER TABLE statements in the Supabase SQL editor.
+
+#### The Toggle Behavior
+
+The reward section has an on/off toggle. When off, no `completion_assets` row is created and the completion flow shows a simple congratulations without a reward. When on, all the fields become active and the reward is saved. The toggle state is local form state only — it does not affect the database until Generate is tapped.
+
+#### The File Upload During Form Filling
+
+Exactly as in Email Subscribe — the moment the creator selects a reward file, the upload starts immediately without waiting for Generate. The `FileUploadZone` component handles this. The file goes to the `assets` R2 bucket. Progress bar shows during upload. After upload completes the `fileId` is held in form state. The upload zone shows the file name, size, and a remove button. If the creator removes the file the `delete-file` Edge Function is called to clean up the orphaned R2 object and `files` row.
+
+The Generate button must be disabled while the reward file is uploading. Same behavior as the content file upload in Email Subscribe.
+
+#### Saving To Supabase on Generate
+
+When the creator taps Generate and the reward toggle is on, after the `links` row and `pairing_configs` row are created, a `completion_assets` row is inserted with `pairing_config_id` set to the new pairing config's ID, `file_id` from the uploaded reward file, `unlock_message` from the bonus message field, `additional_links` as the JSON array of link objects, `youtube_url` if provided, `resource_title` if provided, `resource_description` if provided.
+
+If the reward toggle is off, no `completion_assets` row is inserted. The pairing config row has no completion asset.
+
+---
+
+### Phase 2 — Reward Delivery in the Chat
+
+#### When The Reward Appears
+
+The reward appears in the chat on the final day of the challenge. The final day is `duration_days` days after `paired_at`. Using the same pull-based delivery mechanism as scheduled messages — when either participant opens the chat and the current day number equals `duration_days`, the delivery check runs.
+
+The delivery check is an extension of the existing `deliver_scheduled_messages` RPC function. Add a second check inside the same function: if the current day number is greater than or equal to `duration_days` AND the session has a `completion_assets` row AND no reward delivery message already exists in `pairing_messages` for this session with `message_type = 'reward_reveal'`, then insert the reward reveal message.
+
+The reward reveal message is inserted into `pairing_messages` as a special message type `reward_reveal`. It has `sender_id` set to the creator's user ID, `session_id` set to the current session, `is_broadcast` false (it is session-specific), and `message_type` set to `reward_reveal`. The `content` field stores the `completion_asset_id` so the chat can look up the full reward data for rendering.
+
+The Realtime subscription on `pairing_messages` picks up this new insert and the reward card appears in both participants' chats automatically — the same way any new message appears.
+
+#### How The Reward Appears Visually
+
+The reward reveal message renders as a special card in the chat — not a regular message bubble. It has an amber/gold background. It shows:
+
+A header line "🎁 Your Reward is Here!" or similar celebratory text.
+
+The resource title in large bold text.
+
+The resource description below it.
+
+The bonus message from the creator displayed as a quoted creator note with the creator's avatar.
+
+A Download button if a file is attached. This button is what triggers the secure download flow.
+
+Link cards for each additional link — tappable cards that open in a new tab.
+
+A YouTube embed if a YouTube URL was provided.
+
+This card is rendered in the chat message list when `message.message_type === 'reward_reveal'`. The chat fetches the full `completion_assets` row when it encounters this message type, using the `completion_asset_id` stored in the message content.
+
+---
+
+### Phase 3 — Secure File Download
+
+#### How The Download Works
+
+When a participant taps the Download button on the reward card, the app calls `get-download-url` with `unlockType: completion_asset`, the `fileId` from the completion asset, the `linkSlug`, and the participant's `session_key`.
+
+The `get-download-url` Edge Function already has a `completion_asset` case from Part 4. The AI must verify this case is correctly implemented. It should call `user_has_completed_session` RPC to verify the user is a participant in a session for this link. However since the reward appears before session completion (it appears on the final day, not after both mark complete), the verification logic needs adjusting.
+
+The correct verification for reward download is: check that the requesting user is a participant in an active or completed session for this `link_id`, and that the session's current day number is greater than or equal to `duration_days`. Both conditions must be true. A participant who left the challenge early should not be able to download the reward.
+
+The verification query checks `pairing_participants` for a row where `user_id` equals the requesting user and `link_id` matches and `status` is either `paired` or `completed`. Then checks that the session's day number is at least `duration_days`.
+
+If verification passes, the Edge Function generates a presigned GET URL from R2 with a 5 minute expiry, exactly as it does for content files in Email Subscribe. Returns the URL to the frontend.
+
+The frontend creates a temporary anchor element and programmatically clicks it to trigger the browser download. The file downloads directly from R2. Zero Supabase involvement in the actual file transfer.
+
+#### Both Participants Can Download
+
+Both participants in the pair can independently download the reward. Each taps the Download button in their own chat. Each triggers their own `get-download-url` call. Each gets their own presigned URL. The file in R2 is read twice — once per participant. R2 egress for reads is free so this costs nothing.
+
+The Download button shows a loading state while the presigned URL is being fetched, then transitions to a checkmark state after the download starts. The state is local to each participant's session — they do not see each other's download status.
+
+---
+
+### Phase 4 — Editing The Reward Configuration
+
+From the campaign detail page in the creator dashboard, the creator can edit the reward configuration for an existing campaign. The edit form shows all the same fields as the creation form, pre-filled with the current values from the `completion_assets` row.
+
+If the creator uploads a new reward file, the old file must be deleted from R2 first using the `delete-file` Edge Function, then the new file is uploaded and the `completion_assets` row is updated with the new `file_id`.
+
+If the creator turns off the reward toggle during editing, the `completion_assets` row is deleted and the existing reward file is deleted from R2.
+
+If the reward has already been delivered to some sessions (reward reveal messages exist in `pairing_messages`), the creator can still edit the bonus message, links, and YouTube URL — these changes affect future deliveries and also update existing reward cards in chats because those cards fetch the `completion_assets` row fresh each time they render. The file itself cannot be replaced after delivery to protect participants who already downloaded it.
+
+---
+
+### What The AI Must Not Do
+
+The AI must not build a new file upload mechanism. It must use the exact `FileUploadZone` component and `uploadFile` service that Email Subscribe uses. The upload to R2 via presigned URL is already working end-to-end.
+
+The AI must not deliver the reward using a cron job or background service. The pull-based delivery via the `deliver_scheduled_messages` RPC function on chat mount is the correct approach.
+
+The AI must not show the reward card to participants who joined after the final day without completing any sessions. The verification in `get-download-url` prevents unauthorized downloads but the chat UI should also check eligibility before showing the download button as active.
+
+The AI must not create a separate download flow for the reward. The `get-download-url` Edge Function with `unlockType: completion_asset` is already the correct mechanism. Connect to it, do not duplicate it.
+
+The AI must not store the full reward file content in `pairing_messages`. The message row stores only the `completion_asset_id` reference. The full reward data is fetched from `completion_assets` when rendering the reward card.
+
+The AI must not make the reward card appear on Day 1. The delivery check must verify the current day number is at least `duration_days` before inserting the reward reveal message.

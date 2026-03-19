@@ -477,7 +477,7 @@ export const BelowTheFold = () => {
                             <span className="text-[64px] font-[900] text-[#F0F0F0] leading-none block mb-4">02</span>
                             <span className="text-[20px] font-[900] text-[#111] block mb-2 leading-[1.2]">You keep everything you build.</span>
                             <p className="text-[13px] font-[600] text-[#888] line-height-[1.75]">
-                                Emails go to your list — not ours. Followers land on your accounts. Sponsor money goes directly to you. AdGate is a tool, not a platform that owns your audience.
+                                Emails go to your list — not ours. Followers land on your accounts. Sponsor money goes directly to you. UnlockTheContent is a tool, not a platform that owns your audience.
                             </p>
                         </div>
 

@@ -130,6 +130,15 @@ export const LinksTab = ({ searchQuery, setSearchQuery }: { searchQuery: string,
         fetchLinks();
     }, [fetchLinks]);
 
+    // ── Re-fetch links when navigated with newLink param (post-recovery) ──
+    useEffect(() => {
+        if (newLinkSlug) {
+            // The link was just created by PendingLinkContext recovery.
+            // Re-fetch to ensure the new link is visible.
+            fetchLinks();
+        }
+    }, [newLinkSlug]);
+
     // ── Real-time stats subscription ──────────────────────────────────────
     useEffect(() => {
         if (!currentUser?.id) return;
@@ -150,6 +159,19 @@ export const LinksTab = ({ searchQuery, setSearchQuery }: { searchQuery: string,
                             ? { ...l, views: payload.new.view_count, unlocks: payload.new.unlock_count }
                             : l
                     ));
+                }
+            )
+            .on(
+                'postgres_changes',
+                {
+                    event: 'INSERT',
+                    schema: 'public',
+                    table: 'links',
+                    filter: `creator_id=eq.${currentUser.id}`,
+                },
+                () => {
+                    // A new link was created — re-fetch all links to get full joined data
+                    fetchLinks();
                 }
             )
             .on(
@@ -269,15 +291,37 @@ export const LinksTab = ({ searchQuery, setSearchQuery }: { searchQuery: string,
 
     return (
         <div className="flex flex-col w-full relative min-h-full">
-            {/* Sticky Sub-header */}
-            <div className="sticky top-16 md:top-0 z-30 bg-white px-4 py-4 flex items-center justify-between border-b border-border/50">
-                <h1 className="text-[16px] font-black text-text m-0">My Links</h1>
-                <button
-                    onClick={() => setIsCreateOpen(true)}
-                    className="w-10 h-10 rounded-full bg-brand text-white flex items-center justify-center hover:bg-brand-hover hover:scale-105 transition-all shadow-[0_2px_8px_rgba(217,119,87,0.3)]"
-                >
-                    <Plus size={20} strokeWidth={3} />
-                </button>
+            <div className="sticky top-0 z-30 bg-white border-b border-border/50 flex flex-col">
+                <div className="px-4 pt-4 pb-2 flex items-center justify-between">
+                    <h1 className="text-[16px] font-black text-text m-0">My Links</h1>
+                    <button
+                        onClick={() => setIsCreateOpen(true)}
+                        className="w-10 h-10 rounded-full bg-brand text-white flex items-center justify-center hover:bg-brand-hover hover:scale-105 transition-all shadow-[0_2px_8px_rgba(217,119,87,0.3)]"
+                    >
+                        <Plus size={20} strokeWidth={3} />
+                    </button>
+                </div>
+                
+                <div className="px-4 pb-4">
+                    <div className="relative w-full">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-textLight" />
+                        <input
+                            type="text"
+                            placeholder="Search your links..."
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                            className="w-full h-[40px] bg-surfaceAlt border border-border rounded-[10px] pl-9 pr-10 text-[14px] font-bold text-text focus:outline-none focus:border-brand transition-all"
+                        />
+                        {searchQuery && (
+                            <button
+                                onClick={() => setSearchQuery('')}
+                                className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 flex items-center justify-center text-textLight hover:text-text"
+                            >
+                                <X size={14} />
+                            </button>
+                        )}
+                    </div>
+                </div>
             </div>
 
             <div className="px-4 py-4 flex flex-col gap-4">
@@ -300,25 +344,7 @@ export const LinksTab = ({ searchQuery, setSearchQuery }: { searchQuery: string,
                     </div>
                 )}
 
-                {/* Search Bar */}
-                <div className="relative w-full">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-textLight" />
-                    <input
-                        type="text"
-                        placeholder="Search your links..."
-                        value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
-                        className="w-full h-[44px] bg-white border border-border rounded-[12px] pl-9 pr-10 text-[13px] font-semibold text-text focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand transition-all"
-                    />
-                    {searchQuery && (
-                        <button
-                            onClick={() => setSearchQuery('')}
-                            className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 flex items-center justify-center text-textLight hover:text-text"
-                        >
-                            <X size={14} />
-                        </button>
-                    )}
-                </div>
+
 
                 {/* Sort Control */}
                 <div className="w-full overflow-x-auto hide-scrollbar -mx-4 px-4 sm:mx-0 sm:px-0">

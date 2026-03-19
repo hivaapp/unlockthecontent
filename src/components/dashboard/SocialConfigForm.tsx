@@ -148,7 +148,7 @@ export const SocialConfigForm = ({ value, onChange, onErrorStateChange }: Social
                     <label className="text-[12px] font-[700] text-[#6B6860]">Custom Heading</label>
                     <input
                         type="text"
-                        className="w-full h-[44px] rounded-[6px] border border-[#E6E2D9] px-3 text-[14px] focus:outline-none focus:border-[#D97757] focus:ring-1 focus:ring-[#D97757]"
+                        className="w-full h-[44px] rounded-[6px] border border-[#E6E2D9] px-3 text-[16px] focus:outline-none focus:border-[#D97757] focus:ring-1 focus:ring-[#D97757]"
                         placeholder="e.g. Follow me for daily Figma tips and free resources"
                         maxLength={60}
                         value={data.customHeading}
@@ -160,7 +160,7 @@ export const SocialConfigForm = ({ value, onChange, onErrorStateChange }: Social
                 <div className="flex flex-col gap-1.5 relative">
                     <label className="text-[12px] font-[700] text-[#6B6860]">Follow Description</label>
                     <textarea
-                        className="w-full h-[70px] rounded-[6px] border border-[#E6E2D9] p-3 text-[14px] resize-none focus:outline-none focus:border-[#D97757] focus:ring-1 focus:ring-[#D97757]"
+                        className="w-full h-[70px] rounded-[6px] border border-[#E6E2D9] p-3 text-[16px] resize-none focus:outline-none focus:border-[#D97757] focus:ring-1 focus:ring-[#D97757]"
                         placeholder="Tell viewers what content you post and why following you is worth it."
                         maxLength={120}
                         value={data.followDescription}
@@ -265,7 +265,7 @@ export const SocialConfigForm = ({ value, onChange, onErrorStateChange }: Social
                                                     ))}
                                                 </div>
                                                 <input
-                                                    className={`w-full h-[44px] rounded-[6px] border px-3 text-[14px] transition-colors ${target.error ? 'border-red-500 focus:border-red-500 ring-1 ring-red-100' : 'border-[#E6E2D9] focus:border-[#D97757]'}`}
+                                                    className={`w-full h-[44px] rounded-[6px] border px-3 text-[16px] transition-colors ${target.error ? 'border-red-500 focus:border-red-500 ring-1 ring-red-100' : 'border-[#E6E2D9] focus:border-[#D97757]'}`}
                                                     placeholder="@handle or profile URL"
                                                     value={target.handle || ''}
                                                     onChange={e => {
@@ -285,7 +285,7 @@ export const SocialConfigForm = ({ value, onChange, onErrorStateChange }: Social
                                                 )}
                                                 <div className="flex gap-2">
                                                     <input
-                                                        className={`flex-1 h-[44px] rounded-[6px] border px-3 text-[14px] transition-colors ${target.error && target.profileUrl?.startsWith('http') ? 'border-red-200' : 'border-[#E6E2D9]'}`}
+                                                        className={`flex-1 h-[44px] rounded-[6px] border px-3 text-[16px] transition-colors ${target.error && target.profileUrl?.startsWith('http') ? 'border-red-200' : 'border-[#E6E2D9]'}`}
                                                         placeholder="Full profile URL (https://...)"
                                                         value={target.profileUrl || ''}
                                                         onChange={e => {
@@ -338,7 +338,7 @@ export const SocialConfigForm = ({ value, onChange, onErrorStateChange }: Social
                                                     </div>
                                                 </div>
                                                 <input
-                                                    className="w-full h-[44px] rounded-[6px] border border-[#E6E2D9] px-3 text-[14px]"
+                                                    className="w-full h-[44px] rounded-[6px] border border-[#E6E2D9] px-3 text-[16px]"
                                                     placeholder="Link label shown to viewer"
                                                     maxLength={50}
                                                     value={target.customLabel || ''}
@@ -346,7 +346,7 @@ export const SocialConfigForm = ({ value, onChange, onErrorStateChange }: Social
                                                 />
                                                 <div className="flex gap-2">
                                                     <input
-                                                        className="flex-1 h-[44px] rounded-[6px] border border-[#E6E2D9] px-3 text-[14px]"
+                                                        className="flex-1 h-[44px] rounded-[6px] border border-[#E6E2D9] px-3 text-[16px]"
                                                         placeholder="URL (https://...)"
                                                         value={target.customUrl || ''}
                                                         onChange={e => updateTarget(target.id, { customUrl: e.target.value })}
@@ -360,7 +360,7 @@ export const SocialConfigForm = ({ value, onChange, onErrorStateChange }: Social
                                         )}
                                         <div className="flex flex-col gap-1.5">
                                             <input
-                                                className="w-full h-[44px] rounded-[6px] border border-[#E6E2D9] px-3 text-[14px]"
+                                                className="w-full h-[44px] rounded-[6px] border border-[#E6E2D9] px-3 text-[16px]"
                                                 placeholder="Per-target instruction (optional)"
                                                 maxLength={60}
                                                 value={target.instructionText || ''}
@@ -386,7 +386,7 @@ export const SocialConfigForm = ({ value, onChange, onErrorStateChange }: Social
                 <button
                     onClick={() => setIsSheetOpen(true)}
                     disabled={targets.length >= 6}
-                    className="w-full h-[44px] border-[1.5px] border-dashed border-[#D1D5DB] rounded-[12px] bg-[#FAFAFA] text-[#888] font-[700] text-[14px] flex items-center justify-center transition-opacity hover:opacity-80 disabled:opacity-50 mt-1"
+                    className="w-full h-[44px] border-[1.5px] border-dashed border-[#D1D5DB] rounded-[12px] bg-[#FAFAFA] text-[#888] font-[700] text-[16px] flex items-center justify-center transition-opacity hover:opacity-80 disabled:opacity-50 mt-1"
                 >
                     ＋ Add another account or link
                 </button>
@@ -424,7 +424,7 @@ export const SocialConfigForm = ({ value, onChange, onErrorStateChange }: Social
                                 onClick={() => addTarget('custom')}
                                 className="w-full mt-2 h-[52px] rounded-[10px] flex flex-col items-center justify-center transition-all outline-none bg-[#F6F6F6] hover:bg-[#E8E8E8]"
                             >
-                                <span className="text-[14px] font-[700] text-[#555]">🔗 Custom link</span>
+                                <span className="text-[16px] font-[700] text-[#555]">🔗 Custom link</span>
                                 <span className="text-[11px] text-[#AAA49C]">Any URL with a custom label and icon</span>
                             </button>
                         </div>

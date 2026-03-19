@@ -58,6 +58,25 @@ export interface PairingSession {
   created_at: string
   participant_a?: PairingParticipant
   participant_b?: PairingParticipant
+  pairing_config?: {
+    topic: string
+    completion_assets?: {
+      file_id: string | null
+      unlock_message: string | null
+      links: { url: string; title: string }[]
+      youtube_url: string | null
+      resource_title: string | null
+      resource_description: string | null
+      file?: {
+        id: string
+        original_name: string
+        mime_type: string
+        size_bytes: number
+        r2_key: string
+        r2_bucket: string
+      }
+    }
+  }
 }
 
 export interface PairingMessage {
@@ -66,6 +85,10 @@ export interface PairingMessage {
   sender_id: string
   content: string | null
   type: string
+  message_type?: 'chat' | 'scheduled' | 'system' | 'broadcast' | 'reward_reveal'
+  scheduled_message_id?: string | null
+  links?: { url: string; title: string }[] | null
+  youtube_url?: string | null
   file_id: string | null
   is_broadcast: boolean
   broadcast_id: string | null
@@ -89,6 +112,12 @@ export interface PairingMessage {
     r2_key: string
     r2_bucket: string
   }
+  // Joined scheduled_message data for display
+  scheduled_message?: {
+    id: string
+    day_number: number
+    send_time: string
+  } | null
 }
 
 // ── Get waiting count for a link ──────────────────────────────────────────
@@ -244,6 +273,20 @@ export const getSession = async (sessionId: string): Promise<PairingSession | nu
         user:users (
           id, name, username, avatar_color, initial, is_verified, trust_score
         )
+      ),
+      pairing_config:pairing_configs (
+        topic,
+        completion_assets:completion_assets (
+          file_id,
+          unlock_message,
+          links,
+          youtube_url,
+          resource_title,
+          resource_description,
+          file:files (
+            id, original_name, mime_type, size_bytes, r2_key, r2_bucket
+          )
+        )
       )
     `)
     .eq('id', sessionId)
@@ -283,6 +326,9 @@ export const getSessionMessages = async (sessionId: string): Promise<PairingMess
       ),
       file:files!pairing_messages_file_id_fkey (
         id, original_name, mime_type, size_bytes, r2_key, r2_bucket
+      ),
+      scheduled_message:scheduled_messages!pairing_messages_scheduled_message_id_fkey (
+        id, day_number, send_time
       )
     `)
     .eq('session_id', sessionId)
@@ -302,6 +348,14 @@ export const sendMessage = async ({
   type = 'text',
   fileId = null,
   replyToId = null,
+  messageType = 'text',
+  mediaR2Key = null,
+  mediaThumbnailR2Key = null,
+  mediaOriginalName = null,
+  mediaMimeType = null,
+  mediaSizeBytes = null,
+  mediaCategory = null,
+  isProStorage = false,
 }: {
   sessionId: string
   senderId: string
@@ -309,18 +363,40 @@ export const sendMessage = async ({
   type?: string
   fileId?: string | null
   replyToId?: string | null
+  messageType?: string
+  mediaR2Key?: string | null
+  mediaThumbnailR2Key?: string | null
+  mediaOriginalName?: string | null
+  mediaMimeType?: string | null
+  mediaSizeBytes?: number | null
+  mediaCategory?: string | null
+  isProStorage?: boolean
 }): Promise<PairingMessage> => {
+  const insertData: Record<string, unknown> = {
+    session_id: sessionId,
+    sender_id: senderId,
+    content,
+    type,
+    file_id: fileId,
+    is_broadcast: false,
+    reply_to_id: replyToId,
+    message_type: messageType,
+  }
+
+  // Only include media fields if there's a media attachment
+  if (mediaR2Key) {
+    insertData.media_r2_key = mediaR2Key
+    insertData.media_thumbnail_r2_key = mediaThumbnailR2Key
+    insertData.media_original_name = mediaOriginalName
+    insertData.media_mime_type = mediaMimeType
+    insertData.media_size_bytes = mediaSizeBytes
+    insertData.media_category = mediaCategory
+    insertData.is_pro_storage = isProStorage
+  }
+
   const { data, error } = await supabase
     .from('pairing_messages')
-    .insert({
-      session_id: sessionId,
-      sender_id: senderId,
-      content,
-      type,
-      file_id: fileId,
-      is_broadcast: false,
-      reply_to_id: replyToId,
-    })
+    .insert(insertData)
     .select(`
       *,
       sender:users!pairing_messages_sender_id_fkey (
@@ -376,6 +452,9 @@ export const subscribeToMessages = (
             ),
             file:files!pairing_messages_file_id_fkey (
               id, original_name, mime_type, size_bytes, r2_key, r2_bucket
+            ),
+            scheduled_message:scheduled_messages!pairing_messages_scheduled_message_id_fkey (
+              id, day_number, send_time
             )
           `)
           .eq('id', payload.new.id)
@@ -464,6 +543,10 @@ export const getPairingConfig = async (linkId: string) => {
       completion_asset:completion_assets (
         id,
         unlock_message,
+        links,
+        youtube_url,
+        resource_title,
+        resource_description,
         file:files (
           id,
           original_name,
@@ -476,6 +559,11 @@ export const getPairingConfig = async (linkId: string) => {
         day_number,
         send_time,
         content,
+        links,
+        youtube_url,
+        link_url,
+        link_label,
+        sort_order,
         is_sent,
         sent_at,
         delivered_count
@@ -539,6 +627,33 @@ export const releaseMatch = async (_participantId: string, sessionId: string): P
 
 // ── Get completion asset download URL ─────────────────────────────────────
 
+// ── Deliver scheduled messages (pull-based) ──────────────────────────────
+// Called on chat mount. The RPC function handles all delivery logic atomically.
+
+export const deliverScheduledMessages = async (sessionId: string, userId: string): Promise<number> => {
+  // Get the user's browser timezone (e.g. 'Asia/Kolkata', 'America/New_York')
+  const userTz = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'
+
+  const { data, error } = await supabase
+    .rpc('deliver_scheduled_messages', {
+      p_session_id: sessionId,
+      p_user_id: userId,
+      p_user_tz: userTz,
+    })
+
+  if (error) {
+    console.error('Failed to deliver scheduled messages:', error)
+    return 0
+  }
+
+  return data || 0
+}
+
+// ── Get completion asset download URL ─────────────────────────────────────
+// Called when a participant taps "Download" on the reward card.
+// The Edge Function verifies the user is a participant in the session
+// and that the challenge has reached the final day before returning a presigned URL.
+
 export const getCompletionAssetUrl = async (sessionId: string): Promise<string | null> => {
   const headers = await getAuthHeaders()
 
@@ -547,7 +662,7 @@ export const getCompletionAssetUrl = async (sessionId: string): Promise<string |
     headers,
     body: JSON.stringify({
       sessionId,
-      type: 'completion_asset',
+      unlockType: 'completion_asset',
     }),
   })
 

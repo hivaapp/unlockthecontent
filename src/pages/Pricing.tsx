@@ -1,36 +1,61 @@
 import { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { useNavigate, Link, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { Check, Lock, CalendarX, CheckCircle2, CircleDollarSign, Percent, BadgeDollarSign, ChevronDown, ChevronUp } from 'lucide-react';
 
 const PRICING_FAQS = [
-    { q: "Is it really free?", a: "Yes. AdGate is 100% free for custom sponsors. You deal directly with your sponsor, and we take exactly $0." },
-    { q: "What is a Custom Sponsor link?", a: "A Custom Sponsor link allows you to serve a video ad directly from your own sponsor before your content unlocks. You set the rate directly with your sponsor, and AdGate collects zero commission." },
+    { q: "Is it really free?", a: "Yes. UnlockTheContent is 100% free for custom sponsors. You deal directly with your sponsor, and we take exactly $0." },
+    { q: "What is a Custom Sponsor link?", a: "A Custom Sponsor link allows you to serve a video ad directly from your own sponsor before your content unlocks. You set the rate directly with your sponsor, and UnlockTheContent collects zero commission." },
     { q: "How do I find sponsors for my Custom Sponsor links?", a: "Many creators use existing affiliate links (like Amazon, software programs, or courses) as their custom sponsor. Or, if you have brand deals from platforms like YouTube or Instagram, you can offer 'link sponsorships' as a value-add or standalone package." },
     { q: "Are there any upload or storage fees?", a: "No. You get 100MB of free file storage per resource, and we never charge storage fees or limit your link traffic." },
 ];
 
 export const Pricing = () => {
     const { currentUser } = useAuth();
+    const navigate = useNavigate();
+    const [searchParams] = useSearchParams();
     const [isDonateOn, setIsDonateOn] = useState(false);
     const [openFaq, setOpenFaq] = useState<number | null>(null);
     const [customDealAmount, setCustomDealAmount] = useState('500');
 
     // Get the Stripe link from environment variables or use a placeholder
-    const stripeProLink = import.meta.env.VITE_STRIPE_PRO_LINK || 'https://buy.stripe.com/test_PASTE_YOUR_LINK_HERE';
+    const stripeProLink = import.meta.env.VITE_STRIPE_PRO_LINK || 'https://buy.stripe.com/test_00weVfdKm42Agwj4QafIs00';
 
     // Set meta tags properly
     useEffect(() => {
-        document.title = "AdGate Pricing — 100% Free Custom Sponsor Links";
+        document.title = "UnlockTheContent Pricing — 100% Free Custom Sponsor Links";
         const metaDesc = document.querySelector('meta[name="description"]');
         if (metaDesc) {
-            metaDesc.setAttribute("content", "AdGate takes 0%. No monthly fees. No hidden charges. No lock-in.");
+            metaDesc.setAttribute("content", "UnlockTheContent takes 0%. No monthly fees. No hidden charges. No lock-in.");
         }
     }, []);
 
     const parsedCustomAmount = parseFloat(customDealAmount) || 0;
     const customDonateAmount = (parsedCustomAmount * 0.05).toFixed(2);
     const customTakeHome = isDonateOn ? (parsedCustomAmount - parseFloat(customDonateAmount)).toFixed(2) : parsedCustomAmount.toFixed(2);
+
+    const handleUpgrade = () => {
+        if (!currentUser) {
+            // Capture the intent and current page to return after auth
+            const returnUrl = encodeURIComponent('/pricing?upgrade=true');
+            navigate(`/signup?returnTo=${returnUrl}`);
+            return;
+        }
+        window.location.href = `${stripeProLink}?client_reference_id=${currentUser.id}&prefilled_email=${encodeURIComponent(currentUser.email || '')}`;
+    };
+
+    useEffect(() => {
+        if (currentUser && searchParams.get('upgrade') === 'true') {
+            // Trigger the upgrade flow
+            handleUpgrade();
+            
+            // Cleanup the URL to prevent double trigger
+            const newParams = new URLSearchParams(searchParams);
+            newParams.delete('upgrade');
+            const searchStr = newParams.toString();
+            navigate(searchStr ? `?${searchStr}` : '/pricing', { replace: true });
+        }
+    }, [currentUser, searchParams, navigate]);
 
     return (
         <div className="flex flex-col items-center w-full min-h-screen bg-bg selection:bg-brandTint selection:text-brand">
@@ -72,7 +97,7 @@ export const Pricing = () => {
             {/* The Main Pricing Model Explanation */}
             <div className="w-full bg-[#F6F6F6] py-8 sm:py-12 flex flex-col items-center">
                 <div className="w-full max-w-[800px] px-5 sm:px-8 flex flex-col items-center">
-                    <h2 className="text-[20px] font-black text-[#111] text-center mb-1">How AdGate Pricing Works</h2>
+                    <h2 className="text-[20px] font-black text-[#111] text-center mb-1">How UnlockTheContent Pricing Works</h2>
                     <p className="text-[13px] text-textMid text-center mb-8">Follow the lifecycle of an unlocked resource.</p>
 
                     <div className="w-full bg-white rounded-[18px] p-6 shadow-[0_1px_3px_rgba(0,0,0,0.06)] border border-border flex flex-col">
@@ -103,7 +128,7 @@ export const Pricing = () => {
                             <div className="text-[#E8312A] mt-1 sm:mt-0"><Percent size={24} /></div>
                             <div className="flex-1">
                                 <h3 className="text-[14px] font-extrabold text-text mb-1">Platform Fee</h3>
-                                <p className="text-[13px] font-semibold text-textMid leading-relaxed">Because you bring your own sponsor, AdGate takes absolutely zero commission.</p>
+                                <p className="text-[13px] font-semibold text-textMid leading-relaxed">Because you bring your own sponsor, UnlockTheContent takes absolutely zero commission.</p>
                             </div>
                             <div className="flex flex-col items-end">
                                 <span className="text-[20px] font-black text-[#6366F1]">0%</span>
@@ -283,12 +308,12 @@ export const Pricing = () => {
                                     Current Plan
                                 </div>
                             ) : (
-                                <a 
-                                    href={`${stripeProLink}?client_reference_id=${currentUser?.id || 'anonymous'}`}
+                                <button 
+                                    onClick={handleUpgrade}
                                     className="w-full h-[48px] bg-brand text-white font-black text-[15px] rounded-[14px] flex items-center justify-center hover:bg-brandHover transition-colors shadow-md"
                                 >
                                     Upgrade to Pro
-                                </a>
+                                </button>
                             )}
                         </div>
                     </div>
@@ -340,9 +365,9 @@ export const Pricing = () => {
                 <div className="w-full max-w-[1000px] flex flex-col md:flex-row justify-between items-center gap-6">
                     <div className="flex items-center gap-2 opacity-80">
                         <div className="w-6 h-6 rounded-[14px] bg-text text-white flex items-center justify-center font-black text-[10px] leading-none shrink-0">
-                            AG
+                            UC
                         </div>
-                        <span className="font-black text-[16px] tracking-tight text-text">AdGate</span>
+                        <span className="font-black text-[16px] tracking-tight text-text">UnlockTheContent</span>
                     </div>
 
                     <div className="flex items-center gap-6 text-[13px] font-bold text-textMid">
@@ -353,7 +378,7 @@ export const Pricing = () => {
                     </div>
 
                     <div className="text-[12px] font-bold text-textLight">
-                        © {new Date().getFullYear()} AdGate Inc. All rights reserved.
+                        © {new Date().getFullYear()} UnlockTheContent Inc. All rights reserved.
                     </div>
                 </div>
             </footer>

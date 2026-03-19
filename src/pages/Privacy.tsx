@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 
 export const Privacy = () => {
     useEffect(() => {
-        document.title = "Privacy Policy — AdGate";
+        document.title = "Privacy Policy — UnlockTheContent";
     }, []);
 
     const sections = [
@@ -20,7 +20,7 @@ export const Privacy = () => {
         {
             id: 'ad-networks',
             title: '3. Ad Networks and Third Parties',
-            content: 'AdGate allows you to serve Custom sponsor creatives. We securely store and deliver these creatives without injecting our own third-party ad trackers. Any tracking is limited to the redirect URLs and analytics that you actively configure.'
+            content: 'UnlockTheContent allows you to serve Custom sponsor creatives. We securely store and deliver these creatives without injecting our own third-party ad trackers. Any tracking is limited to the redirect URLs and analytics that you actively configure.'
         },
         {
             id: 'cookies',
@@ -77,7 +77,7 @@ export const Privacy = () => {
 
                 <div className="mt-16 pt-8 border-t border-border">
                     <p className="text-[13px] font-bold text-textMid">
-                        Questions about privacy? Contact us at legal@adgate.io
+                        Questions about privacy? Contact us at legal@unlockthecontent.io
                     </p>
                 </div>
             </div>

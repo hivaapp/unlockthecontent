@@ -359,7 +359,7 @@ export function CustomSponsorForm({ value, onChange, onErrorStateChange, isAuthe
                         placeholder="e.g. Notion, Your Brand Name"
                         value={data.brandName}
                         onChange={(e) => handleDataChange({ brandName: e.target.value.substring(0, 40) })}
-                        className={`h-11 rounded-[10px] border px-3 text-[14px] outline-none transition-colors ${brandError ? "border-[#C0392B] focus:border-[#C0392B]" : "border-[#E8E8E8] focus:border-[#6366F1]"}`}
+                        className={`h-11 rounded-[10px] border px-3 text-[16px] outline-none transition-colors ${brandError ? "border-[#C0392B] focus:border-[#C0392B]" : "border-[#E8E8E8] focus:border-[#6366F1]"}`}
                     />
                     {data.brandName.length >= 30 && (
                         <span className="absolute top-0 right-1 text-[11px] text-[#AAA49C]">{data.brandName.length}/40</span>
@@ -377,7 +377,7 @@ export function CustomSponsorForm({ value, onChange, onErrorStateChange, isAuthe
                             handleDataChange({ redirectUrl: e.target.value });
                         }}
                         onBlur={() => setShowErrors(true)}
-                        className={`h-11 rounded-[10px] border px-3 text-[14px] outline-none transition-colors ${urlError ? "border-[#C0392B] focus:border-[#C0392B]" : "border-[#E8E8E8] focus:border-[#6366F1]"}`}
+                        className={`h-11 rounded-[10px] border px-3 text-[16px] outline-none transition-colors ${urlError ? "border-[#C0392B] focus:border-[#C0392B]" : "border-[#E8E8E8] focus:border-[#6366F1]"}`}
                     />
                     {urlError ? (
                         <span className="text-[11px] text-[#C0392B]">Please enter a valid URL starting with https://</span>
@@ -401,7 +401,7 @@ export function CustomSponsorForm({ value, onChange, onErrorStateChange, isAuthe
                         placeholder="e.g. Visit Sponsor, Shop Now"
                         value={data.ctaText}
                         onChange={(e) => handleDataChange({ ctaText: e.target.value.substring(0, 24) })}
-                        className="h-11 rounded-[10px] border border-[#E8E8E8] focus:border-[#6366F1] px-3 text-[14px] outline-none transition-colors"
+                        className="h-11 rounded-[10px] border border-[#E8E8E8] focus:border-[#6366F1] px-3 text-[16px] outline-none transition-colors"
                     />
                     <span className="absolute top-0 right-1 text-[11px] text-[#AAA49C]">{data.ctaText.length}/24</span>
 

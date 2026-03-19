@@ -1,9 +1,9 @@
-import { createContext, useContext, useEffect, useState } from 'react';
+import { createContext, useContext, useEffect, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import { useAuth } from './AuthContext';
 import { uploadFile } from '../services/uploadService';
 import { createLink } from '../services/linksService';
-import { getContentFile, getSponsorVideo, clearAll } from '../stores/pendingFileStore';
+import { getContentFile, getSponsorVideo, getCompletionRewardFile, clearAll } from '../stores/pendingFileStore';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Loader2 } from 'lucide-react';
 
@@ -13,7 +13,6 @@ interface PendingLinkContextType {
     recoveryStatus: RecoveryStatus;
     recoveryError: string | null;
     createdLink: { id: string, slug: string } | null;
-    startRecovery: () => Promise<void>;
 }
 
 const PendingLinkContext = createContext<PendingLinkContextType | undefined>(undefined);
@@ -26,9 +25,12 @@ export const PendingLinkProvider = ({ children }: { children: ReactNode }) => {
     const [recoveryError, setRecoveryError] = useState<string | null>(null);
     const [createdLink, setCreatedLink] = useState<{ id: string, slug: string } | null>(null);
 
-    const startRecovery = async () => {
+    // Guard against double-execution (e.g. both isLoggedIn and currentUser trigger the effect)
+    const recoveryAttemptedRef = useRef(false);
+
+    const startRecovery = async (userId: string) => {
         const pendingLinkStr = localStorage.getItem('hivaapp_pending_link');
-        if (!pendingLinkStr || !currentUser) return;
+        if (!pendingLinkStr) return;
 
         try {
             const pendingLink = JSON.parse(pendingLinkStr);
@@ -37,63 +39,144 @@ export const PendingLinkProvider = ({ children }: { children: ReactNode }) => {
             const savedAt = new Date(pendingLink.savedAt).getTime();
             if (Date.now() - savedAt > 24 * 60 * 60 * 1000) {
                 localStorage.removeItem('hivaapp_pending_link');
+                clearAll();
                 return;
             }
 
             setRecoveryStatus('recovering');
             setRecoveryError(null);
 
-            // Navigate to dashboard immediately so user sees the progress there instead of old landing state
+            // Navigate to dashboard immediately so user sees the progress overlay
             if (location.pathname !== '/dashboard') {
                 navigate('/dashboard');
             }
 
-            let contentFileId = null;
-            let sponsorVideoId = null;
+            let contentFileId: string | null = null;
+            let sponsorVideoId: string | null = null;
+            let completionRewardFileId: string | null = null;
 
-            // Upload Content File
+            // ── Upload Content File ─────────────────────────────────────
             if (pendingLink.fileMetadata) {
                 const contentFile = getContentFile();
                 if (contentFile) {
                     setRecoveryStatus('uploading_file');
-                    const uploadResult = await uploadFile(contentFile, 'content', { onProgress: () => {} });
-                    contentFileId = uploadResult.fileId;
+                    try {
+                        const uploadResult = await uploadFile(contentFile, 'content', { onProgress: () => {} });
+                        contentFileId = uploadResult.fileId;
+                    } catch (uploadErr: any) {
+                        console.warn('[PendingLink] Content file upload failed, proceeding without file:', uploadErr.message);
+                    }
+                } else {
+                    console.warn('[PendingLink] Content file metadata present but file lost (page was refreshed). Proceeding without file.');
                 }
             }
 
-            // Upload Sponsor Video
+            // ── Upload Sponsor Video ────────────────────────────────────
             if (pendingLink.hasSponsorVideo) {
                 const sponsorVideo = getSponsorVideo();
                 if (sponsorVideo) {
                     setRecoveryStatus('uploading_file');
-                    const uploadResult = await uploadFile(sponsorVideo, 'sponsor', { onProgress: () => {} });
-                    sponsorVideoId = uploadResult.fileId;
+                    try {
+                        const uploadResult = await uploadFile(sponsorVideo, 'sponsor', { onProgress: () => {} });
+                        sponsorVideoId = uploadResult.fileId;
+                    } catch (uploadErr: any) {
+                        console.warn('[PendingLink] Sponsor video upload failed:', uploadErr.message);
+                    }
+                } else {
+                    console.warn('[PendingLink] Sponsor video file was lost (page was refreshed). Link will be created without sponsor video.');
+                }
+            }
+
+            // ── Upload Completion Reward File (follower_pairing) ─────────
+            if (pendingLink.pairingConfig?.hasCompletionFile) {
+                const completionFile = getCompletionRewardFile();
+                if (completionFile) {
+                    setRecoveryStatus('uploading_file');
+                    try {
+                        const uploadResult = await uploadFile(completionFile, 'assets', { onProgress: () => {} });
+                        completionRewardFileId = uploadResult.fileId;
+                    } catch (uploadErr: any) {
+                        console.warn('[PendingLink] Completion reward file upload failed:', uploadErr.message);
+                    }
+                } else {
+                    console.warn('[PendingLink] Completion reward file was lost (page was refreshed). Proceeding without it.');
                 }
             }
 
             setRecoveryStatus('creating_link');
             
-            // Prepare link data payload
+            // ── Build sponsor config ────────────────────────────────────
+            let sponsorConfig = null;
+            if (pendingLink.unlockType === 'custom_sponsor' && pendingLink.sponsorConfig) {
+                sponsorConfig = {
+                    ...pendingLink.sponsorConfig,
+                    videoFileId: sponsorVideoId ?? null,
+                };
+            }
+
+            // ── Build pairing config ────────────────────────────────────
+            let pairingConfig = null;
+            if (pendingLink.mode === 'follower_pairing' && pendingLink.pairingConfig) {
+                const pc = pendingLink.pairingConfig;
+                pairingConfig = {
+                    topic: pc.topic,
+                    description: pc.description || null,
+                    commitmentPrompt: pc.commitmentPrompt || 'What specific goal will you commit to for this challenge?',
+                    durationDays: pc.durationDays || 7,
+                    checkInFrequency: pc.checkInFrequency || 'daily',
+                    guidelines: pc.guidelines || null,
+                    creatorResourceUrl: pc.creatorResourceUrl || null,
+                    creatorResourceLabel: pc.creatorResourceLabel || null,
+                    isAccepting: pc.isAccepting !== false,
+                    scheduledMessages: (pc.scheduledMessages || []).map((m: any, i: number) => ({
+                        dayNumber: m.dayNumber,
+                        sendTime: m.sendTime || '09:00:00',
+                        content: m.content,
+                        links: m.links || [],
+                        linkUrl: m.linkUrl || null,
+                        linkLabel: m.linkLabel || null,
+                        youtubeUrl: m.youtubeUrl || null,
+                        sortOrder: m.sortOrder ?? i,
+                    })),
+                    completionAsset: pc.completionAsset ? {
+                        enabled: true,
+                        fileId: completionRewardFileId || null,
+                        unlockMessage: pc.completionAsset.unlockMessage || null,
+                        resourceTitle: pc.completionAsset.resourceTitle || null,
+                        resourceDescription: pc.completionAsset.resourceDescription || null,
+                        bonusMessage: pc.completionAsset.bonusMessage || null,
+                        links: pc.completionAsset.links || [],
+                        additionalLinks: (pc.completionAsset.additionalLinks || []).map((l: any) => ({
+                            url: l.url || '',
+                            label: l.label || null,
+                        })),
+                        youtubeUrl: pc.completionAsset.youtubeUrl || null,
+                    } : null,
+                };
+            }
+
+            // ── Prepare link data payload ───────────────────────────────
             const linkDataPayload: any = {
                 title: pendingLink.title,
-                description: pendingLink.description,
+                description: pendingLink.description || null,
+                textContent: pendingLink.textContent || null,
+                contentLinks: pendingLink.contentLinks || [],
                 mode: pendingLink.mode,
                 unlockType: pendingLink.unlockType,
                 fileId: contentFileId,
-                emailConfig: pendingLink.emailConfig,
-                socialConfig: pendingLink.socialConfig,
-                sponsorConfig: pendingLink.sponsorConfig ? {
-                    ...pendingLink.sponsorConfig,
-                    videoFileId: sponsorVideoId
-                } : null,
-                youtubeUrl: pendingLink.youtubeUrl,
-                status: 'active'
+                youtubeUrl: pendingLink.youtubeUrl || null,
+                donateEnabled: pendingLink.donateEnabled || false,
+                // Pass configs only for their respective types
+                emailConfig: pendingLink.unlockType === 'email_subscribe' ? pendingLink.emailConfig : null,
+                socialConfig: pendingLink.unlockType === 'social_follow' ? pendingLink.socialConfig : null,
+                sponsorConfig,
+                pairingConfig,
+                status: 'active',
             };
 
-            const created = await createLink(
-                currentUser.id,
-                linkDataPayload
-            );
+            console.log('[PendingLink] Creating link with payload:', linkDataPayload);
+
+            const created = await createLink(userId, linkDataPayload);
             
             setCreatedLink(created);
             setRecoveryStatus('complete');
@@ -101,27 +184,41 @@ export const PendingLinkProvider = ({ children }: { children: ReactNode }) => {
             localStorage.removeItem('hivaapp_pending_link');
             clearAll();
 
-            navigate(`/dashboard?newLink=${created.slug}`);
+            navigate(`/dashboard?tab=home&newLink=${created.slug}`);
 
         } catch (err: any) {
-            console.error("Recovery error:", err);
+            console.error('[PendingLink] Recovery error:', err);
             setRecoveryStatus('error');
-            setRecoveryError(err.message || "Failed to recover link");
+            setRecoveryError(err.message || 'Failed to recover link. Please try creating it again from your dashboard.');
         }
     };
 
-    // Auto trigger recovery on login
+    // Reset recovery state whenever the user logs OUT.
+    // This is critical — without this, `recoveryAttemptedRef` stays `true` forever
+    // after the first recovery, blocking every subsequent login attempt.
     useEffect(() => {
-        if (isLoggedIn && currentUser) {
+        if (!isLoggedIn) {
+            recoveryAttemptedRef.current = false;
+            setRecoveryStatus('idle');
+            setRecoveryError(null);
+            setCreatedLink(null);
+        }
+    }, [isLoggedIn]);
+
+    // Auto trigger recovery on login — wait until both isLoggedIn AND currentUser are confirmed.
+    useEffect(() => {
+        if (isLoggedIn && currentUser?.id && !recoveryAttemptedRef.current) {
             const pendingLinkStr = localStorage.getItem('hivaapp_pending_link');
             if (pendingLinkStr) {
-                startRecovery();
+                recoveryAttemptedRef.current = true; // prevent double-run within same session
+                startRecovery(currentUser.id);
             }
         }
-    }, [isLoggedIn, currentUser]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [isLoggedIn, currentUser?.id]);
 
     return (
-        <PendingLinkContext.Provider value={{ recoveryStatus, recoveryError, createdLink, startRecovery }}>
+        <PendingLinkContext.Provider value={{ recoveryStatus, recoveryError, createdLink }}>
             {children}
 
             {/* Global Recovery Overlay */}

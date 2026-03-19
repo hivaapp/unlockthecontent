@@ -9,6 +9,13 @@ import { MessagesSidebar } from './MyChatsHub';
 import { supabase } from '../lib/supabase';
 import { getConversationMessages } from '../services/messageService';
 
+// Chat media sharing
+import { ChatMediaButton, ChatUploadPreview, ChatMediaContent, ChatMediaLightbox, ChatExpiryBanner } from '../components/chats';
+import { uploadChatMedia, deleteChatUpload } from '../services/chatUploadService';
+import type { ChatUploadResult } from '../services/chatUploadService';
+import { validateChatFile, getMediaCategory, clearPendingUpload } from '../utils/chatMediaHelpers';
+import type { MediaCategory } from '../utils/chatMediaHelpers';
+
 interface MediaAttachment {
   type: 'image' | 'video' | 'file';
   url: string | null;
@@ -35,6 +42,16 @@ export const DMConversation = () => {
   const [showBlockConfirm, setShowBlockConfirm] = useState(false);
   const [messages, setMessages] = useState<DMMessage[]>([]);
 
+  // Media sharing state
+  const [mediaUploadResult, setMediaUploadResult] = useState<ChatUploadResult | null>(null);
+  const [mediaUploadProgress, setMediaUploadProgress] = useState(0);
+  const [mediaUploadComplete, setMediaUploadComplete] = useState(false);
+  const [mediaUploadError, setMediaUploadError] = useState<string | null>(null);
+  const [mediaPreviewFile, setMediaPreviewFile] = useState<{ name: string; size: number; category: MediaCategory; thumbnailUrl: string | null } | null>(null);
+  const [mediaLightbox, setMediaLightbox] = useState<{ cdnUrl: string; fileName: string; type: 'image' | 'video' } | null>(null);
+  const mediaAbortRef = useRef<AbortController | null>(null);
+  const isProUser = (currentUser as any)?.is_pro || false;
+
   const conversation = conversations.find(c => c.conversationId === conversationId);
   
   // Find the other participant
@@ -54,7 +71,15 @@ export const DMConversation = () => {
         content: m.content || '',
         timestamp: m.created_at,
         type: 'text',
-        isOpeningMessage: m.is_opening_message
+        isOpeningMessage: m.is_opening_message,
+        message_type: m.message_type || 'text',
+        media_r2_key: m.media_r2_key || null,
+        media_thumbnail_r2_key: m.media_thumbnail_r2_key || null,
+        media_original_name: m.media_original_name || null,
+        media_mime_type: m.media_mime_type || null,
+        media_size_bytes: m.media_size_bytes || null,
+        media_category: m.media_category || null,
+        is_pro_storage: m.is_pro_storage || false,
       }));
       setMessages(parsedMsgs);
       scrollToBottom();
@@ -79,7 +104,16 @@ export const DMConversation = () => {
             content: m.content || '',
             timestamp: m.created_at,
             type: 'text',
-            isOpeningMessage: m.is_opening_message
+            isOpeningMessage: m.is_opening_message,
+            // Media sharing fields
+            message_type: m.message_type || 'text',
+            media_r2_key: m.media_r2_key || null,
+            media_thumbnail_r2_key: m.media_thumbnail_r2_key || null,
+            media_original_name: m.media_original_name || null,
+            media_mime_type: m.media_mime_type || null,
+            media_size_bytes: m.media_size_bytes || null,
+            media_category: m.media_category || null,
+            is_pro_storage: m.is_pro_storage || false,
           }];
         });
         scrollToBottom();
@@ -98,42 +132,110 @@ export const DMConversation = () => {
   };
 
   const handleSend = async () => {
-    if ((!inputText.trim() && pendingAttachments.length === 0) || !currentUser || !conversationId) return;
+    const hasText = inputText.trim().length > 0;
+    const hasMedia = mediaUploadComplete && mediaUploadResult;
+    if ((!hasText && !hasMedia && pendingAttachments.length === 0) || !currentUser || !conversationId) return;
     
-    const content = inputText.trim() || 'Sent an attachment';
+    const content = inputText.trim() || (hasMedia ? null : 'Sent an attachment');
     setInputText('');
     setPendingAttachments([]);
     if (textareaRef.current) {
       textareaRef.current.style.height = '44px';
     }
 
+    // Build media fields if applicable
+    let mediaFields: any = undefined;
+    if (hasMedia && mediaUploadResult) {
+      const cat = mediaUploadResult.mediaCategory;
+      mediaFields = {
+        messageType: hasText ? 'mixed' : cat,
+        mediaR2Key: mediaUploadResult.mainR2Key,
+        mediaThumbnailR2Key: mediaUploadResult.thumbnailR2Key,
+        mediaOriginalName: mediaUploadResult.originalName,
+        mediaMimeType: mediaUploadResult.originalMimeType,
+        mediaSizeBytes: mediaUploadResult.originalSizeBytes,
+        mediaCategory: mediaUploadResult.mediaCategory,
+        isProStorage: mediaUploadResult.isPro,
+      };
+
+      const fileIds = [mediaUploadResult.mainFileId];
+      if (mediaUploadResult.thumbnailFileId) fileIds.push(mediaUploadResult.thumbnailFileId);
+      clearPendingUpload(fileIds);
+    }
+
+    // Reset media state
+    setMediaUploadResult(null);
+    setMediaUploadComplete(false);
+    setMediaUploadProgress(0);
+    setMediaUploadError(null);
+    if (mediaPreviewFile?.thumbnailUrl) URL.revokeObjectURL(mediaPreviewFile.thumbnailUrl);
+    setMediaPreviewFile(null);
+
     try {
-        await sendMessage(conversationId, content, currentUser.id);
-        
-        // Auto-response mock
-        setTimeout(() => {
-            setIsTyping(true);
-            scrollToBottom();
-            
-            setTimeout(async () => {
-                setIsTyping(false);
-                const responses = [
-                    "That makes sense!",
-                    "I agree, completely changes how I look at it.",
-                    "Let me think about that and get back to you.",
-                    "Haha truly.",
-                    "Could you send me a link to that when you have a second?"
-                ];
-                const randomResponse = responses[Math.floor(Math.random() * responses.length)];
-                if (otherParticipant) {
-                    await sendMessage(conversationId, randomResponse, otherParticipant.id);
-                }
-            }, 3000 + Math.random() * 3000); // 3-6 seconds typing
-        }, 2000);
+        await sendMessage(conversationId, content || '', currentUser.id, mediaFields);
     } catch (err) {
         console.error('Failed to send message', err);
         showToast('Failed to send message', 'error');
     }
+  };
+
+  // ── Chat media file selection handler ──────────────────────────────────
+  const handleMediaFileSelected = async (file: File) => {
+    const validation = validateChatFile(file, isProUser);
+    if (!validation.valid) {
+      setMediaUploadError(validation.error);
+      return;
+    }
+
+    const category = getMediaCategory(file.type) || 'document';
+    const thumbnailUrl = file.type.startsWith('image/') ? URL.createObjectURL(file) : null;
+
+    setMediaPreviewFile({ name: file.name, size: file.size, category, thumbnailUrl });
+    setMediaUploadProgress(0);
+    setMediaUploadComplete(false);
+    setMediaUploadError(null);
+    setMediaUploadResult(null);
+    setShowMediaPicker(false);
+
+    const abortController = new AbortController();
+    mediaAbortRef.current = abortController;
+
+    try {
+      const result = await uploadChatMedia(file, {
+        onProgress: (pct) => setMediaUploadProgress(pct),
+        onStageChange: () => {},
+        signal: abortController.signal,
+      });
+      setMediaUploadResult(result);
+      setMediaUploadComplete(true);
+    } catch (err: any) {
+      if (err.message === 'Upload cancelled.') return;
+      console.error('Chat media upload failed:', err);
+      setMediaUploadError(err.message || 'Upload failed');
+    } finally {
+      mediaAbortRef.current = null;
+    }
+  };
+
+  const handleCancelMediaUpload = () => {
+    mediaAbortRef.current?.abort();
+    mediaAbortRef.current = null;
+    if (mediaUploadResult) {
+      const fileIds = [mediaUploadResult.mainFileId];
+      if (mediaUploadResult.thumbnailFileId) fileIds.push(mediaUploadResult.thumbnailFileId);
+      deleteChatUpload(fileIds).catch(console.error);
+    }
+    if (mediaPreviewFile?.thumbnailUrl) URL.revokeObjectURL(mediaPreviewFile.thumbnailUrl);
+    setMediaUploadResult(null);
+    setMediaUploadComplete(false);
+    setMediaUploadProgress(0);
+    setMediaUploadError(null);
+    setMediaPreviewFile(null);
+  };
+
+  const handleOpenMediaLightbox = (cdnUrl: string, fileName: string) => {
+    const mimeGuess = fileName.match(/\.(mp4|mov|webm)$/i) ? 'video' : 'image';
+    setMediaLightbox({ cdnUrl, fileName, type: mimeGuess as 'image' | 'video' });
   };
 
   const handleAddAttachment = (type: 'image' | 'video' | 'file') => {
@@ -206,7 +308,7 @@ export const DMConversation = () => {
   }, []);
 
   return (
-    <div className="flex w-full bg-bg overflow-hidden" style={{ height: 'calc(100vh - 64px)' }}>
+    <div className="flex w-full bg-bg overflow-hidden h-[calc(100dvh-128px)] md:h-[calc(100vh-64px)]">
       {/* Desktop Sidebar */}
       <div className="hidden lg:flex lg:flex-col w-[380px] shrink-0 border-r border-border z-10 overflow-hidden">
          <MessagesSidebar 
@@ -293,7 +395,23 @@ export const DMConversation = () => {
                                 }
                             `}
                         >
-                            {msg.content}
+                            {msg.content && <div style={{ marginBottom: msg.media_r2_key ? '8px' : '0' }}>{msg.content}</div>}
+                            {msg.media_r2_key && msg.media_category && (
+                              <ChatMediaContent
+                                message={{
+                                  media_r2_key: msg.media_r2_key,
+                                  media_thumbnail_r2_key: msg.media_thumbnail_r2_key,
+                                  media_original_name: msg.media_original_name || 'File',
+                                  media_mime_type: msg.media_mime_type || undefined,
+                                  media_size_bytes: msg.media_size_bytes || 0,
+                                  media_category: msg.media_category,
+                                  is_pro_storage: msg.is_pro_storage || false,
+                                  created_at: msg.timestamp,
+                                }}
+                                onOpenLightbox={handleOpenMediaLightbox}
+                              />
+                            )}
+                            {!msg.content && !msg.media_r2_key && msg.content}
                         </div>
                     </div>
                     <div className={`flex items-center gap-1 mt-1 font-bold text-[10px] text-textLight ${isOwn ? 'mr-1' : 'ml-9'}`}>
@@ -322,6 +440,13 @@ export const DMConversation = () => {
 
       {/* Message input */}
       <div className="shrink-0 bg-white flex flex-col border-t border-border pb-[env(safe-area-inset-bottom,16px)]">
+        {/* Free plan media expiry banner */}
+        <ChatExpiryBanner
+          chatId={conversationId || ''}
+          hasFreePlanMedia={messages.some(m => m.media_r2_key && !m.is_pro_storage)}
+          isProUser={isProUser}
+        />
+
         {/* Attachment Preview Strip */}
         {pendingAttachments.length > 0 && (
           <div className="flex gap-2 p-3 overflow-x-auto bg-surfaceAlt border-b border-border scrollbar-hide">
@@ -341,16 +466,25 @@ export const DMConversation = () => {
           </div>
         )}
 
+        {/* Media upload preview card */}
+        {mediaPreviewFile && (
+          <ChatUploadPreview
+            fileName={mediaPreviewFile.name}
+            fileSize={mediaPreviewFile.size}
+            mediaCategory={mediaPreviewFile.category}
+            thumbnailUrl={mediaPreviewFile.thumbnailUrl}
+            progress={mediaUploadProgress}
+            isComplete={mediaUploadComplete}
+            error={mediaUploadError}
+            onCancel={handleCancelMediaUpload}
+          />
+        )}
+
         <div className="flex items-end gap-2 px-4 py-3">
-          <button 
-            onClick={() => setShowMediaPicker(true)}
-            className="w-10 h-10 rounded-full bg-surfaceAlt text-textMid hover:text-text hover:bg-border transition-colors flex items-center justify-center shrink-0"
-          >
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
-              <line x1="12" y1="5" x2="12" y2="19" />
-              <line x1="5" y1="12" x2="19" y2="12" />
-            </svg>
-          </button>
+          <ChatMediaButton
+            onFileSelected={handleMediaFileSelected}
+            disabled={!!mediaPreviewFile && !mediaUploadComplete}
+          />
 
           <textarea
             ref={textareaRef}
@@ -368,9 +502,9 @@ export const DMConversation = () => {
 
           <button
             onClick={handleSend}
-            disabled={!inputText.trim() && pendingAttachments.length === 0}
+            disabled={(!inputText.trim() && !(mediaUploadComplete && mediaUploadResult) && pendingAttachments.length === 0) || (!!mediaPreviewFile && !mediaUploadComplete && !mediaUploadError)}
             className={`w-[44px] h-[44px] rounded-full flex items-center justify-center shrink-0 transition-all ${
-                (inputText.trim() || pendingAttachments.length > 0)
+                (inputText.trim() || (mediaUploadComplete && mediaUploadResult) || pendingAttachments.length > 0)
                 ? 'bg-brand text-white shadow-sm hover:scale-105 active:scale-95'
                 : 'bg-surfaceAlt text-textLight cursor-not-allowed'
             }`}
@@ -517,6 +651,16 @@ export const DMConversation = () => {
               </button>
             </div>
       </BottomSheet>
+
+      {/* Chat Media Lightbox */}
+      {mediaLightbox && (
+        <ChatMediaLightbox
+          cdnUrl={mediaLightbox.cdnUrl}
+          fileName={mediaLightbox.fileName}
+          type={mediaLightbox.type}
+          onClose={() => setMediaLightbox(null)}
+        />
+      )}
       </div>
     </div>
   );
