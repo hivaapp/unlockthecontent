@@ -498,8 +498,8 @@ export const FollowerPairingConfigForm = ({
                                     <span className="text-[12px] font-[600] text-[#888]">{formatTime12h(msg.sendTime)}</span>
                                 </div>
                                 <div className="flex items-center gap-2">
-                                    <button onClick={() => handleEditMessage(msg.id)} className="w-8 h-8 flex items-center justify-center text-[18px] text-[#888] hover:text-[#555] transition-transform hover:scale-110">✏️</button>
-                                    <button onClick={() => handleDeleteMessage(msg.id)} className="w-8 h-8 flex items-center justify-center text-[18px] text-[#888] hover:text-[#E8312A] transition-transform hover:scale-110">✕</button>
+                                    <button onClick={() => handleEditMessage(msg.id)} aria-label="Edit message" className="w-8 h-8 flex items-center justify-center text-[18px] text-[#888] hover:text-[#555] transition-transform hover:scale-110">✏️</button>
+                                    <button onClick={() => handleDeleteMessage(msg.id)} aria-label="Delete message" className="w-8 h-8 flex items-center justify-center text-[18px] text-[#888] hover:text-[#E8312A] transition-transform hover:scale-110">✕</button>
                                 </div>
                             </div>
                             <p className="text-[13px] font-[600] text-[#555] mb-2" style={{ lineHeight: '1.65', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' as const, overflow: 'hidden' }}>
@@ -616,14 +616,14 @@ export const FollowerPairingConfigForm = ({
                                         <div className="flex items-center gap-3 p-2 bg-red-50 rounded-[8px] border border-red-100 relative group">
                                             <div className="shrink-0"><svg width="20" height="20" viewBox="0 0 24 24" fill="#E8312A" xmlns="http://www.w3.org/2000/svg"><path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z" /></svg></div>
                                             <span className="text-[12px] font-[700] text-red-700 truncate">{addYoutubeUrl}</span>
-                                            <button onClick={() => setAddYoutubeUrl(null)} className="absolute right-2 text-red-400 hover:text-red-700"><X size={14} /></button>
+                                            <button onClick={() => setAddYoutubeUrl(null)} aria-label="Remove YouTube link" className="absolute right-2 text-red-400 hover:text-red-700"><X size={14} /></button>
                                         </div>
                                     )}
                                     {addLinks.map((link, idx) => (
                                         <div key={idx} className="flex items-center gap-3 p-2 bg-blue-50 rounded-[8px] border border-blue-100 relative group">
                                             <div className="w-6 h-6 rounded-[4px] flex items-center justify-center text-white font-black text-[12px]" style={{ backgroundColor: getDomainColor(link.url) }}>{getDomainInitial(link.url)}</div>
                                             <span className="text-[12px] font-[700] text-blue-700 truncate">{link.title}</span>
-                                            <button onClick={() => removeLink(idx)} className="absolute right-2 text-blue-400 hover:text-blue-700"><X size={14} /></button>
+                                            <button onClick={() => removeLink(idx)} aria-label="Remove link" className="absolute right-2 text-blue-400 hover:text-blue-700"><X size={14} /></button>
                                         </div>
                                     ))}
                                 </div>
@@ -661,7 +661,7 @@ export const FollowerPairingConfigForm = ({
                                             onKeyDown={(e: any) => e.key === 'Enter' && validateAndAddLink()}
                                         />
                                         <button onClick={validateAndAddLink} className="h-[32px] px-3 rounded-[6px] bg-[#92400E] text-white text-[11px] font-[800]">Add</button>
-                                        <button onClick={() => setIsAddingLink(false)} className="text-[#999] hover:text-[#555] px-1"><X size={16} /></button>
+                                        <button onClick={() => setIsAddingLink(false)} aria-label="Cancel adding link" className="text-[#999] hover:text-[#555] px-1"><X size={16} /></button>
                                     </div>
                                     <input
                                         type="text"
@@ -685,7 +685,7 @@ export const FollowerPairingConfigForm = ({
                                             onKeyDown={(e: any) => e.key === 'Enter' && validateAndAddYouTube()}
                                         />
                                         <button onClick={validateAndAddYouTube} className="h-[32px] px-3 rounded-[6px] bg-red-600 text-white text-[11px] font-[800]">Add</button>
-                                        <button onClick={() => setIsAddingYouTube(false)} className="text-[#999] hover:text-[#555] px-1"><X size={16} /></button>
+                                        <button onClick={() => setIsAddingYouTube(false)} aria-label="Cancel adding YouTube link" className="text-[#999] hover:text-[#555] px-1"><X size={16} /></button>
                                     </div>
                                     {youtubeError && <span className="text-[10px] text-red-600 font-bold">{youtubeError}</span>}
                                 </div>
@@ -835,6 +835,7 @@ export const FollowerPairingConfigForm = ({
                                             <span className="text-[12px] font-[700] text-red-700 truncate">{data.completionAsset.youtubeUrl}</span>
                                             <button 
                                                 onClick={() => handleChange('completionAsset', { ...data.completionAsset!, youtubeUrl: null })} 
+                                                aria-label="Remove YouTube link"
                                                 className="absolute right-2 text-red-400 hover:text-red-700"
                                             >
                                                 <X size={14} />
@@ -851,6 +852,7 @@ export const FollowerPairingConfigForm = ({
                                                     newLinks.splice(idx, 1);
                                                     handleChange('completionAsset', { ...data.completionAsset!, links: newLinks });
                                                 }} 
+                                                aria-label="Remove link"
                                                 className="absolute right-2 text-blue-400 hover:text-blue-700"
                                             >
                                                 <X size={14} />
