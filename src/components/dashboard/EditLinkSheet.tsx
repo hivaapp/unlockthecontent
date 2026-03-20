@@ -125,7 +125,7 @@ const ContentSection = ({ fileId, setFileId, fileName, setFileName, links, setLi
             </div>
             <div className="flex gap-2 shrink-0">
               <button onClick={() => fileInputRef.current?.click()} className="text-[11px] font-bold text-text bg-white border border-border px-2.5 h-7 rounded-full hover:border-textMid transition-colors">Replace</button>
-              <button onClick={removeFile} className="w-7 h-7 rounded-full bg-white flex items-center justify-center border border-border text-textMid hover:text-error hover:border-error transition-colors"><X size={14} /></button>
+              <button onClick={removeFile} aria-label="Remove attached file" className="w-7 h-7 rounded-full bg-white flex items-center justify-center border border-border text-textMid hover:text-error hover:border-error transition-colors"><X size={14} /></button>
             </div>
           </div>
         ) : (
@@ -154,7 +154,7 @@ const ContentSection = ({ fileId, setFileId, fileName, setFileName, links, setLi
             <div key={idx} className="flex items-center gap-2 bg-surfaceAlt border border-border rounded-[8px] px-3 py-2">
               <div className="w-6 h-6 rounded-[4px] flex items-center justify-center text-white font-black text-[11px] shrink-0" style={{ backgroundColor: getDomainColor(link.url) }}>{getDomainInitial(link.url)}</div>
               <div className="flex flex-col min-w-0 flex-1"><span className="text-[12px] font-bold text-text truncate">{link.title}</span><span className="text-[10px] text-textLight truncate">{getDomainName(link.url)}</span></div>
-              <button onClick={() => setLinks(links.filter((_, i) => i !== idx))} className="w-6 h-6 rounded-full flex items-center justify-center text-textLight hover:text-error shrink-0"><X size={12} strokeWidth={3} /></button>
+              <button onClick={() => setLinks(links.filter((_, i) => i !== idx))} aria-label="Remove link" className="w-6 h-6 rounded-full flex items-center justify-center text-textLight hover:text-error shrink-0"><X size={12} strokeWidth={3} /></button>
             </div>
           ))}
         </div>
@@ -165,7 +165,7 @@ const ContentSection = ({ fileId, setFileId, fileName, setFileName, links, setLi
         <div className="flex items-center gap-2 bg-red-50 border border-red-200 rounded-[8px] px-3 py-2">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="#E8312A"><path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z" /></svg>
           <span className="text-[11px] font-bold text-red-700 truncate flex-1">{youtubeUrl}</span>
-          <button onClick={() => setYoutubeUrl(null)} className="text-red-400 hover:text-red-700"><X size={14} /></button>
+          <button onClick={() => setYoutubeUrl(null)} aria-label="Remove YouTube video" className="text-red-400 hover:text-red-700"><X size={14} /></button>
         </div>
       )}
 
@@ -203,7 +203,7 @@ const ContentSection = ({ fileId, setFileId, fileName, setFileName, links, setLi
           <div className="flex gap-2">
             <input type="text" value={youtubeInput} onChange={e => { setYoutubeInput(e.target.value); setYoutubeError(''); }} placeholder="Paste YouTube video URL" className="flex-1 h-10 border border-border rounded-[8px] px-3 text-[14px] font-semibold focus:outline-none focus:ring-1 focus:ring-brand bg-white" autoFocus onKeyDown={e => { if (e.key === 'Enter') addYouTube(e); if (e.key === 'Escape') setIsAddingYouTube(false); }} />
             <button onClick={addYouTube} className="h-10 px-4 bg-red-600 text-white rounded-[8px] text-[12px] font-extrabold hover:bg-red-700">Add</button>
-            <button onClick={() => setIsAddingYouTube(false)} className="w-10 h-10 bg-white border border-border rounded-[8px] flex items-center justify-center text-textMid hover:bg-surfaceAlt"><X size={16} /></button>
+            <button onClick={() => setIsAddingYouTube(false)} aria-label="Cancel adding YouTube video" className="w-10 h-10 bg-white border border-border rounded-[8px] flex items-center justify-center text-textMid hover:bg-surfaceAlt"><X size={16} /></button>
           </div>
           {youtubeError && <span className="text-[11px] text-error font-bold">{youtubeError}</span>}
         </div>
@@ -447,7 +447,7 @@ const PairingEditSection = ({ raw, onChange }: PairingEditProps) => {
                   <div key={i} className="flex items-center gap-2 bg-white border border-border rounded-[8px] px-3 py-2">
                     <div className="w-5 h-5 rounded-[4px] flex items-center justify-center text-white text-[10px] font-black shrink-0" style={{ backgroundColor: getDomainColor(l.url) }}>{getDomainInitial(l.url)}</div>
                     <span className="text-[12px] font-bold text-text truncate flex-1">{l.title}</span>
-                    <button onClick={() => setRewardLinks(prev => prev.filter((_, idx) => idx !== i))} className="text-textLight hover:text-error"><X size={12} /></button>
+                    <button onClick={() => setRewardLinks(prev => prev.filter((_, idx) => idx !== i))} aria-label="Remove reward link" className="text-textLight hover:text-error"><X size={12} /></button>
                   </div>
                 ))}
               </div>
@@ -456,7 +456,7 @@ const PairingEditSection = ({ raw, onChange }: PairingEditProps) => {
               <div className="flex items-center gap-2 bg-red-50 border border-red-200 rounded-[8px] px-3 py-2">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="#E8312A"><path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z" /></svg>
                 <span className="text-[11px] font-bold text-red-700 truncate flex-1">{rewardYoutube}</span>
-                <button onClick={() => setRewardYoutube(null)} className="text-red-400 hover:text-red-700"><X size={12} /></button>
+                <button onClick={() => setRewardYoutube(null)} aria-label="Remove reward YouTube video" className="text-red-400 hover:text-red-700"><X size={12} /></button>
               </div>
             )}
             {!isAddingRewardLink && !isAddingRewardYT && (
@@ -470,7 +470,7 @@ const PairingEditSection = ({ raw, onChange }: PairingEditProps) => {
                 <div className="flex gap-2">
                   <input type="text" value={rewardLinkUrl} onChange={e => { setRewardLinkUrl(e.target.value); setRewardLinkError(''); }} placeholder="URL…" className="flex-1 h-9 border border-border rounded-[8px] px-3 text-[13px] focus:outline-none focus:ring-1 focus:ring-brand" autoFocus onKeyDown={e => e.key === 'Enter' && addRewardLink(e)} />
                   <button onClick={addRewardLink} className="h-9 px-3 bg-brand text-white rounded-[8px] text-[12px] font-extrabold">Add</button>
-                  <button onClick={() => setIsAddingRewardLink(false)} className="w-9 h-9 border border-border rounded-[8px] flex items-center justify-center text-textMid hover:bg-surfaceAlt"><X size={14} /></button>
+                  <button onClick={() => setIsAddingRewardLink(false)} aria-label="Cancel adding reward link" className="w-9 h-9 border border-border rounded-[8px] flex items-center justify-center text-textMid hover:bg-surfaceAlt"><X size={14} /></button>
                 </div>
                 <input type="text" value={rewardLinkTitle} onChange={e => setRewardLinkTitle(e.target.value)} placeholder="Link title (optional)" className="w-full h-9 border border-border rounded-[8px] px-3 text-[13px] focus:outline-none focus:ring-1 focus:ring-brand" onKeyDown={e => e.key === 'Enter' && addRewardLink(e)} />
                 {rewardLinkError && <span className="text-[10px] text-error font-bold">{rewardLinkError}</span>}
@@ -480,7 +480,7 @@ const PairingEditSection = ({ raw, onChange }: PairingEditProps) => {
               <div className="flex gap-2 p-2 bg-white border border-border rounded-[8px]">
                 <input type="text" value={rewardYTInput} onChange={e => { setRewardYTInput(e.target.value); setRewardYTError(''); }} placeholder="YouTube URL…" className="flex-1 h-9 border border-border rounded-[8px] px-3 text-[13px] focus:outline-none focus:ring-1 focus:ring-brand" autoFocus onKeyDown={e => e.key === 'Enter' && addRewardYouTube(e)} />
                 <button onClick={addRewardYouTube} className="h-9 px-3 bg-red-600 text-white rounded-[8px] text-[12px] font-extrabold">Add</button>
-                <button onClick={() => setIsAddingRewardYT(false)} className="w-9 h-9 border border-border rounded-[8px] flex items-center justify-center text-textMid hover:bg-surfaceAlt"><X size={14} /></button>
+                <button onClick={() => setIsAddingRewardYT(false)} aria-label="Cancel adding reward YouTube video" className="w-9 h-9 border border-border rounded-[8px] flex items-center justify-center text-textMid hover:bg-surfaceAlt"><X size={14} /></button>
               </div>
             )}
             {isAddingRewardYT && rewardYTError && <span className="text-[10px] text-error font-bold">{rewardYTError}</span>}
