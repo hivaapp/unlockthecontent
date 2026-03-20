@@ -45,6 +45,8 @@ export const ConfirmationBottomSheet = ({
                     <button
                         onClick={handleConfirm}
                         disabled={isLoading}
+                        aria-busy={isLoading}
+                        aria-live="polite"
                         className={`btn-primary w-full h-[52px] ${isDanger ? 'bg-error hover:bg-red-700' : 'bg-brand'}`}
                     >
                         {isLoading ? (
@@ -56,6 +58,7 @@ export const ConfirmationBottomSheet = ({
                     <button
                         onClick={onClose}
                         disabled={isLoading}
+                        aria-disabled={isLoading}
                         className="btn-secondary w-full h-[52px] border-none text-textMid hover:bg-surfaceAlt"
                     >
                         {cancelText}

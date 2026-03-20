@@ -38,7 +38,7 @@ export const DMConversation = () => {
   const [showInfoSheet, setShowInfoSheet] = useState(false);
   const [showMediaPicker, setShowMediaPicker] = useState(false);
   const [pendingAttachments, setPendingAttachments] = useState<MediaAttachment[]>([]);
-  const [isTyping, setIsTyping] = useState(false);
+  const [isTyping, ] = useState(false);
   const [showBlockConfirm, setShowBlockConfirm] = useState(false);
   const [messages, setMessages] = useState<DMMessage[]>([]);
 
