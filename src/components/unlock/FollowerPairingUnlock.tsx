@@ -16,7 +16,7 @@ interface FollowerPairingUnlockProps {
 export const FollowerPairingUnlock = ({ link, slug }: FollowerPairingUnlockProps) => {
   const navigate = useNavigate();
   const [commitment, setCommitment] = useState('');
-  const [waitingCount, setWaitingCount] = useState(0);
+  const [, setWaitingCount] = useState(0);
   const [hasJoined, setHasJoined] = useState(false);
   const [isLeaving, setIsLeaving] = useState(false);
   const [guidelinesExpanded, setGuidelinesExpanded] = useState(false);
