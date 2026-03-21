@@ -1,6 +1,7 @@
 // src/components/unlock/EmailSubscribeUnlock.jsx
 import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { Mail, MailCheck, Download, ExternalLink, Lock } from 'lucide-react'
 import {
   subscribeAndUnlock,
   hasCompletedEmailUnlock,
@@ -105,16 +106,16 @@ const EmailSubscribeUnlock = ({ link, currentUser, isLoggedIn, sessionKey, onUnl
 
   if (screen === 'already_unlocked') {
     return (
-      <div className="w-full flex flex-col items-center">
-        <div className="w-16 h-16 bg-successBg rounded-full flex items-center justify-center text-3xl mb-4 border border-success/20">
-          ✅
+      <div className="w-full flex flex-col items-center animate-fadeIn">
+        <div className="w-12 h-12 bg-surfaceAlt rounded-full flex items-center justify-center text-text mb-6 border border-border">
+          <Mail size={24} strokeWidth={2.5} />
         </div>
         
-        <h2 className="text-2xl font-black text-text mb-2 text-center">
+        <h2 className="text-[24px] md:text-[28px] tracking-tight font-black text-text mb-2 text-center">
           Already subscribed
         </h2>
         
-        <p className="text-[14px] text-textMid text-center mb-8 max-w-[280px]">
+        <p className="text-[15px] text-textMid text-center mb-8 max-w-[280px]">
           You subscribed to {email_config?.newsletter_name || 'the newsletter'} earlier. Re-enter your email to access the resource.
         </p>
 
@@ -144,22 +145,22 @@ const EmailSubscribeUnlock = ({ link, currentUser, isLoggedIn, sessionKey, onUnl
 
   if (screen === 'unlocked') {
     return (
-      <div className="w-full flex flex-col items-center animate-pop-in">
-        <div className="w-16 h-16 bg-successBg rounded-full flex items-center justify-center text-3xl mb-4 border border-success/20">
-          🎉
+      <div className="w-full flex flex-col items-center animate-fadeIn">
+        <div className="w-12 h-12 bg-successBg text-success rounded-full flex items-center justify-center mb-6 border border-success/20">
+          <MailCheck size={24} strokeWidth={2.5} />
         </div>
         
-        <h2 className="text-2xl font-black text-text mb-2 text-center">
-          {alreadySubscribed ? 'Welcome back!' : 'You\'re in!'}
+        <h2 className="text-[24px] md:text-[28px] tracking-tight font-black text-text mb-2 text-center">
+          {alreadySubscribed ? 'Welcome back!' : 'Access Granted!'}
         </h2>
         
-        <p className="text-[14px] text-textMid text-center mb-8">
-          Subscribed to {email_config?.newsletter_name || 'the newsletter'}.
+        <p className="text-[15px] font-medium text-textMid text-center mb-10">
+          {alreadySubscribed ? 'Here is your unlocked resource.' : `Successfully subscribed to ${email_config?.newsletter_name || 'the newsletter'}. Here is your resource.`}
         </p>
 
-        <div className="w-full max-w-[400px] flex flex-col gap-6">
+        <div className="w-full max-w-[400px] flex flex-col gap-8 text-left">
           {email_config?.unlock_text && (
-            <div className="text-center">
+            <div className="text-center w-full">
               <p className="text-[15px] font-[500] text-text leading-relaxed whitespace-pre-wrap">
                 {email_config.unlock_text}
               </p>
@@ -167,99 +168,102 @@ const EmailSubscribeUnlock = ({ link, currentUser, isLoggedIn, sessionKey, onUnl
           )}
 
           {link.text_content && (
-            <div className="w-full bg-surfaceAlt rounded-xl p-4 border border-border">
-              <p className="text-[14px] font-medium text-text leading-relaxed whitespace-pre-wrap">
+            <div className="w-full">
+              <h3 className="text-[12px] font-bold text-textLight uppercase tracking-wider mb-2">Message</h3>
+              <p className="text-[15px] text-text leading-relaxed whitespace-pre-wrap">
                 {link.text_content}
               </p>
             </div>
           )}
 
           {link.content_links && link.content_links.length > 0 && (
-            <div className="w-full flex flex-col gap-2">
+            <div className="w-full flex flex-col gap-4">
+              <h3 className="text-[12px] font-bold text-textLight uppercase tracking-wider mb-[-8px]">Links</h3>
               {link.content_links.map((cl, idx) => {
-                const getDomainInitial = (url) => {
-                  try { return new URL(url).hostname.replace(/^www\./, '').charAt(0).toUpperCase(); } catch { return '?'; }
-                };
-                const getDomainColor = (url) => {
-                  const colors = ['#E8312A', '#4F46E5', '#0EA5E9', '#10B981', '#F59E0B', '#8B5CF6', '#EC4899'];
-                  let hash = 0;
-                  for (let i = 0; i < url.length; i++) hash = url.charCodeAt(i) + ((hash << 5) - hash);
-                  return colors[Math.abs(hash) % colors.length];
-                };
                 const getDomainName = (url) => {
                   try { return new URL(url).hostname.replace(/^www\./, ''); } catch { return url; }
                 };
                 return (
-                  <a
-                    key={idx}
-                    href={cl.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="w-full h-[52px] bg-white rounded-[12px] border border-border flex items-center px-3 gap-3 no-underline hover:bg-surfaceAlt transition-colors"
-                  >
-                    <div
-                      className="w-[32px] h-[32px] rounded-[6px] flex items-center justify-center text-white font-[900] text-[14px] shrink-0"
-                      style={{ backgroundColor: getDomainColor(cl.url) }}
+                  <div key={idx} className="flex items-center justify-between py-3 border-b border-border last:border-0 hover:bg-surfaceAlt/50 transition-colors -mx-4 px-4 rounded-md">
+                    <div className="flex flex-col min-w-0 pr-4">
+                      <span className="text-[15px] font-bold text-text truncate">{cl.title || getDomainName(cl.url)}</span>
+                      <span className="text-[13px] text-textMid truncate">{getDomainName(cl.url)}</span>
+                    </div>
+                    <a
+                      href={cl.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="h-10 px-4 bg-white border border-border text-text rounded-md text-[13px] font-bold flex items-center justify-center gap-2 hover:bg-surfaceAlt transition-colors shrink-0 whitespace-nowrap"
                     >
-                      {getDomainInitial(cl.url)}
-                    </div>
-                    <div className="flex flex-col min-w-0 flex-1">
-                      <span className="text-[13px] font-[800] text-text truncate leading-tight">{cl.title || getDomainName(cl.url)}</span>
-                      <span className="text-[11px] text-textLight truncate leading-tight">{getDomainName(cl.url)}</span>
-                    </div>
-                  </a>
+                      Visit <ExternalLink size={14} />
+                    </a>
+                  </div>
                 );
               })}
             </div>
           )}
 
           {link.youtube_url && (
-            <div className="w-full aspect-video rounded-xl overflow-hidden border border-border shadow-sm">
-              <iframe
-                src={getYoutubeEmbedUrl(link.youtube_url)}
-                className="w-full h-full border-none"
-                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                allowFullScreen
-                title="YouTube video player"
-              />
+            <div className="w-full flex flex-col gap-2">
+              <h3 className="text-[12px] font-bold text-textLight uppercase tracking-wider mb-1">Video</h3>
+              <div className="w-full aspect-video rounded-md overflow-hidden border border-border">
+                <iframe
+                  src={getYoutubeEmbedUrl(link.youtube_url)}
+                  className="w-full h-full border-none"
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                  allowFullScreen
+                  title="YouTube video player"
+                />
+              </div>
             </div>
           )}
 
           {email_config?.unlock_url && (
-            <a
-              href={email_config.unlock_url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="w-full h-12 bg-white border border-border text-text rounded-xl text-sm font-black flex items-center justify-center gap-2 hover:bg-surfaceAlt transition-colors no-underline shadow-sm"
-            >
-              {email_config.unlock_url_label || 'Access Link'} →
-            </a>
+            <div className="w-full flex flex-col gap-2 mt-2">
+              <a
+                href={email_config.unlock_url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="w-full h-10 bg-brand text-white rounded-md text-[14px] font-bold flex items-center justify-center gap-2 hover:bg-brandHover transition-colors"
+              >
+                {email_config.unlock_url_label || 'Access Link'} <ExternalLink size={16} />
+              </a>
+            </div>
           )}
 
           {file && (
-            <div className="w-full flex items-center justify-between py-3 border-t border-border mt-2">
-              <div className="flex items-center gap-3 min-w-0">
-                <div className="text-2xl shrink-0">
-                  {getFileEmoji(file.original_name, file.mime_type)}
+            <div className="w-full flex flex-col gap-2">
+              <h3 className="text-[12px] font-bold text-textLight uppercase tracking-wider mb-1 mt-2">File</h3>
+              <div className="w-full flex items-center justify-between py-4 border-y border-border">
+                <div className="flex items-center gap-3 min-w-0 pr-4">
+                  <div className="text-2xl shrink-0">
+                    {getFileEmoji(file.original_name, file.mime_type)}
+                  </div>
+                  <div className="flex flex-col min-w-0">
+                    <span className="text-[15px] font-bold text-text truncate">
+                      {link.title || file.original_name}
+                    </span>
+                    <span className="text-[13px] text-textMid">
+                      {formatFileSize(file.size_bytes)}
+                    </span>
+                  </div>
                 </div>
-                <div className="flex flex-col min-w-0">
-                  <span className="text-[14px] font-black text-text truncate">
-                    {link.title}
-                  </span>
-                  <span className="text-[12px] text-textLight font-medium">
-                    {formatFileSize(file.size_bytes)}
-                  </span>
-                </div>
+                <button
+                  onClick={handleDownload}
+                  disabled={!downloadUrl}
+                  className={`h-10 px-4 rounded-md text-[13px] font-bold transition-colors shrink-0 flex items-center gap-2 ${
+                    downloadStarted 
+                      ? 'bg-successBg text-success border border-success/20' 
+                      : !downloadUrl 
+                        ? 'bg-surfaceAlt text-textLight border border-border' 
+                        : (email_config?.unlock_url 
+                            ? 'bg-white text-text border border-border hover:bg-surfaceAlt' 
+                            : 'bg-brand text-white hover:bg-brandHover')
+                  }`}
+                >
+                  {!downloadUrl ? 'Wait' : downloadStarted ? 'Downloaded' : <><Download size={14} /> Download</>}
+                </button>
               </div>
-              <button
-                onClick={handleDownload}
-                disabled={!downloadUrl}
-                className={`h-10 px-4 rounded-lg text-[13px] font-bold transition-all shrink-0 ml-4 ${
-                  downloadStarted ? 'bg-success text-white' : !downloadUrl ? 'bg-border text-textLight' : 'bg-brand text-white hover:bg-brandHover shadow-sm'
-                }`}
-              >
-                {!downloadUrl ? 'Wait' : downloadStarted ? 'Got it' : 'Download'}
-              </button>
             </div>
           )}
         </div>
@@ -268,23 +272,30 @@ const EmailSubscribeUnlock = ({ link, currentUser, isLoggedIn, sessionKey, onUnl
   }
 
   return (
-    <div className="w-full flex flex-col items-center">
+    <div className="w-full flex flex-col items-center animate-fadeIn">
 
+      <div className="w-12 h-12 bg-surfaceAlt text-text rounded-full flex items-center justify-center mb-6 border border-border">
+        <Mail size={24} strokeWidth={2.5} />
+      </div>
       
       {email_config?.newsletter_name && (
-        <span className="text-[11px] font-bold text-brand uppercase tracking-wider mb-2">
+        <span className="text-[12px] font-bold text-textMid uppercase tracking-wider mb-2">
           {email_config.newsletter_name}
         </span>
       )}
       
-      <h2 className="text-2xl font-black text-text mb-3 text-center leading-tight">
-        {email_config?.incentive_text || 'Subscribe to unlock this resource'}
+      <h2 className="text-[24px] md:text-[28px] tracking-tight font-black text-text mb-3 text-center leading-tight">
+        {email_config?.incentive_text || 'Unlock this resource instantly'}
       </h2>
       
       {email_config?.newsletter_description && (
-        <p className="text-[14px] text-textMid text-center max-w-[320px] mb-8 leading-relaxed">
+        <p className="text-[15px] text-textMid text-center max-w-[320px] mb-8 leading-relaxed">
           {email_config.newsletter_description}
         </p>
+      )}
+
+      {!email_config?.newsletter_description && (
+        <div className="mb-8 p-0" />
       )}
 
       <div className="w-full max-w-[340px]">
@@ -306,11 +317,11 @@ const EmailSubscribeUnlock = ({ link, currentUser, isLoggedIn, sessionKey, onUnl
         <SubscribeButton
           onClick={handleSubscribe}
           isSubmitting={isSubmitting}
-          label="Subscribe to Unlock"
+          label="Get Instant Access"
         />
 
-        <p className="text-[11px] text-textLight text-center mt-4 font-bold uppercase tracking-wider">
-          Free forever • No payment required
+        <p className="text-[12px] font-medium text-textLight text-center mt-5 flex items-center justify-center gap-1.5">
+          <Lock size={12} /> 100% free • Unsubscribe anytime
         </p>
       </div>
     </div>
@@ -330,18 +341,18 @@ const EmailInputField = ({
         onChange={(e) => onChange(e.target.value)}
         onBlur={onBlur}
         onKeyDown={onKeyDown}
-        placeholder="you@example.com"
+        placeholder="Enter your best email..."
         disabled={disabled}
-        className={`w-full h-12 bg-white border ${error ? 'border-error' : 'border-border'} rounded-xl px-4 text-[15px] outline-none focus:border-brand transition-colors ${disabled ? 'bg-surfaceAlt' : ''}`}
+        className={`w-full h-10 bg-white border ${error ? 'border-error' : 'border-border'} rounded-md px-4 text-[15px] outline-none focus:border-brand focus:ring-1 focus:ring-brand transition-all placeholder:text-textLight ${disabled ? 'bg-surfaceAlt text-textLight' : 'text-text'}`}
       />
       {isLoading && (
-        <div className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 border-2 border-border border-t-brand rounded-full animate-spin" />
+        <div className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 border-2 border-border border-t-brand rounded-full animate-spin" />
       )}
       {isLoggedIn && !isLoading && (
-        <div className="absolute right-4 top-1/2 -translate-y-1/2 text-sm">✅</div>
+        <div className="absolute right-3 top-1/2 -translate-y-1/2 text-[14px]">✅</div>
       )}
     </div>
-    {error && <p className="text-[12px] font-bold text-error mt-2 ml-1 text-center">{error}</p>}
+    {error && <p className="text-[12px] font-bold text-error mt-1.5 ml-1 text-center">{error}</p>}
   </div>
 )
 
@@ -349,7 +360,7 @@ const SubscribeButton = ({ onClick, isSubmitting, label }) => (
   <button
     onClick={onClick}
     disabled={isSubmitting}
-    className="w-full h-12 bg-brand hover:bg-brandHover text-white rounded-xl text-[15px] font-black flex items-center justify-center gap-2 active:scale-[0.98] transition-all disabled:opacity-50 disabled:active:scale-100 shadow-sm"
+    className="w-full h-10 bg-brand hover:bg-brandHover text-white rounded-md text-[14px] font-bold flex items-center justify-center gap-2 active:scale-[0.98] transition-transform disabled:opacity-50 disabled:active:scale-100"
   >
     {isSubmitting ? (
       <>
@@ -363,3 +374,4 @@ const SubscribeButton = ({ onClick, isSubmitting, label }) => (
 )
 
 export default EmailSubscribeUnlock
+

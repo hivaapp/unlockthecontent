@@ -253,6 +253,17 @@ export const getPublicCreatorLinks = async (creatorId) => {
         total_participants,
         active_pairs,
         completed_pairs
+      ),
+      email_config:email_configs (
+        newsletter_name,
+        platform
+      ),
+      social_config:social_configs (
+        custom_heading
+      ),
+      sponsor_config:sponsor_configs (
+        brand_name,
+        requires_click
       )
     `)
     .eq('creator_id', creatorId)
@@ -302,6 +313,21 @@ export const getExploreLinks = async ({
       sponsor_config:sponsor_configs (
         brand_name,
         requires_click
+      ),
+      email_config:email_configs (
+        newsletter_name,
+        platform
+      ),
+      social_config:social_configs (
+        custom_heading
+      ),
+      pairing_config:pairing_configs (
+        topic,
+        duration_days,
+        is_accepting,
+        total_participants,
+        active_pairs,
+        completed_pairs
       )
     `, { count: 'exact' })
     .eq('is_active', true)

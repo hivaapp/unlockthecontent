@@ -11,13 +11,21 @@ export interface Activity {
     bg: string;
 }
 
-export const getRecentActivity = async (creatorId: string): Promise<Activity[]> => {
+export const getRecentActivity = async (creatorId: string, lastClearedAt?: string): Promise<Activity[]> => {
     try {
+        const clearedDate = lastClearedAt ? new Date(lastClearedAt) : null;
+
         // 1. Fetch recent links created by creator
-        const { data: links, error: linksError } = await supabase
+        let linksQuery = supabase
             .from('links')
             .select('id, title, created_at')
-            .eq('creator_id', creatorId)
+            .eq('creator_id', creatorId);
+        
+        if (clearedDate) {
+            linksQuery = linksQuery.gt('created_at', clearedDate.toISOString());
+        }
+
+        const { data: links, error: linksError } = await linksQuery
             .order('created_at', { ascending: false })
             .limit(10);
 
@@ -26,32 +34,50 @@ export const getRecentActivity = async (creatorId: string): Promise<Activity[]> 
         const linkIds = links?.map(l => l.id) || [];
         
         // 2. Fetch recent email subscribers for these links
-        const { data: subscribers, error: subError } = await supabase
+        let subQuery = supabase
             .from('email_subscribers')
             .select('id, link_id, subscribed_at, links(title)')
-            .eq('creator_id', creatorId)
+            .eq('creator_id', creatorId);
+
+        if (clearedDate) {
+            subQuery = subQuery.gt('subscribed_at', clearedDate.toISOString());
+        }
+
+        const { data: subscribers, error: subError } = await subQuery
             .order('subscribed_at', { ascending: false })
             .limit(10);
 
         if (subError) throw subError;
 
         // 3. Fetch recent social unlocks for these links
-        const { data: socialUnlocks, error: socialError } = await supabase
+        let socialQuery = supabase
             .from('social_unlocks')
             .select('id, link_id, completed_at, links(title)')
             .in('link_id', linkIds)
-            .eq('all_completed', true)
+            .eq('all_completed', true);
+
+        if (clearedDate) {
+            socialQuery = socialQuery.gt('completed_at', clearedDate.toISOString());
+        }
+
+        const { data: socialUnlocks, error: socialError } = await socialQuery
             .order('completed_at', { ascending: false })
             .limit(10);
 
         if (socialError) throw socialError;
 
         // 4. Fetch recent sponsor impressions (completed)
-        const { data: sponsorImpressions, error: sponsorError } = await supabase
+        let sponsorQuery = supabase
             .from('sponsor_impressions')
             .select('id, link_id, watch_completed_at, links(title)')
             .in('link_id', linkIds)
-            .eq('watch_completed', true)
+            .eq('watch_completed', true);
+
+        if (clearedDate) {
+            sponsorQuery = sponsorQuery.gt('watch_completed_at', clearedDate.toISOString());
+        }
+
+        const { data: sponsorImpressions, error: sponsorError } = await sponsorQuery
             .order('watch_completed_at', { ascending: false })
             .limit(10);
 
@@ -146,4 +172,19 @@ const formatTimeAgo = (date: Date): string => {
     if (interval > 1) return Math.floor(interval) + " mins ago";
     
     return "just now";
+};
+
+export const clearActivity = async (userId: string) => {
+    try {
+        const { error } = await supabase
+            .from('users')
+            .update({ last_activity_cleared_at: new Date().toISOString() })
+            .eq('id', userId);
+
+        if (error) throw error;
+        return true;
+    } catch (err) {
+        console.error('Error clearing activity:', err);
+        throw err;
+    }
 };

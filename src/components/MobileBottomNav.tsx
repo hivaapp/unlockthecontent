@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { Home, LayoutDashboard, Compass, MessageCircle, User } from 'lucide-react';
+import { Home, LayoutDashboard, MessageCircle, User } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useChatSessions } from '../context/ChatSessionsContext';
 import { useMessaging } from '../context/MessagingContext';
@@ -30,7 +30,6 @@ export const MobileBottomNav = () => {
 
     const navItems = [
         { id: 'home', path: '/dashboard?tab=home', icon: Home, label: 'Home' },
-        { id: 'explore', path: '/explore', icon: Compass, label: 'Explore' },
         { id: 'dashboard', path: '/dashboard?tab=analytics', icon: LayoutDashboard, label: 'Dashboard' },
         { id: 'chats', path: '/chats', icon: MessageCircle, label: 'Chats' },
         { id: 'account', path: '/dashboard?tab=account', icon: User, label: 'Account' }

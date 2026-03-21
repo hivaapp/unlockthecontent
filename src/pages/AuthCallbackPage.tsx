@@ -2,6 +2,19 @@ import { useEffect, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 
+const stripeProLink = import.meta.env.VITE_STRIPE_PRO_LINK || 'https://buy.stripe.com/test_00weVfdKm42Agwj4QafIs00';
+
+/** If the user had clicked "Start Pro" before signing up, redirect to Stripe instead of dashboard */
+const maybeRedirectToStripe = (session: { user: { id: string; email?: string } }): boolean => {
+  if (localStorage.getItem('pendingProUpgrade') === 'true') {
+    localStorage.removeItem('pendingProUpgrade');
+    const url = `${stripeProLink}?client_reference_id=${session.user.id}&prefilled_email=${encodeURIComponent(session.user.email || '')}`;
+    window.location.href = url;
+    return true;
+  }
+  return false;
+}
+
 const AuthCallbackPage = () => {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
@@ -9,10 +22,6 @@ const AuthCallbackPage = () => {
 
   useEffect(() => {
     const handleCallback = async () => {
-      // Supabase puts the type in the URL hash or as a search param.
-      // detectSessionInUrl handles the session automatically.
-      // We just need to check what type of callback this is.
-
       const hashParams = new URLSearchParams(window.location.hash.replace('#', ''))
       const type = hashParams.get('type') || searchParams.get('type')
       const errorParam = hashParams.get('error_description') || searchParams.get('error_description')
@@ -31,20 +40,21 @@ const AuthCallbackPage = () => {
       }
 
       if (type === 'recovery') {
-        // Password reset flow — redirect to the reset password page
         navigate('/reset-password', { replace: true })
         return
       }
 
       if (type === 'signup' || type === 'email_change') {
-        // Email confirmed — go to dashboard
+        // Email confirmed — check for pending Pro upgrade first
+        if (session && maybeRedirectToStripe(session)) return;
         navigate('/dashboard', { replace: true })
         return
       }
 
       if (session) {
-        // OAuth or magic link — session exists, go to dashboard
-        // Check if this is a new user (no username set yet) → onboarding
+        // OAuth or magic link — check for pending Pro upgrade first
+        if (maybeRedirectToStripe(session)) return;
+
         const { data: userProfile } = await supabase
           .from('users')
           .select('username, is_creator')
@@ -90,7 +100,7 @@ const AuthCallbackPage = () => {
             fontSize: '14px', fontWeight: 800, cursor: 'pointer',
           }}
         >
-          Go to AdGate →
+          Go to UnlockTheContent →
         </button>
       </div>
     )

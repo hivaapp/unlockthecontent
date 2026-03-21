@@ -6,10 +6,13 @@ import { ArrowRight, UserCheck, Download } from 'lucide-react';
 import { getAllUniqueSubscribers } from '../../../services/emailSubscribeService';
 import { GlobalSubscribersSheet } from '../GlobalSubscribersSheet';
 import { getCreatorLinks } from '../../../services/linksService';
-import { getRecentActivity, type Activity } from '../../../services/activityService';
+import { getRecentActivity, type Activity, clearActivity } from '../../../services/activityService';
+import { Trash2 } from 'lucide-react';
+import { useToast } from '../../../context/ToastContext';
 
 export const HomeTab = () => {
-    const { currentUser: user } = useAuth();
+    const { currentUser: user, refreshProfile } = useAuth();
+    const { showToast: toast } = useToast();
     const [subscriberCount, setSubscriberCount] = useState<number | null>(null);
     const [totalViews, setTotalViews] = useState<number>(0);
     const [isSubscribersSheetOpen, setIsSubscribersSheetOpen] = useState(false);
@@ -35,12 +38,30 @@ export const HomeTab = () => {
 
             // Fetch recent activities
             setIsLoadingActivities(true);
-            const recentActivities = await getRecentActivity(user!.id);
+            const recentActivities = await getRecentActivity(user!.id, user?.lastActivityClearedAt);
             setActivities(recentActivities);
             setIsLoadingActivities(false);
         } catch (err) {
             console.error('Failed to load home stats:', err);
             setIsLoadingActivities(false);
+        }
+    };
+
+    const handleClearActivity = async () => {
+        if (!user?.id) return;
+        
+        if (!window.confirm('Are you sure you want to clear all recent activity? This cannot be undone.')) {
+            return;
+        }
+
+        try {
+            await clearActivity(user.id);
+            await refreshProfile();
+            setActivities([]);
+            toast('Activity cleared', 'success');
+        } catch (err) {
+            console.error('Failed to clear activity:', err);
+            toast('Failed to clear activity', 'error');
         }
     };
 
@@ -67,7 +88,7 @@ export const HomeTab = () => {
                     <div className="card h-auto p-4 flex gap-1 flex-col shadow-none bg-surfaceAlt border-0">
                         <span className="text-[20px] leading-none mb-1">👀</span>
                         <span className="text-[24px] font-black leading-none text-text">
-                            <CountUp end={totalViews || 1284} />
+                            <CountUp end={totalViews} />
                         </span>
                         <span className="text-[11px] font-bold text-textMid uppercase tracking-wide">Total Views</span>
                     </div>
@@ -77,7 +98,7 @@ export const HomeTab = () => {
                     >
                         <span className="text-[20px] leading-none mb-1">📧</span>
                         <span className="text-[24px] font-black leading-none text-brand">
-                            <CountUp end={subscriberCount !== null ? subscriberCount : 842} />
+                            <CountUp end={subscriberCount || 0} />
                         </span>
                         <span className="text-[11px] font-bold text-brand uppercase tracking-wide flex items-center gap-1">
                             Subscribers <ArrowRight size={10} />
@@ -106,9 +127,19 @@ export const HomeTab = () => {
             <div className="flex flex-col w-full">
                 <div className="flex items-center justify-between mb-2">
                     <h3 className="text-[14px] font-extrabold text-text">Recent Activity</h3>
-                    <button className="text-[13px] font-bold text-brand flex items-center gap-1">
-                        See All <ArrowRight className="w-3.5 h-3.5" />
-                    </button>
+                    <div className="flex items-center gap-3">
+                        {activities.length > 0 && (
+                            <button 
+                                onClick={handleClearActivity}
+                                className="text-[12px] font-bold text-error flex items-center gap-1 hover:opacity-80 transition-opacity"
+                            >
+                                <Trash2 size={12} /> Clear
+                            </button>
+                        )}
+                        <button className="text-[13px] font-bold text-brand flex items-center gap-1">
+                            See All <ArrowRight className="w-3.5 h-3.5" />
+                        </button>
+                    </div>
                 </div>
                 <div className="card p-0 overflow-hidden shadow-none flex flex-col min-h-[120px]">
                     {isLoadingActivities ? (
@@ -141,21 +172,37 @@ export const HomeTab = () => {
                 </div>
             </div>
 
-            {/* Tips Cards */}
-            <div className="flex flex-col w-full mb-4">
-                <h3 className="text-[14px] font-extrabold text-text mb-3">Creator Tips</h3>
+            {/* Creator Tips */}
+            <div className="flex flex-col w-full mb-4 mt-2">
+                <h3 className="text-[14px] font-extrabold text-text mb-3">Growth Tips</h3>
 
                 <div className="flex sm:grid sm:grid-cols-2 gap-4 overflow-x-auto pb-4 -mx-4 px-4 sm:mx-0 sm:px-0 sm:pb-0 hide-scrollbar snap-x snap-mandatory">
-                    <div className="w-[220px] h-[100px] flex-shrink-0 card p-4 shadow-none border-l-4 border-l-brand flex flex-col justify-center snap-center">
-                        <span className="text-[12px] font-bold text-brand mb-1">PRO TIP</span>
-                        <h4 className="text-[14px] font-extrabold text-text leading-tight mb-0.5">Share in communities</h4>
-                        <p className="text-[12px] font-semibold text-textMid leading-snug">Reddit and Discord drive the highest value traffic.</p>
+                    {/* Tip 1: Outcome focus */}
+                    <div className="w-[230px] h-[110px] flex-shrink-0 card p-4 shadow-none border-l-4 border-l-brand flex flex-col justify-center snap-center bg-white border-border">
+                        <span className="text-[10px] font-black text-brand mb-1 uppercase tracking-widest">Revenue Tip</span>
+                        <h4 className="text-[13px] font-black text-text leading-tight mb-0.5">Sell the outcome, not the file</h4>
+                        <p className="text-[11px] font-bold text-textMid leading-tight">"How to save 10 hours" converts 2x better than "Productivity Template".</p>
                     </div>
 
-                    <div className="w-[220px] h-[100px] flex-shrink-0 card p-4 shadow-none border-l-4 border-l-brand flex flex-col justify-center snap-center">
-                        <span className="text-[12px] font-bold text-brand mb-1">PRO TIP</span>
-                        <h4 className="text-[14px] font-extrabold text-text leading-tight mb-0.5">Test multiple CTAs</h4>
-                        <p className="text-[12px] font-semibold text-textMid leading-snug">Change your sponsor button text to see what drives the most clicks.</p>
+                    {/* Tip 2: Email ownership */}
+                    <div className="w-[230px] h-[110px] flex-shrink-0 card p-4 shadow-none border-l-4 border-l-brand flex flex-col justify-center snap-center bg-white border-border">
+                        <span className="text-[10px] font-black text-brand mb-1 uppercase tracking-widest">Audience Tip</span>
+                        <h4 className="text-[13px] font-black text-text leading-tight mb-0.5">Bypass the algorithms</h4>
+                        <p className="text-[11px] font-bold text-textMid leading-tight">Use "Email Subscribe" to turn followers into a mailing list you own forever.</p>
+                    </div>
+
+                    {/* Tip 3: Friction/Value balance */}
+                    <div className="w-[230px] h-[110px] flex-shrink-0 card p-4 shadow-none border-l-4 border-l-brand flex flex-col justify-center snap-center bg-white border-border">
+                        <span className="text-[10px] font-black text-brand mb-1 uppercase tracking-widest">Conversion Tip</span>
+                        <h4 className="text-[13px] font-black text-text leading-tight mb-0.5">Balance friction and value</h4>
+                        <p className="text-[11px] font-bold text-textMid leading-tight">Save "Email Unlocks" for deep-dives. Use "Social Follow" for quick tips.</p>
+                    </div>
+
+                    {/* Tip 4: Monetization */}
+                    <div className="w-[230px] h-[110px] flex-shrink-0 card p-4 shadow-none border-l-4 border-l-brand flex flex-col justify-center snap-center bg-white border-border">
+                        <span className="text-[10px] font-black text-brand mb-1 uppercase tracking-widest">Earnings Tip</span>
+                        <h4 className="text-[13px] font-black text-text leading-tight mb-0.5">Monetize with zero friction</h4>
+                        <p className="text-[11px] font-bold text-textMid leading-tight">Sponsor Ads are free for your users while earning you revenue per watch.</p>
                     </div>
                 </div>
             </div>

@@ -11,7 +11,6 @@ import { MobileBottomNav } from './components/MobileBottomNav';
 import { Landing } from './pages/Landing';
 import { Dashboard } from './pages/Dashboard';
 import { CreatorProfile } from './pages/CreatorProfile';
-import { ExplorePage } from './pages/ExplorePage';
 import { MyChatsHub } from './pages/MyChatsHub';
 import { DMConversation } from './pages/DMConversation';
 import { EditProfile } from './pages/EditProfile';
@@ -53,9 +52,6 @@ const NotFound = () => (
     <div className="flex items-center gap-3 mb-12 flex-col sm:flex-row w-full sm:w-auto">
       <Link to="/" className="w-full sm:w-auto px-6 h-[44px] bg-brand text-white font-black text-[14px] rounded-[14px] flex items-center justify-center hover:bg-brand-hover shadow-sm">
         Go Home
-      </Link>
-      <Link to="/explore" className="w-full sm:w-auto px-6 h-[44px] bg-transparent border-2 border-brand text-brand font-black text-[14px] rounded-[14px] flex items-center justify-center hover:bg-brandTint shadow-sm">
-        Explore Resources
       </Link>
     </div>
 
@@ -148,7 +144,6 @@ const AppRoutes = () => {
       />
 
       {/* Public routes */}
-      <Route path="/explore" element={<AppLayout><ExplorePage /></AppLayout>} />
       <Route path="/r/:slug" element={<ResourceUnlockPage />} />
       <Route path="/r/:slug/match" element={<FollowerPairingMatch />} />
       <Route path="/r/:slug/matching" element={<FollowerPairingMatching />} />

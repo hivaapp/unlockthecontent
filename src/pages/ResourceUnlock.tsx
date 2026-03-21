@@ -175,23 +175,55 @@ export const ResourceUnlock = () => {
     // Button text dynamic logic
     let buttonText = "Watch Video to Unlock";
     let buttonIcon = <Play size={18} fill="currentColor" />;
-    let buttonBg = "bg-[#E8312A] hover:bg-[#C0392B]";
+    let buttonBg = "bg-brand hover:bg-brandHover";
 
     if (customSponsorStep === "click") {
         buttonText = "Visit Sponsor to Unlock";
         buttonIcon = <MousePointerClick size={18} />;
-        buttonBg = "bg-[#6366F1] hover:bg-[#4F46E5]";
+        buttonBg = "bg-brand hover:bg-brandHover";
     }
+
+    const getViralCopy = (unlockType: string | undefined) => {
+        switch (unlockType) {
+            case 'email_subscribe':
+                return {
+                    title: "You just grew their email list.",
+                    subtitle: "Want to collect deeply engaged emails for your own content?"
+                };
+            case 'social_follow':
+                return {
+                    title: "You just boosted their follower count.",
+                    subtitle: "Want to grow your own audience on autopilot?"
+                };
+            case 'custom_sponsor':
+                return {
+                    title: "They just got paid for you unlocking this.",
+                    subtitle: "Want to start monetizing your free content with sponsors?"
+                };
+            case 'follower_pairing':
+                return {
+                    title: "You just joined an accountable community.",
+                    subtitle: "Build your own community challenges around your content."
+                };
+            default:
+                return {
+                    title: "Want to grow your audience automatically?",
+                    subtitle: "Join 10,000+ creators earning with UnlockTheContent."
+                };
+        }
+    };
+
+    const viralData = getViralCopy(resource.unlock_type || resource.unlockType);
 
     return (
         <div className="w-full min-h-screen bg-bg flex flex-col items-center animate-fadeIn pb-24">
             {/* Header */}
             <header className="w-full h-[64px] flex items-center px-4 sm:px-6 shrink-0 z-10 sticky top-0 bg-bg/90 backdrop-blur-md">
-                <button onClick={() => navigate(-1)} className="w-[40px] h-[40px] flex items-center justify-center bg-white border border-[#E8E8E8] rounded-full hover:bg-surfaceAlt transition-colors mr-3 shrink-0">
-                    <ChevronLeft size={20} className="text-[#111]" />
+                <button onClick={() => navigate(-1)} className="w-[40px] h-[40px] flex items-center justify-center bg-white border border-border rounded-full hover:bg-surfaceAlt transition-colors mr-3 shrink-0">
+                    <ChevronLeft size={20} className="text-text" />
                 </button>
                 <Link to="/" className="flex items-center gap-2 flex-1 hover:opacity-80 transition-opacity">
-                    <div className="w-6 h-6 rounded-[14px] bg-brand flex items-center justify-center text-white font-black text-[10px] leading-none">
+                    <div className="w-6 h-6 rounded-md bg-brand flex items-center justify-center text-white font-black text-[10px] leading-none">
                         UC
                     </div>
                     <span className="font-black text-[15px] tracking-tight text-text">UnlockTheContent</span>
@@ -217,9 +249,9 @@ export const ResourceUnlock = () => {
             <main className="w-full max-w-[800px] px-4 sm:px-8 mt-6 flex flex-col items-center">
 
                 {/* Resource Card */}
-                <div className="w-full bg-white rounded-[18px] border border-border p-5 flex flex-col relative overflow-hidden">
+                <div className="w-full bg-surface rounded-lg border border-border p-5 flex flex-col relative overflow-hidden">
                     <div className="flex flex-col items-center text-center">
-                        <div className={`w-16 h-16 rounded-[16px] ${getFileBgClass()} flex items-center justify-center mb-4`}>
+                        <div className={`w-16 h-16 rounded-lg ${getFileBgClass()} flex items-center justify-center mb-4`}>
                             {getFileIcon()}
                         </div>
                         <h1 className="text-[20px] font-black leading-tight mb-3 px-2 line-clamp-1 sm:line-clamp-none">{resource.title}</h1>
@@ -243,10 +275,10 @@ export const ResourceUnlock = () => {
                             <span className="w-1 h-1 rounded-full bg-border" />
                             <span>{resource.file?.size_bytes ? `${(resource.file.size_bytes / 1024 / 1024).toFixed(1)} MB` : resource.fileSize || '0 MB'}</span>
                             <span className="w-1 h-1 rounded-full bg-border" />
-                            <span className="px-2 py-0.5 bg-surfaceAlt rounded-[14px] text-[11px]">{fType}</span>
+                            <span className="px-2 py-0.5 bg-surfaceAlt rounded-md text-[11px]">{fType}</span>
 
                             {(resource.sponsor_config || resource.customAd) && (
-                                <div className="h-[40px] px-3 bg-[#EDE9FE] text-[#6366F1] rounded-[10px] flex items-center gap-2 ml-1 shadow-[0_1px_2px_rgba(99,102,241,0.1)]">
+                                <div className="h-[40px] px-3 bg-brandTint text-brand rounded-[10px] flex items-center gap-2 ml-1 shadow-[0_1px_2px_rgba(99,102,241,0.1)]">
                                     {requiresClick ? (
                                         <div className="flex items-center gap-1 opacity-90 shrink-0 mr-1">
                                             <Play size={10} fill="currentColor" />
@@ -259,7 +291,7 @@ export const ResourceUnlock = () => {
                                         </div>
                                     )}
                                     <div className="flex flex-col justify-center text-left">
-                                        <span className="text-[12px] font-black leading-none mb-0.5 tracking-tight text-[#4C1D95]">
+                                        <span className="text-[12px] font-black leading-none mb-0.5 tracking-tight text-brand">
                                             {requiresClick ? 'Watch \u2192 Then Click' : 'Video Only'}
                                         </span>
                                         <span className="text-[10px] font-bold opacity-70 leading-none">
@@ -274,9 +306,9 @@ export const ResourceUnlock = () => {
                         {/* Locked/Revealed Preview Zone */}
                         {isComplete && resource.youtube_url && (
                             <div className="w-full mt-2 mb-2 relative animate-fadeIn">
-                                <div className="w-full max-w-[640px] mx-auto rounded-[12px] overflow-hidden bg-[#F8F8F8] aspect-video relative shadow-sm border border-border">
+                                <div className="w-full max-w-[640px] mx-auto rounded-md overflow-hidden bg-surfaceAlt aspect-video relative shadow-sm border border-border">
                                     <div className="absolute inset-0 flex flex-col items-center justify-center z-0">
-                                        <span className="text-[13px] text-[#888] font-bold">This video is currently unavailable. Contact the creator.</span>
+                                        <span className="text-[13px] text-textMid font-bold">This video is currently unavailable. Contact the creator.</span>
                                     </div>
                                     <iframe
                                         src={(() => {
@@ -308,14 +340,14 @@ export const ResourceUnlock = () => {
                                     <div className="flex items-center justify-center gap-2 mb-6 pointer-events-none">
                                         <div className="flex flex-col items-center gap-2 relative">
                                             <div className={`w-9 h-9 sm:w-10 sm:h-10 rounded-full flex items-center justify-center border-2 z-10 shadow-sm transition-all duration-300
-                                                ${customSponsorStep === "click" || isComplete ? 'bg-success border-success text-white animate-checkPop' : 'bg-white border-[#E8312A] text-[#E8312A] animate-pulseRing'}
+                                                ${customSponsorStep === "click" || isComplete ? 'bg-success border-success text-white animate-checkPop' : 'bg-white border-brand text-brand animate-pulseRing'}
                                             `}
                                             aria-label={customSponsorStep === "click" || isComplete ? "Step 1 complete" : "Current Step: Watch Video"}
                                             role="status"
                                             >
                                                 {(customSponsorStep === "click" || isComplete) ? <Check size={18} strokeWidth={3} /> : <Play size={16} fill="currentColor" />}
                                             </div>
-                                            <span className={`text-[11px] font-[700] ${customSponsorStep === "watch" && !isComplete ? 'text-[#E8312A]' : 'text-[#AAA]'}`}>
+                                            <span className={`text-[11px] font-[700] ${customSponsorStep === "watch" && !isComplete ? 'text-brand' : 'text-textLight'}`}>
                                                 Watch Video
                                             </span>
                                         </div>
@@ -323,21 +355,21 @@ export const ResourceUnlock = () => {
                                         {requiresClick && (
                                             <>
                                                 <div className="w-8 sm:w-16 h-[2px] -mt-[18px] relative overflow-hidden flex items-center">
-                                                    <div className="absolute inset-0 border-t-[2px] border-dashed border-[#E8E8E8]" />
+                                                    <div className="absolute inset-0 border-t-[2px] border-dashed border-border" />
                                                     <div className={`absolute inset-y-0 left-0 bg-success transition-all duration-400 ease-out ${(customSponsorStep === "click" || isComplete) ? 'w-full' : 'w-0'}`} />
                                                 </div>
                                                 <div className="flex flex-col items-center gap-2 relative">
                                                     <div className={`w-9 h-9 sm:w-10 sm:h-10 rounded-full flex items-center justify-center border-2 z-10 shadow-sm transition-all duration-300
                                                         ${isComplete ? 'bg-success border-success text-white animate-checkPop' :
-                                                            customSponsorStep === "click" ? 'bg-white border-[#6366F1] text-[#6366F1] animate-pulseRing' :
-                                                                'bg-white border-[#E8E8E8] text-[#AAA]'}
+                                                            customSponsorStep === "click" ? 'bg-white border-[var(--brand)] text-brand animate-pulseRing' :
+                                                                'bg-white border-border text-textLight'}
                                                     `}
                                                     aria-label={isComplete ? "Step 2 complete" : customSponsorStep === "click" ? "Current Step: Visit Sponsor" : "Step 2 pending: Visit Sponsor"}
                                                     role="status"
                                                     >
                                                         {isComplete ? <Check size={18} strokeWidth={3} /> : <MousePointerClick size={16} />}
                                                     </div>
-                                                    <span className={`text-[11px] font-[700] ${isComplete ? 'text-[#AAA]' : customSponsorStep === "click" ? 'text-[#6366F1]' : 'text-[#AAA]'}`}>
+                                                    <span className={`text-[11px] font-[700] ${isComplete ? 'text-textLight' : customSponsorStep === "click" ? 'text-brand' : 'text-textLight'}`}>
                                                         Visit Sponsor
                                                     </span>
                                                 </div>
@@ -346,14 +378,14 @@ export const ResourceUnlock = () => {
                                     </div>
 
                                     <div className="text-center mb-5">
-                                        <p className={`text-[14px] font-[700] mb-1 ${customSponsorStep === "click" ? 'text-[#6366F1]' : 'text-[#444]'}`}>
+                                        <p className={`text-[14px] font-[700] mb-1 ${customSponsorStep === "click" ? 'text-brand' : 'text-textMid'}`}>
                                             {customSponsorStep === "click" ? "Great \u2014 now visit the sponsor's site to unlock your content." : "Watch the sponsor video, then visit their site to unlock."}
                                         </p>
                                     </div>
 
                                     <button
                                         onClick={handleUnlockClick}
-                                        className={`w-full h-[54px] ${buttonBg} text-white font-black text-[15px] rounded-[14px] flex items-center justify-center gap-2 shadow-sm transition-transform active:scale-[0.98]`}
+                                        className={`w-full h-10 ${buttonBg} text-white font-black text-[15px] rounded-md flex items-center justify-center gap-2 shadow-sm transition-transform active:scale-[0.98]`}
                                     >
                                         {buttonIcon}
                                         {buttonText}
@@ -378,7 +410,7 @@ export const ResourceUnlock = () => {
                             <button
                                 onClick={handleDownload}
                                 disabled={isDownloading}
-                                className="w-full h-[56px] bg-success hover:bg-success/90 text-white font-black text-[16px] rounded-[14px] flex items-center justify-center gap-2 shadow-sm transition-transform active:scale-[0.98] mb-2"
+                                className="w-full h-10 bg-success hover:bg-success/90 text-white font-black text-[16px] rounded-md flex items-center justify-center gap-2 shadow-sm transition-transform active:scale-[0.98] mb-2"
                             >
                                 {isDownloading ? (
                                     <div className="w-6 h-6 border-2 border-white/30 border-t-white rounded-full animate-spin" />
@@ -408,7 +440,7 @@ export const ResourceUnlock = () => {
                                 </div>
                             </div>
 
-                            <div className="w-full bg-white border border-border rounded-[14px] p-4 flex items-center justify-between mb-4 shadow-sm">
+                            <div className="w-full bg-surface border border-border rounded-lg p-5 flex items-center justify-between mb-4 shadow-sm">
                                 <div className="flex items-center gap-3">
                                     <div className="w-12 h-12 rounded-full bg-brand text-white flex items-center justify-center font-bold text-[16px]" style={{ backgroundColor: resource.creator?.avatar_color || getAvatarColor(resource.creator?.username || resource.creatorHandle) }}>
                                         {resource.creator?.initial || resource.creatorAvatar || '?'}
@@ -423,11 +455,15 @@ export const ResourceUnlock = () => {
                                 </Link>
                             </div>
 
-                            <div className="w-full bg-surfaceAlt border border-border rounded-[14px] p-5 flex flex-col items-center text-center">
-                                <h3 className="font-black text-[15px] mb-1">Want to earn from your own free content?</h3>
-                                <p className="text-[13px] font-semibold text-textMid mb-4">Join 10,000+ creators earning with UnlockTheContent links.</p>
-                                <Link to="/" className="w-full sm:w-auto px-6 h-10 flex items-center justify-center rounded-[14px] bg-brand text-white font-black text-[14px] hover:bg-brand-hover shadow-sm">
-                                    Create Free Link
+                            <div className="w-full bg-brandTint border border-brand/30 rounded-lg p-6 flex flex-col items-center text-center shadow-sm relative overflow-hidden mt-2">
+                                {/* Small decorative badge */}
+                                <div className="absolute top-0 right-0 bg-brand text-white text-[9px] font-[800] px-3 py-1 rounded-bl-lg uppercase tracking-wider">
+                                    Powered by UnlockTheContent
+                                </div>
+                                <h3 className="font-[900] text-[17px] text-text mb-1">{viralData.title}</h3>
+                                <p className="text-[13px] font-[700] text-brand mb-5 max-w-[300px] leading-[1.4]">{viralData.subtitle}</p>
+                                <Link to="/" className="w-full bg-brand text-white font-black text-[15px] h-12 rounded-md flex items-center justify-center hover:bg-brandHover shadow-sm transition-transform active:scale-[0.98]">
+                                    Lock Your First File For Free
                                 </Link>
                             </div>
                         </div>
@@ -468,20 +504,20 @@ const SponsorClickInterstitial = ({ sponsorConfig, customAd, onClick, onClose, p
     return (
         <div className="fixed inset-0 z-50 flex flex-col bg-black/95 backdrop-blur-md animate-fadeIn p-4 sm:p-8 items-center justify-center" role="dialog" aria-modal="true">
             {/* Deliberately no close button on Step 2; encourages click or abandonment */}
-            <div className="w-full max-w-[400px] bg-white rounded-[24px] overflow-hidden flex flex-col items-center border border-border shadow-2xl relative pb-6">
-                <div className="w-full h-12 bg-[#EDE9FE] flex items-center justify-center gap-2 border-b border-[#C4B5FD] mb-6 shadow-sm">
-                    <span className="text-[13px] font-black text-[#6366F1] uppercase tracking-wider">Step 2 Required</span>
+            <div className="w-full max-w-[400px] bg-white rounded-xl overflow-hidden flex flex-col items-center border border-border shadow-2xl relative pb-6">
+                <div className="w-full h-12 bg-brandTint flex items-center justify-center gap-2 border-b border-brand/30 mb-6 shadow-sm">
+                    <span className="text-[13px] font-black text-brand uppercase tracking-wider">Step 2 Required</span>
                 </div>
 
                 <div className="px-6 flex flex-col items-center w-full">
-                    <div className="w-16 h-16 bg-surfaceAlt rounded-[16px] mb-4 flex items-center justify-center border border-border shadow-sm text-3xl font-black text-brand">
+                    <div className="w-16 h-16 bg-surfaceAlt rounded-lg mb-4 flex items-center justify-center border border-border shadow-sm text-3xl font-black text-brand">
                         {brandName[0].toUpperCase()}
                     </div>
                     <h2 className="text-[22px] font-black tracking-tight leading-tight text-center mb-4">
                         Almost there. One last step!
                     </h2>
 
-                    <div className="w-full bg-surfaceAlt rounded-[16px] p-4 flex flex-col gap-4 mb-6 border border-border">
+                    <div className="w-full bg-surfaceAlt rounded-lg p-4 flex flex-col gap-4 mb-6 border border-border">
                         <div className="flex items-start gap-3 opacity-50">
                             <div className="w-6 h-6 rounded-full bg-success flex items-center justify-center shrink-0 mt-0.5">
                                 <Check size={12} className="text-white" strokeWidth={3} />
@@ -492,7 +528,7 @@ const SponsorClickInterstitial = ({ sponsorConfig, customAd, onClick, onClose, p
                             </div>
                         </div>
                         <div className="flex items-start gap-3">
-                            <div className="w-6 h-6 rounded-full bg-[#6366F1] flex items-center justify-center shrink-0 mt-0.5 text-white font-black text-[12px] shadow-sm">
+                            <div className="w-6 h-6 rounded-full bg-brand flex items-center justify-center shrink-0 mt-0.5 text-white font-black text-[12px] shadow-sm">
                                 2
                             </div>
                             <div className="flex flex-col">
@@ -512,7 +548,7 @@ const SponsorClickInterstitial = ({ sponsorConfig, customAd, onClick, onClose, p
                                 target="_blank"
                                 rel="noreferrer"
                                 onClick={onFallbackClick}
-                                className="w-full h-[56px] rounded-[16px] bg-[#6366F1] hover:bg-[#4F46E5] flex items-center justify-center text-white font-black text-[16px] shadow-lg transition-transform hover:scale-[1.02] active:scale-[0.98]"
+                                className="w-full h-10 rounded-lg bg-brand hover:bg-brandHover flex items-center justify-center text-white font-black text-[16px] shadow-lg transition-transform hover:scale-[1.02] active:scale-[0.98]"
                             >
                                 {ctaText} <ArrowRight size={18} className="ml-2" />
                             </a>
@@ -520,7 +556,7 @@ const SponsorClickInterstitial = ({ sponsorConfig, customAd, onClick, onClose, p
                     ) : (
                         <button
                             onClick={onClick}
-                            className="w-full h-[56px] rounded-[16px] bg-[#6366F1] hover:bg-[#4F46E5] flex items-center justify-center text-white font-black text-[16px] shadow-lg transition-transform hover:scale-[1.02] active:scale-[0.98]"
+                            className="w-full h-10 rounded-lg bg-brand hover:bg-brandHover flex items-center justify-center text-white font-black text-[16px] shadow-lg transition-transform hover:scale-[1.02] active:scale-[0.98]"
                         >
                             {ctaText} <ArrowRight size={18} className="ml-2" />
                         </button>
@@ -540,14 +576,14 @@ const ResourceNotFound = () => (
         <Navbar />
         <div className="flex-1 flex flex-col items-center justify-center p-6 text-center animate-fadeIn">
             <div className="text-[48px] mb-4">🔗</div>
-            <h1 className="text-[22px] font-black text-[#111] mb-2">This link doesn't exist</h1>
+            <h1 className="text-[22px] font-black text-text mb-2">This link doesn't exist</h1>
             <p className="text-[14px] font-bold text-textMid mb-8 max-w-[360px]">The creator may have deleted this resource or the link is incorrect.</p>
 
             <div className="flex items-center gap-3 mb-12 flex-col sm:flex-row w-full max-w-[400px]">
-                <Link to="/" className="w-full sm:w-auto flex-1 h-[44px] bg-[#E8312A] text-white font-black text-[14px] rounded-[14px] flex items-center justify-center hover:bg-[#C0392B] shadow-sm">
+                <Link to="/" className="w-full sm:w-auto flex-1 h-[44px] bg-brand text-white font-black text-[14px] rounded-md flex items-center justify-center hover:bg-brandHover shadow-sm">
                     Go Home
                 </Link>
-                <Link to="/explore" className="w-full sm:w-auto flex-1 h-[44px] bg-transparent border-2 border-[#E8312A] text-[#E8312A] font-black text-[14px] rounded-[14px] flex items-center justify-center hover:bg-[#FFF0EF] shadow-sm">
+                <Link to="/explore" className="w-full sm:w-auto flex-1 h-[44px] bg-transparent border-2 border-brand text-brand font-black text-[14px] rounded-md flex items-center justify-center hover:bg-brandTint shadow-sm">
                     Explore Resources
                 </Link>
             </div>
@@ -567,11 +603,11 @@ const ResourceDisabled = () => (
         <Navbar />
         <div className="flex-1 flex flex-col items-center justify-center p-6 text-center animate-fadeIn">
             <div className="text-[48px] mb-4">🔒</div>
-            <h1 className="text-[22px] font-black text-[#111] mb-2">This resource is no longer available</h1>
+            <h1 className="text-[22px] font-black text-text mb-2">This resource is no longer available</h1>
             <p className="text-[14px] font-bold text-textMid mb-8 max-w-[360px]">The creator has paused this link.</p>
 
             <div className="flex items-center gap-3 mb-12 flex-col sm:flex-row w-full max-w-[400px]">
-                <Link to="/explore" className="w-full sm:w-auto px-6 h-[44px] bg-[#E8312A] text-white font-black text-[14px] rounded-[14px] flex items-center justify-center hover:bg-[#C0392B] shadow-sm">
+                <Link to="/explore" className="w-full sm:w-auto px-6 h-[44px] bg-brand text-white font-black text-[14px] rounded-md flex items-center justify-center hover:bg-brandHover shadow-sm">
                     Explore Free Resources
                 </Link>
             </div>

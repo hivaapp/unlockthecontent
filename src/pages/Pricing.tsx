@@ -1,7 +1,9 @@
-import { useState, useEffect } from 'react';
-import { useNavigate, Link, useSearchParams } from 'react-router-dom';
+import { useState, useEffect, useRef } from 'react';
+import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { Check, Lock, CalendarX, CheckCircle2, CircleDollarSign, Percent, BadgeDollarSign, ChevronDown, ChevronUp } from 'lucide-react';
+import { AuthBottomSheet } from '../components/AuthBottomSheet';
+import { supabase } from '../lib/supabase';
 
 const PRICING_FAQS = [
     { q: "Is it really free?", a: "Yes. UnlockTheContent is 100% free for custom sponsors. You deal directly with your sponsor, and we take exactly $0." },
@@ -13,10 +15,12 @@ const PRICING_FAQS = [
 export const Pricing = () => {
     const { currentUser } = useAuth();
     const navigate = useNavigate();
-    const [searchParams] = useSearchParams();
     const [isDonateOn, setIsDonateOn] = useState(false);
     const [openFaq, setOpenFaq] = useState<number | null>(null);
     const [customDealAmount, setCustomDealAmount] = useState('500');
+    const [isAuthOpen, setIsAuthOpen] = useState(false);
+    const [pendingMessage, setPendingMessage] = useState<string | null>(null);
+    const proPendingRef = useRef(false);
 
     // Get the Stripe link from environment variables or use a placeholder
     const stripeProLink = import.meta.env.VITE_STRIPE_PRO_LINK || 'https://buy.stripe.com/test_00weVfdKm42Agwj4QafIs00';
@@ -35,27 +39,26 @@ export const Pricing = () => {
     const customTakeHome = isDonateOn ? (parsedCustomAmount - parseFloat(customDonateAmount)).toFixed(2) : parsedCustomAmount.toFixed(2);
 
     const handleUpgrade = () => {
-        if (!currentUser) {
-            // Capture the intent and current page to return after auth
-            const returnUrl = encodeURIComponent('/pricing?upgrade=true');
-            navigate(`/signup?returnTo=${returnUrl}`);
-            return;
+        if (currentUser) {
+            window.location.href = `${stripeProLink}?client_reference_id=${currentUser.id}&prefilled_email=${encodeURIComponent(currentUser.email || '')}`;
+        } else {
+            proPendingRef.current = true;
+            setPendingMessage("Create an account to upgrade to Pro and unlock unlimited Follower Pairing.");
+            setIsAuthOpen(true);
         }
-        window.location.href = `${stripeProLink}?client_reference_id=${currentUser.id}&prefilled_email=${encodeURIComponent(currentUser.email || '')}`;
     };
 
-    useEffect(() => {
-        if (currentUser && searchParams.get('upgrade') === 'true') {
-            // Trigger the upgrade flow
-            handleUpgrade();
-            
-            // Cleanup the URL to prevent double trigger
-            const newParams = new URLSearchParams(searchParams);
-            newParams.delete('upgrade');
-            const searchStr = newParams.toString();
-            navigate(searchStr ? `?${searchStr}` : '/pricing', { replace: true });
+    const handleSignInSuccess = async () => {
+        if (proPendingRef.current) {
+            proPendingRef.current = false;
+            const { data: { session } } = await supabase.auth.getSession();
+            if (session?.user) {
+                window.location.href = `${stripeProLink}?client_reference_id=${session.user.id}&prefilled_email=${encodeURIComponent(session.user.email || '')}`;
+                return;
+            }
         }
-    }, [currentUser, searchParams, navigate]);
+        navigate('/dashboard?tab=home');
+    };
 
     return (
         <div className="flex flex-col items-center w-full min-h-screen bg-bg selection:bg-brandTint selection:text-brand">
@@ -382,6 +385,13 @@ export const Pricing = () => {
                     </div>
                 </div>
             </footer>
+
+            <AuthBottomSheet
+                isOpen={isAuthOpen}
+                onClose={() => { setIsAuthOpen(false); setPendingMessage(null); }}
+                onSuccess={handleSignInSuccess}
+                contextualMessage={pendingMessage}
+            />
         </div>
     );
 };

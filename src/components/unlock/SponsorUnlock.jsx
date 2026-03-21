@@ -1,6 +1,6 @@
-// src/components/unlock/SponsorUnlock.jsx
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { CheckCircle2, Play, VolumeX, Volume2, SkipForward } from 'lucide-react'
 import {
   getSponsorVideoUrl,
   getSponsorProgress,
@@ -14,7 +14,6 @@ import { getYoutubeEmbedUrl } from '../../lib/utils'
 const SponsorUnlock = ({ link, currentUser, isLoggedIn, sessionKey, onUnlockSuccess }) => {
   const navigate = useNavigate()
   const videoRef = useRef(null)
-  const progressInterval = useRef(null)
 
   const [screen, setScreen] = useState('locked')
   const [videoUrl, setVideoUrl] = useState(null)
@@ -180,17 +179,17 @@ const SponsorUnlock = ({ link, currentUser, isLoggedIn, sessionKey, onUnlockSucc
 
   if (screen === 'already_unlocked') {
     return (
-      <div className="w-full flex flex-col items-center">
-        <div className="w-16 h-16 bg-successBg rounded-full flex items-center justify-center text-3xl mb-4 border border-success/20">
-          ✅
+      <div className="w-full flex flex-col items-center animate-fadeIn pb-[48px]">
+        <div className="w-16 h-16 bg-successBg rounded-full flex items-center justify-center text-success mb-6 border border-success/20">
+          <CheckCircle2 size={32} strokeWidth={2.5} />
         </div>
-        <h2 className="text-2xl font-black text-text mb-2 text-center">
+        <h2 className="text-[20px] md:text-[24px] tracking-tight font-black text-text mb-3 text-center leading-tight">
           Already unlocked
         </h2>
-        <p className="text-[14px] text-textMid text-center mb-8 max-w-[280px]">
-          You have already watched the sponsor video.
+        <p className="text-[14px] text-textMid text-center mb-8 max-w-[320px] leading-relaxed">
+          You have already completed this sponsor requirement and unlocked the content.
         </p>
-        <button onClick={() => setScreen('locked')} className="w-full h-12 bg-success hover:bg-success/90 text-white rounded-xl text-[15px] font-black max-w-[340px] transition-all shadow-sm">
+        <button onClick={() => setScreen('locked')} className="w-full h-10 bg-success hover:bg-success/90 text-white rounded-md text-[14px] font-bold max-w-[340px] transition-transform active:scale-[0.98] shadow-sm">
           Watch Again
         </button>
       </div>
@@ -199,38 +198,38 @@ const SponsorUnlock = ({ link, currentUser, isLoggedIn, sessionKey, onUnlockSucc
 
   if (screen === 'unlocked') {
     return (
-      <div className="w-full flex flex-col items-center animate-pop-in">
-        <div className="w-16 h-16 bg-successBg rounded-full flex items-center justify-center text-3xl mb-4 border border-success/20">
-          🎉
+      <div className="w-full flex flex-col items-center animate-fadeIn pb-[48px]">
+        <div className="w-16 h-16 bg-successBg rounded-full flex items-center justify-center text-success mb-6 border border-success/20">
+          <CheckCircle2 size={32} strokeWidth={2.5} />
         </div>
         
-        <h2 className="text-2xl font-black text-text mb-2 text-center">
-          Content Ready!
+        <h2 className="text-[20px] md:text-[24px] tracking-tight font-black text-text mb-3 text-center leading-tight">
+          Access Granted!
         </h2>
         
-        <p className="text-[14px] text-textMid text-center mb-8">
-          Thanks for your support.
+        <p className="text-[14px] text-textMid text-center mb-8 max-w-[320px] leading-relaxed">
+          Thanks for supporting the creator. Here is your resource.
         </p>
 
         <div className="w-full max-w-[400px] flex flex-col gap-6">
           {sponsorConfig?.unlock_text && (
-            <div className="text-center">
-              <p className="text-[15px] font-[500] text-text leading-relaxed whitespace-pre-wrap">
+            <div className="w-full flex justify-center">
+              <p className="text-[14px] text-text leading-relaxed whitespace-pre-wrap">
                 {sponsorConfig.unlock_text}
               </p>
             </div>
           )}
 
           {link.text_content && (
-            <div className="w-full bg-surfaceAlt rounded-xl p-4 border border-border">
-              <p className="text-[14px] font-medium text-text leading-relaxed whitespace-pre-wrap">
+            <div className="w-full bg-surfaceAlt rounded-lg p-5 border border-border">
+              <p className="text-[14px] text-text leading-relaxed whitespace-pre-wrap">
                 {link.text_content}
               </p>
             </div>
           )}
 
           {link.content_links && link.content_links.length > 0 && (
-            <div className="w-full flex flex-col gap-2">
+            <div className="w-full flex flex-col gap-3">
               {link.content_links.map((cl, idx) => {
                 const getDomainInitial = (url) => {
                   try { return new URL(url).hostname.replace(/^www\./, '').charAt(0).toUpperCase(); } catch { return '?'; }
@@ -246,16 +245,16 @@ const SponsorUnlock = ({ link, currentUser, isLoggedIn, sessionKey, onUnlockSucc
                 };
                 return (
                   <a key={idx} href={cl.url} target="_blank" rel="noopener noreferrer"
-                    className="w-full h-[52px] bg-white rounded-[12px] border border-border flex items-center px-3 gap-3 no-underline hover:bg-surfaceAlt transition-colors"
+                    className="w-full h-[64px] bg-white rounded-lg border border-border flex items-center px-4 gap-4 no-underline hover:bg-surfaceAlt transition-colors"
                   >
-                    <div className="w-[32px] h-[32px] rounded-[6px] flex items-center justify-center text-white font-[900] text-[14px] shrink-0"
+                     <div className="w-10 h-10 rounded-md flex items-center justify-center text-white font-[900] text-[15px] shrink-0"
                       style={{ backgroundColor: getDomainColor(cl.url) }}
                     >
                       {getDomainInitial(cl.url)}
                     </div>
-                    <div className="flex flex-col min-w-0 flex-1">
-                      <span className="text-[13px] font-[800] text-text truncate leading-tight">{cl.title || getDomainName(cl.url)}</span>
-                      <span className="text-[11px] text-textLight truncate leading-tight">{getDomainName(cl.url)}</span>
+                    <div className="flex flex-col min-w-0 flex-1 justify-center">
+                      <span className="text-[15px] font-[800] text-text truncate leading-tight">{cl.title || getDomainName(cl.url)}</span>
+                      <span className="text-[13px] text-textLight font-medium truncate mt-0.5">{getDomainName(cl.url)}</span>
                     </div>
                   </a>
                 );
@@ -264,7 +263,7 @@ const SponsorUnlock = ({ link, currentUser, isLoggedIn, sessionKey, onUnlockSucc
           )}
 
           {link.youtube_url && (
-            <div className="w-full aspect-video rounded-xl overflow-hidden border border-border shadow-sm">
+            <div className="w-full aspect-video rounded-lg overflow-hidden border border-border shadow-sm">
               <iframe
                 src={getYoutubeEmbedUrl(link.youtube_url)}
                 className="w-full h-full border-none"
@@ -280,23 +279,23 @@ const SponsorUnlock = ({ link, currentUser, isLoggedIn, sessionKey, onUnlockSucc
               href={sponsorConfig.unlock_url}
               target="_blank"
               rel="noopener noreferrer"
-              className="w-full h-12 bg-white border border-border text-text rounded-xl text-sm font-black flex items-center justify-center gap-2 hover:bg-surfaceAlt transition-colors no-underline shadow-sm"
+              className="w-full h-10 bg-brand text-white rounded-md text-[14px] font-bold flex items-center justify-center gap-2 hover:bg-brandHover transition-colors no-underline shadow-sm"
             >
               {sponsorConfig.unlock_url_label || 'Access Link'} →
             </a>
           )}
 
           {file && (
-            <div className="w-full flex items-center justify-between py-3 border-t border-border mt-2">
-              <div className="flex items-center gap-3 min-w-0">
-                <div className="text-2xl shrink-0">
+             <div className="w-full flex items-center justify-between py-4 border-t border-border mt-2">
+              <div className="flex items-center gap-4 min-w-0">
+                <div className="text-[32px] shrink-0 leading-none">
                   {getFileEmoji(file.original_name, file.mime_type)}
                 </div>
-                <div className="flex flex-col min-w-0">
-                  <span className="text-[14px] font-black text-text truncate">
+                <div className="flex flex-col min-w-0 justify-center">
+                  <span className="text-[15px] font-[800] text-text truncate leading-tight">
                     {link.title}
                   </span>
-                  <span className="text-[12px] text-textLight font-medium">
+                  <span className="text-[13px] text-textLight font-medium mt-0.5">
                     {formatFileSize(file.size_bytes)}
                   </span>
                 </div>
@@ -304,9 +303,9 @@ const SponsorUnlock = ({ link, currentUser, isLoggedIn, sessionKey, onUnlockSucc
               <button
                 onClick={handleDownload}
                 disabled={!downloadUrl}
-                className={`h-10 px-4 rounded-lg text-[13px] font-bold transition-all shrink-0 ml-4 ${
-                  downloadStarted ? 'bg-success text-white' : !downloadUrl ? 'bg-border text-textLight' : 'bg-brand text-white hover:bg-brandHover shadow-sm'
-                }`}
+                className={`h-10 px-5 rounded-md text-[14px] font-bold transition-all shrink-0 ml-4 ${
+                  downloadStarted ? 'bg-success text-white' : !downloadUrl ? 'bg-surfaceAlt text-textLight border border-border' : 'bg-brand text-white hover:bg-brandHover shadow-sm'
+                 }`}
               >
                 {!downloadUrl ? 'Wait' : downloadStarted ? 'Got it' : 'Download'}
               </button>
@@ -318,21 +317,21 @@ const SponsorUnlock = ({ link, currentUser, isLoggedIn, sessionKey, onUnlockSucc
   }
 
   return (
-    <div className="w-full flex flex-col items-center">
+    <div className="w-full flex flex-col items-center animate-fadeIn pb-[48px]">
       {sponsorConfig?.brand_name && (
-        <span className="text-[11px] font-bold text-textMid uppercase tracking-wider mb-2">
-          Sponsored By
+        <span className="text-[11px] font-[800] text-textLight uppercase tracking-widest mb-3">
+          Brought to you by
         </span>
       )}
       
-      <h2 className="text-2xl font-black text-text mb-6 text-center leading-tight">
-        {sponsorConfig?.brand_name || 'Our Sponsor'}
+      <h2 className="text-[20px] md:text-[24px] tracking-tight font-black text-text mb-8 text-center leading-tight">
+        {sponsorConfig?.brand_name || 'Our Premium Sponsor'}
       </h2>
 
-      <div className="relative w-full max-w-[400px] aspect-video bg-black rounded-2xl overflow-hidden mb-6 shadow-md border border-border/50">
+      <div className="relative w-full max-w-[400px] aspect-[9/16] sm:aspect-[4/5] md:aspect-video bg-black rounded-lg overflow-hidden mb-8 shadow-sm border border-border flex items-center justify-center">
         {videoLoading ? (
           <div className="absolute inset-0 flex items-center justify-center">
-            <div className="w-6 h-6 border-2 border-white/20 border-t-white rounded-full animate-spin" />
+             <div className="w-5 h-5 border-2 border-white/20 border-t-white rounded-full animate-spin" />
           </div>
         ) : videoUrl ? (
           <>
@@ -340,27 +339,30 @@ const SponsorUnlock = ({ link, currentUser, isLoggedIn, sessionKey, onUnlockSucc
               ref={videoRef}
               src={videoUrl}
               playsInline
-              className="w-full h-full object-cover"
+              className="w-full h-full object-contain"
               onTimeUpdate={handleTimeUpdate}
               onEnded={handleVideoEnded}
             />
             {!hasStarted && (
-              <div onClick={handlePlay} className="absolute inset-0 bg-black/50 backdrop-blur-[2px] flex flex-col items-center justify-center cursor-pointer gap-3 transition-all hover:bg-black/40">
-                <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center pl-1 shadow-xl transform transition-transform hover:scale-105">
-                  <div className="w-0 h-0 border-t-[10px] border-t-transparent border-b-[10px] border-b-transparent border-l-[16px] border-l-brand" />
+              <div onClick={handlePlay} className="absolute inset-0 bg-black/50 backdrop-blur-[2px] flex flex-col items-center justify-center cursor-pointer gap-4 transition-all hover:bg-black/60 group">
+                <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center pl-1 shadow-md transform transition-transform group-hover:scale-105">
+                   <Play size={24} className="text-text" fill="currentColor" />
                 </div>
-                <span className="text-white text-[11px] font-black uppercase tracking-widest drop-shadow-md">Play to unlock</span>
+                <span className="text-white text-[12px] font-[800] uppercase tracking-wider drop-shadow-md">Play to unlock</span>
               </div>
             )}
             
             {hasStarted && !videoWatchComplete && (
-               <div className="absolute top-3 right-3 z-10">
+               <div className="absolute top-4 right-4 z-10 flex gap-2 items-center">
+                  <button onClick={toggleMute} className="w-8 h-8 flex items-center justify-center bg-black/60 backdrop-blur-md text-white/90 rounded-md border border-white/10 hover:bg-black/80 transition-colors">
+                     {isMuted ? <VolumeX size={16} /> : <Volume2 size={16} />}
+                  </button>
                   {canSkip ? (
-                    <button onClick={handleSkip} className="bg-black/70 backdrop-blur-md text-white text-[11px] font-black uppercase tracking-wider px-4 py-2 rounded-lg border border-white/20 hover:bg-black/80 transition-colors shadow-sm">
-                      Skip →
+                    <button onClick={handleSkip} className="h-8 flex items-center justify-center gap-1.5 bg-black/70 backdrop-blur-md text-white text-[11px] font-bold uppercase tracking-wider px-3 rounded-md border border-white/20 hover:bg-black/80 transition-colors shadow-sm animate-in fade-in slide-in-from-right-4">
+                      Skip <SkipForward size={14} />
                     </button>
                   ) : (
-                    <div className="bg-black/60 backdrop-blur-md text-white/90 text-[11px] font-bold uppercase tracking-wider px-4 py-2 rounded-lg border border-white/10">
+                    <div className="h-8 flex items-center justify-center bg-black/60 backdrop-blur-md text-white/90 text-[11px] font-bold uppercase tracking-wider px-3 rounded-md border border-white/10 opacity-80">
                       Skip in {skipCountdown}s
                     </div>
                   )}
@@ -368,31 +370,48 @@ const SponsorUnlock = ({ link, currentUser, isLoggedIn, sessionKey, onUnlockSucc
             )}
           </>
         ) : (
-          <div className="absolute inset-0 flex items-center justify-center text-white/50 text-sm font-medium">Video failed to load</div>
+          <div className="absolute inset-0 flex items-center justify-center text-white/50 text-[13px] font-medium">Video failed to load</div>
         )}
       </div>
 
-      <div className="w-full max-w-[400px]">
+      <div className="w-full max-w-[340px]">
         {sponsorConfig?.brand_website && (
           <button
-            onClick={handleCtaClick}
-            className={`w-full h-12 rounded-xl text-[15px] font-black flex items-center justify-center gap-2 transition-all shadow-sm ${
-              ctaClicked ? 'bg-success text-white' : 'bg-brand hover:bg-brandHover text-white'
-            }`}
+             onClick={handleCtaClick}
+             className={`w-full h-10 rounded-md text-[14px] font-bold flex items-center justify-center gap-2 transition-transform shadow-sm
+                ${ctaClicked 
+                   ? 'bg-success text-white' 
+                   : 'bg-brand hover:bg-brandHover text-white hover:scale-[1.02] active:scale-[0.98]'
+                }
+             `}
           >
-            {ctaClicked ? `✅ Visited ${sponsorConfig.brand_name}` : `${sponsorConfig.cta_button_label || 'Visit Sponsor'}`}
+            {ctaClicked ? (
+                <>
+                    <CheckCircle2 size={16} strokeWidth={3} />
+                    Visited {sponsorConfig.brand_name}
+                </>
+            ) : (
+                sponsorConfig.cta_button_label || 'Visit Sponsor to Unlock'
+            )}
           </button>
         )}
 
         {isUnlocking && (
-          <p className="text-[13px] font-bold text-textMid mt-4 text-center animate-pulse">Unlocking...</p>
+          <div className="flex items-center justify-center gap-2 mt-6">
+             <div className="w-4 h-4 border-2 border-brand/20 border-t-brand rounded-full animate-spin" />
+             <p className="text-[13px] font-bold text-textMid">Unlocking resource...</p>
+          </div>
         )}
         
-        {error && <div className="text-error text-[12px] font-bold bg-errorBg p-3 rounded-lg text-center mt-4">{error}</div>}
+        {error && (
+            <div className="bg-errorBg text-error text-[13px] font-medium p-3 rounded-md text-center mt-6 border border-error/20">
+                {error}
+            </div>
+        )}
         
         {!videoWatchComplete && !isUnlocking && (
-          <p className="text-[11px] text-textMid text-center mt-4 font-bold uppercase tracking-wider">
-             {requiresClick ? 'Watch video & visit sponsor' : 'Watch video to unlock'}
+          <p className="text-[12px] text-textLight text-center mt-6 font-bold uppercase tracking-wider">
+             {requiresClick ? 'Watch video & visit sponsor' : 'Watch short video to unlock'}
           </p>
         )}
       </div>

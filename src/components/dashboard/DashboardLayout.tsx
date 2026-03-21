@@ -1,4 +1,4 @@
-import { Home, LayoutDashboard, User, MessageCircle, Compass } from 'lucide-react';
+import { Home, LayoutDashboard, User, MessageCircle } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { useChatSessions } from '../../context/ChatSessionsContext';
 import { useAuth } from '../../context/AuthContext';
@@ -21,7 +21,6 @@ export const DashboardLayout = ({ children, currentTab, onTabChange }: Dashboard
     const tabs = [
         { id: 'home' as const, icon: Home, label: 'Home' },
         { id: 'analytics' as const, icon: LayoutDashboard, label: 'Dashboard' },
-        { id: 'explore' as const, icon: Compass, label: 'Explore' },
         { id: 'chats' as const, icon: MessageCircle, label: 'Chats' },
         { id: 'account' as const, icon: User, label: 'Account' },
     ];

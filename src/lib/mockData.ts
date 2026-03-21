@@ -32,6 +32,7 @@ export interface User {
         totalPairsFormed: number;
         treesPlanted: number;
     };
+    lastActivityClearedAt?: string;
     links?: string[];
 }
 

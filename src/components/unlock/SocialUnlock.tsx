@@ -1,265 +1,157 @@
-import { useState, useEffect } from 'react';
-import { ExternalLink, Check } from 'lucide-react';
+import { useState } from 'react';
+import { Users, CheckCircle2 } from 'lucide-react';
 import { socialIcons } from '../../assets/socialIcons';
 import type { SocialConfigData, SocialFollowTarget } from '../dashboard/SocialConfigForm';
-import { useParams } from 'react-router-dom';
 
 interface SocialUnlockProps {
     config: SocialConfigData;
     onComplete: () => void;
 }
 
-const getPlatformIcon = (platform: string | null) => {
-    switch (platform) {
-        case 'twitter': return <img src={socialIcons.twitter} className="w-8 h-8 object-contain" alt="Twitter" />;
-        case 'instagram': return <img src={socialIcons.instagram} className="w-8 h-8 object-contain" alt="Instagram" />;
-        case 'linkedin': return <img src={socialIcons.linkedin} className="w-8 h-8 object-contain" alt="LinkedIn" />;
-        case 'youtube': return <img src={socialIcons.youtube} className="w-8 h-8 object-contain" alt="YouTube" />;
-        case 'tiktok': return <img src={socialIcons.tiktok} className="w-8 h-8 object-contain" alt="TikTok" />;
-        case 'twitch': return <img src={socialIcons.twitch} className="w-8 h-8 object-contain" alt="Twitch" />;
-        case 'discord': return <img src={socialIcons.discord} className="w-8 h-8 object-contain" alt="Discord" />;
-        case 'telegram': return <img src={socialIcons.telegram} className="w-8 h-8 object-contain" alt="Telegram" />;
-        case 'threads': return <img src={socialIcons.threads} className="w-8 h-8 object-contain" alt="Threads" />;
-        default: return <ExternalLink size={24} className="text-white" />;
-    }
-};
-
-const getPlatformColor = (platform: string | null) => {
-    switch (platform) {
-        case 'twitter': return 'bg-[#000000]';
-        case 'instagram': return 'bg-gradient-to-tr from-[#FD1D1D] to-[#833AB4]';
-        case 'linkedin': return 'bg-[#0A66C2]';
-        case 'youtube': return 'bg-[#FF0000]';
-        case 'tiktok': return 'bg-[#000000]';
-        case 'twitch': return 'bg-[#9146FF]';
-        case 'discord': return 'bg-[#5865F2]';
-        case 'telegram': return 'bg-[#26A5E4]';
-        case 'threads': return 'bg-[#000000]';
-        default: return 'bg-[#333]';
-    }
-};
-
-const useFollowSession = (slug: string = 'default', targets: SocialFollowTarget[]) => {
-    const key = `adgate_follow_${slug}`;
-    const [state, setState] = useState(() => {
-        try {
-            const saved = sessionStorage.getItem(key);
-            if (saved) return JSON.parse(saved);
-        } catch (e) {}
-        return {
-            completedTargetIds: [] as string[],
-            currentTargetIndex: 0,
-            isComplete: false,
-            sessionStarted: false,
-        };
-    });
-
-    useEffect(() => {
-        sessionStorage.setItem(key, JSON.stringify(state));
-    }, [state, key]);
-
-    const confirmCurrentTarget = () => {
-        setState((prev: any) => {
-            const newIndex = prev.currentTargetIndex + 1;
-            return {
-                ...prev,
-                completedTargetIds: [...prev.completedTargetIds, targets[prev.currentTargetIndex].id],
-                currentTargetIndex: newIndex,
-                isComplete: newIndex >= targets.length
-            };
-        });
-    };
-
-    return {
-        ...state,
-        confirmCurrentTarget,
-        currentTarget: targets[state.currentTargetIndex],
-        progress: { completed: state.completedTargetIds.length, total: targets.length }
-    };
-};
-
 export const SocialUnlock = ({ config, onComplete }: SocialUnlockProps) => {
-    const { slug } = useParams();
-    const { 
-        currentTargetIndex, 
-        isComplete, 
-        confirmCurrentTarget, 
-        currentTarget, 
-        progress 
-    } = useFollowSession(slug, config.followTargets);
+    const [visitedIds, setVisitedIds] = useState<string[]>([]);
+    const [isUnlocking, setIsUnlocking] = useState(false);
 
-    const [actionState, setActionState] = useState<'idle' | 'clicked' | 'confirming'>('idle');
+    const followTargets = config.followTargets || [];
+    const totalTargets = followTargets.length;
+    const visitedCount = visitedIds.length;
+    const allVisited = visitedCount >= totalTargets && totalTargets > 0;
+    const progressPercent = totalTargets > 0 ? (visitedCount / totalTargets) * 100 : 0;
 
-    useEffect(() => {
-        if (isComplete) {
-            onComplete();
+    const handleTargetClick = (target: SocialFollowTarget) => {
+        if (!visitedIds.includes(target.id)) {
+            setVisitedIds([...visitedIds, target.id]);
         }
-    }, [isComplete, onComplete]);
+    };
 
-    // Reset action state when target changes
-    useEffect(() => {
-        setActionState('idle');
-    }, [currentTargetIndex]);
-
-    if (!config.followTargets || config.followTargets.length === 0) {
-        return (
-            <div className="w-full h-[200px] flex items-center justify-center p-6 bg-red-50 text-red-600 rounded-lg border border-red-200 text-center">
-                This link is not fully configured yet. Check back later or contact the creator.
-            </div>
-        );
-    }
-
-    if (isComplete) {
-        return (
-            <div className="w-full animate-slide-down bg-[#EDFAF3] rounded-[16px] p-6 text-center border border-[#166534]/20 flex flex-col items-center">
-                <span className="text-[16px] font-[900] text-[#166534] mb-3">✓ All done! Unlocking your content...</span>
-                <div className="flex gap-2 overflow-x-auto no-scrollbar w-full justify-center">
-                    {config.followTargets.map(t => (
-                        <div key={t.id} className="h-[28px] rounded-full bg-white border border-[#166534]/20 px-3 flex items-center gap-1.5 shrink-0 shadow-sm">
-                            <Check size={12} className="text-[#166534]" strokeWidth={3} />
-                            <span className="text-[11px] font-[700] text-[#166534]">{t.type === 'platform' ? t.handle : t.customLabel}</span>
-                        </div>
-                    ))}
-                </div>
-            </div>
-        );
-    }
-
-    const t = currentTarget;
-
-    const handleCtaClick = () => {
-        setActionState('clicked');
-        window.open(t.type === 'platform' ? t.profileUrl! : t.customUrl!, '_blank');
-        
+    const handleUnlock = () => {
+        if (isUnlocking) return;
+        setIsUnlocking(true);
         setTimeout(() => {
-            setActionState('confirming');
-        }, 1500);
+            setIsUnlocking(false);
+            onComplete();
+        }, 1200);
     };
 
-    const handleConfirm = () => {
-        setActionState('idle');
-        confirmCurrentTarget();
-    };
+    if (totalTargets === 0) {
+        return (
+            <div className="w-full flex items-center justify-center p-6 bg-surfaceAlt text-textMid rounded-lg text-[14px]">
+                Add social steps to preview your unlock page
+            </div>
+        );
+    }
 
     return (
-        <div className="w-full flex flex-col items-center animate-fadeIn gap-5">
-            <h2 className="text-[20px] font-black text-[#111] leading-tight px-2 text-center">
-                {config.customHeading || "Complete the steps below to unlock"}
+        <div className="w-full flex flex-col items-center animate-fadeIn">
+
+            <div className="w-12 h-12 bg-surfaceAlt text-text rounded-full flex items-center justify-center mb-6 border border-border">
+                <Users size={24} strokeWidth={2.5} />
+            </div>
+            
+            <h2 className="text-[20px] md:text-[24px] tracking-tight font-black text-text mb-3 text-center leading-tight">
+                {config.customHeading || 'Complete steps to unlock'}
             </h2>
+            
             {config.followDescription && (
-                <p className="text-[14px] font-[600] text-[#6B6860] px-2 text-center max-w-[400px]">
+                <p className="text-[14px] text-textMid text-center max-w-[320px] mb-8 leading-relaxed">
                     {config.followDescription}
                 </p>
             )}
 
-            {/* Progress Indicator */}
-            <div className="w-full max-w-[343px] flex items-center justify-between my-2 relative">
-                {config.followTargets.map((target, idx) => {
-                    const isCompleted = idx < currentTargetIndex;
-                    const isCurrent = idx === currentTargetIndex;
+            {!config.followDescription && (
+                <div className="mb-8 p-0" />
+            )}
 
-                    return (
-                        <div key={target.id} className="flex flex-col items-center relative z-10 gap-1.5" style={{ width: '32px' }}>
-                             <div className={`w-[32px] h-[32px] rounded-full flex items-center justify-center transition-all duration-300 overflow-hidden
-                                ${isCompleted ? 'bg-[#EDFAF3] border-[2px] border-[#166534]' : 
-                                  isCurrent ? 'bg-white border-[2px] border-[#2563EB] shadow-[0_0_0_3px_rgba(37,99,235,0.12)]' : 
-                                  'bg-[#F6F6F6] border-[1.5px] border-[#E8E8E8]'}
-                            `}>
-                                {isCompleted ? (
-                                    <Check size={14} className="text-[#166534]" strokeWidth={4} />
-                                ) : (
-                                    target.type === 'platform' ? (
-                                        <img src={socialIcons[target.platform as keyof typeof socialIcons]} className="w-5 h-5 object-contain" alt="" />
-                                    ) : (
-                                        <span className={`text-[13px] font-[800] ${isCurrent ? 'text-[#2563EB]' : 'text-[#BBBBBB]'}`}>
-                                            {target.customIcon || idx + 1}
-                                        </span>
-                                    )
-                                )}
-                            </div>
-                            <span className="text-[9px] font-[700] text-[#888] truncate w-[50px] text-center">
-                                {target.type === 'platform' ? (target.platform || 'Link') : (target.customLabel || 'Link')}
-                            </span>
-                        </div>
-                    );
-                })}
-
-                {/* Connecting Lines */}
-                {config.followTargets.length > 1 && config.followTargets.map((_, idx) => {
-                    if (idx === config.followTargets.length - 1) return null;
-                    return (
-                        <div 
-                            key={`line-${idx}`} 
-                            className="absolute h-[1.5px] bg-[#E8E8E8]" 
-                            style={{ 
-                                top: '16px', 
-                                left: `calc(${(idx * 100) / (config.followTargets.length - 1)}% + 16px)`,
-                                width: `calc(${100 / (config.followTargets.length - 1)}% - 32px)`
-                            }} 
-                        />
-                    );
-                })}
-            </div>
-
-            {/* Current Target Action Card */}
-            <div className="w-full bg-white rounded-[16px] border-[1.5px] border-[#E8E8E8] p-[20px] shadow-sm relative overflow-hidden flex flex-col items-center">
-                <span className="text-[11px] font-[800] text-[#888] uppercase tracking-[0.5px]">Step {currentTargetIndex + 1} of {progress.total}</span>
+            <div className="w-full max-w-[340px]">
+                <div className="flex justify-between items-center mb-2 px-1">
+                    <span className="text-[12px] font-bold text-textMid uppercase tracking-wider">
+                        Progress: {visitedCount}/{totalTargets}
+                    </span>
+                    {allVisited && <span className="text-[12px] font-bold text-success uppercase tracking-wider">Complete ✓</span>}
+                </div>
                 
-                <h3 className="text-[16px] font-[900] text-[#111] leading-[1.3] text-center mt-1 mb-4">
-                    {t.instructionText || (t.type === 'platform' ? `Follow ${t.handle} on ${t.platform}` : 'Visit this link')}
-                </h3>
+                <div className="h-[6px] bg-surfaceAlt rounded-full overflow-hidden mb-8 border border-border">
+                    <div 
+                        className={`h-full transition-all duration-500 rounded-full ${allVisited ? 'bg-success' : 'bg-brand'}`}
+                        style={{ width: `${progressPercent}%` }}
+                    />
+                </div>
 
-                {t.type === 'platform' ? (
-                    <div className="flex flex-col items-center mb-6">
-                        <div className={`w-[72px] h-[72px] rounded-[20px] bg-surfaceAlt flex items-center justify-center mb-4 border border-border shadow-sm`}>
-                           {getPlatformIcon(t.platform)}
-                        </div>
-                        <span className="text-[15px] font-[900] text-[#111]">{t.handle}</span>
-                        <span className="text-[12px] font-[600] text-[#888] tracking-tight">{t.platform?.charAt(0).toUpperCase()}{t.platform?.slice(1)}</span>
-                    </div>
-                ) : (
-                    <div className="flex flex-col items-center mb-6">
-                        <div className="text-[48px] mb-3 leading-none">
-                            {t.customIcon || '🔗'}
-                        </div>
-                        <span className="text-[16px] font-[900] text-[#111]">{t.customLabel}</span>
-                        <span className="text-[11px] text-[#888] truncate max-w-[250px]">{t.customUrl}</span>
-                    </div>
-                )}
+                <div className="flex flex-col gap-0 mb-8 border-t border-border">
+                    {followTargets.map((target) => (
+                        <FollowTargetCard
+                            key={target.id}
+                            target={target}
+                            isVisited={visitedIds.includes(target.id)}
+                            onClick={() => handleTargetClick(target)}
+                        />
+                    ))}
+                </div>
 
-                <button
-                    onClick={handleCtaClick}
-                    className={`w-full h-[52px] rounded-[14px] flex items-center justify-center gap-2 font-[900] text-[15px] text-white shadow-sm transition-all
-                        ${actionState !== 'idle' ? 'opacity-60 scale-[0.98]' : 'opacity-100 scale-100'}
-                        ${t.type === 'platform' ? getPlatformColor(t.platform) : 'bg-[#333333]'}
-                    `}
-                >
-                    {t.type === 'platform' ? (
-                        <>Follow on {t.platform}</>
-                    ) : (
-                        <>🔗 Visit Link {t.customLabel?.substring(0, 20)}...</>
-                    )}
-                </button>
-
-                {actionState === 'confirming' && (
-                    <div className="w-full mt-3 bg-[#EDFAF3] rounded-[12px] p-[14px] flex items-center justify-between animate-in slide-in-from-bottom-4">
-                        <div className="flex items-center gap-2">
-                            <div className="w-6 h-6 rounded-full bg-[#166534] flex items-center justify-center text-white shrink-0">
-                                <Check size={14} strokeWidth={3} />
-                            </div>
-                            <span className="text-[14px] font-[700] text-[#166534]">
-                                {t.type === 'platform' ? `I followed ${t.handle}` : 'I visited'}
-                            </span>
-                        </div>
-                        <button
-                            onClick={handleConfirm}
-                            className="h-[36px] px-3 bg-[#166534] text-white rounded-[10px] font-[800] text-[13px] shadow-sm hover:opacity-90 transition-opacity"
-                        >
-                            Confirm →
-                        </button>
-                    </div>
+                {allVisited && (
+                    <button
+                        onClick={handleUnlock}
+                        disabled={isUnlocking}
+                        className={`w-full h-10 rounded-md text-[14px] font-bold flex items-center justify-center gap-2 transition-transform shadow-sm bg-brand hover:bg-brandHover text-white active:scale-[0.98] animate-in slide-in-from-bottom-2 fade-in duration-300 disabled:opacity-50`}
+                    >
+                        {isUnlocking ? (
+                            <>
+                                <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                                Unlocking...
+                            </>
+                        ) : (
+                            'Get Instant Access'
+                        )}
+                    </button>
                 )}
             </div>
         </div>
+    );
+};
+
+const FollowTargetCard = ({ target, isVisited, onClick }: { target: SocialFollowTarget, isVisited: boolean, onClick: () => void }) => {
+    // Attempt logic parity with getTargetLabel from live site
+    let label = 'Visit link';
+    if (target.type === 'platform') {
+        const platformName = target.platform ? target.platform.charAt(0).toUpperCase() + target.platform.slice(1) : '';
+        label = target.handle ? `Follow ${target.handle}` : `Follow on ${platformName}`;
+    } else {
+        label = target.customLabel || 'Visit link';
+    }
+
+    return (
+        <button
+            onClick={onClick}
+            className={`w-full h-[64px] flex items-center gap-4 py-2 border-b border-border transition-colors text-left bg-white hover:bg-surfaceAlt group px-3 -mx-3 rounded-md ${isVisited ? 'opacity-70' : ''}`}
+        >
+            <div className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors shrink-0 ${
+                isVisited ? 'bg-successBg text-success border border-success/20' : 'bg-surfaceAlt text-textMid group-hover:bg-white border border-border'
+            }`}>
+                {isVisited ? (
+                    <CheckCircle2 size={18} strokeWidth={3} />
+                ) : (target.type === 'platform' && target.platform && socialIcons[target.platform as keyof typeof socialIcons]) ? (
+                    <img 
+                        src={socialIcons[target.platform as keyof typeof socialIcons]} 
+                        alt={target.platform}
+                        className="w-5 h-5 object-contain opacity-80 group-hover:opacity-100 transition-opacity"
+                    />
+                ) : (
+                    <span className="text-lg">{target.customIcon || '🔗'}</span>
+                )}
+            </div>
+            <div className="flex-1 min-w-0 flex flex-col justify-center">
+                <div className={`text-[15px] font-[800] truncate ${isVisited ? 'text-textMid line-through' : 'text-text'}`}>
+                    {label}
+                </div>
+                {target.instructionText && !isVisited && (
+                    <div className="text-[13px] font-medium text-textLight truncate mt-0.5">
+                        {target.instructionText}
+                    </div>
+                )}
+            </div>
+            <div className="w-8 h-8 flex items-center justify-end text-textLight transition-colors shrink-0">
+                {isVisited ? null : <span className="text-[14px] group-hover:text-text transition-colors">↗</span>}
+            </div>
+        </button>
     );
 };

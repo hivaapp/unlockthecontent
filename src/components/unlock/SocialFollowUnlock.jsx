@@ -1,6 +1,7 @@
 // src/components/unlock/SocialFollowUnlock.jsx
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { Download, ExternalLink, Users, CheckCircle2 } from 'lucide-react'
 import {
   getVisitedTargets,
   markTargetVisited,
@@ -99,22 +100,29 @@ const SocialFollowUnlock = ({ link, currentUser, isLoggedIn, sessionKey, onUnloc
 
   if (screen === 'already_unlocked') {
     return (
-      <div className="w-full flex flex-col items-center">
-        <div className="w-16 h-16 bg-successBg rounded-full flex items-center justify-center text-3xl mb-4 border border-success/20">
-          ✅
+      <div className="w-full flex flex-col items-center animate-fadeIn">
+        <div className="w-12 h-12 bg-surfaceAlt rounded-full flex items-center justify-center text-text mb-6 border border-border">
+          <CheckCircle2 size={24} strokeWidth={2.5} />
         </div>
-        <h2 className="text-2xl font-black text-text mb-2 text-center">
+        <h2 className="text-[24px] md:text-[28px] tracking-tight font-black text-text mb-2 text-center leading-tight">
           Already unlocked
         </h2>
-        <p className="text-[14px] text-textMid text-center mb-8 max-w-[280px]">
-          You already followed all accounts.
+        <p className="text-[15px] text-textMid text-center mb-8 max-w-[280px]">
+          You already completed all steps earlier.
         </p>
         <button
           onClick={handleUnlock}
           disabled={isUnlocking}
-          className="w-full h-12 bg-success hover:bg-success/90 text-white rounded-xl text-[15px] font-black flex items-center justify-center gap-2 max-w-[340px] transition-all shadow-sm"
+          className="w-full h-10 bg-brand hover:bg-brandHover text-white rounded-md text-[14px] font-bold flex items-center justify-center gap-2 max-w-[340px] transition-transform active:scale-[0.98] shadow-sm disabled:opacity-50"
         >
-          {isUnlocking ? 'Loading...' : 'Access Content →'}
+          {isUnlocking ? (
+            <>
+              <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+              Loading...
+            </>
+          ) : (
+            'Access Resource'
+          )}
         </button>
       </div>
     )
@@ -122,22 +130,22 @@ const SocialFollowUnlock = ({ link, currentUser, isLoggedIn, sessionKey, onUnloc
 
   if (screen === 'unlocked') {
     return (
-      <div className="w-full flex flex-col items-center animate-pop-in">
-        <div className="w-16 h-16 bg-successBg rounded-full flex items-center justify-center text-3xl mb-4 border border-success/20">
-          🎉
+      <div className="w-full flex flex-col items-center animate-fadeIn">
+        <div className="w-12 h-12 bg-successBg text-success rounded-full flex items-center justify-center mb-6 border border-success/20">
+          <CheckCircle2 size={24} strokeWidth={2.5} />
         </div>
         
-        <h2 className="text-2xl font-black text-text mb-2 text-center">
-          Content unlocked!
+        <h2 className="text-[24px] md:text-[28px] tracking-tight font-black text-text mb-2 text-center">
+          Access Granted!
         </h2>
         
-        <p className="text-[14px] text-textMid text-center mb-8">
-          Enjoy your resource.
+        <p className="text-[15px] font-medium text-textMid text-center mb-10">
+          {alreadyUnlocked ? 'Here is your unlocked resource.' : 'Successfully completed all steps. Here is your resource.'}
         </p>
 
-        <div className="w-full max-w-[400px] flex flex-col gap-6">
+        <div className="w-full max-w-[400px] flex flex-col gap-8 text-left">
           {socialConfig?.unlock_text && (
-            <div className="text-center">
+            <div className="text-center w-full">
               <p className="text-[15px] font-[500] text-text leading-relaxed whitespace-pre-wrap">
                 {socialConfig.unlock_text}
               </p>
@@ -145,94 +153,102 @@ const SocialFollowUnlock = ({ link, currentUser, isLoggedIn, sessionKey, onUnloc
           )}
 
           {link.text_content && (
-            <div className="w-full bg-surfaceAlt rounded-xl p-4 border border-border">
-              <p className="text-[14px] font-medium text-text leading-relaxed whitespace-pre-wrap">
+            <div className="w-full">
+              <h3 className="text-[12px] font-bold text-textLight uppercase tracking-wider mb-2">Message</h3>
+              <p className="text-[15px] text-text leading-relaxed whitespace-pre-wrap">
                 {link.text_content}
               </p>
             </div>
           )}
 
           {link.content_links && link.content_links.length > 0 && (
-            <div className="w-full flex flex-col gap-2">
+            <div className="w-full flex flex-col gap-4">
+              <h3 className="text-[12px] font-bold text-textLight uppercase tracking-wider mb-[-8px]">Links</h3>
               {link.content_links.map((cl, idx) => {
-                const getDomainInitial = (url) => {
-                  try { return new URL(url).hostname.replace(/^www\./, '').charAt(0).toUpperCase(); } catch { return '?'; }
-                };
-                const getDomainColor = (url) => {
-                  const colors = ['#E8312A', '#4F46E5', '#0EA5E9', '#10B981', '#F59E0B', '#8B5CF6', '#EC4899'];
-                  let hash = 0;
-                  for (let i = 0; i < url.length; i++) hash = url.charCodeAt(i) + ((hash << 5) - hash);
-                  return colors[Math.abs(hash) % colors.length];
-                };
                 const getDomainName = (url) => {
                   try { return new URL(url).hostname.replace(/^www\./, ''); } catch { return url; }
                 };
                 return (
-                  <a key={idx} href={cl.url} target="_blank" rel="noopener noreferrer"
-                    className="w-full h-[52px] bg-white rounded-[12px] border border-border flex items-center px-3 gap-3 no-underline hover:bg-surfaceAlt transition-colors"
-                  >
-                    <div className="w-[32px] h-[32px] rounded-[6px] flex items-center justify-center text-white font-[900] text-[14px] shrink-0"
-                      style={{ backgroundColor: getDomainColor(cl.url) }}
+                  <div key={idx} className="flex items-center justify-between py-3 border-b border-border last:border-0 hover:bg-surfaceAlt/50 transition-colors -mx-4 px-4 rounded-md">
+                    <div className="flex flex-col min-w-0 pr-4">
+                      <span className="text-[15px] font-bold text-text truncate">{cl.title || getDomainName(cl.url)}</span>
+                      <span className="text-[13px] text-textMid truncate">{getDomainName(cl.url)}</span>
+                    </div>
+                    <a
+                      href={cl.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="h-10 px-4 bg-white border border-border text-text rounded-md text-[13px] font-bold flex items-center justify-center gap-2 hover:bg-surfaceAlt transition-colors shrink-0 whitespace-nowrap"
                     >
-                      {getDomainInitial(cl.url)}
-                    </div>
-                    <div className="flex flex-col min-w-0 flex-1">
-                      <span className="text-[13px] font-[800] text-text truncate leading-tight">{cl.title || getDomainName(cl.url)}</span>
-                      <span className="text-[11px] text-textLight truncate leading-tight">{getDomainName(cl.url)}</span>
-                    </div>
-                  </a>
+                      Visit <ExternalLink size={14} />
+                    </a>
+                  </div>
                 );
               })}
             </div>
           )}
 
           {link.youtube_url && (
-            <div className="w-full aspect-video rounded-xl overflow-hidden border border-border shadow-sm">
-              <iframe
-                src={getYoutubeEmbedUrl(link.youtube_url)}
-                className="w-full h-full border-none"
-                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                allowFullScreen
-                title="YouTube video player"
-              />
+            <div className="w-full flex flex-col gap-2">
+              <h3 className="text-[12px] font-bold text-textLight uppercase tracking-wider mb-1">Video</h3>
+              <div className="w-full aspect-video rounded-md overflow-hidden border border-border">
+                <iframe
+                  src={getYoutubeEmbedUrl(link.youtube_url)}
+                  className="w-full h-full border-none"
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                  allowFullScreen
+                  title="YouTube video player"
+                />
+              </div>
             </div>
           )}
 
           {socialConfig?.unlock_url && (
-            <a
-              href={socialConfig.unlock_url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="w-full h-12 bg-white border border-border text-text rounded-xl text-sm font-black flex items-center justify-center gap-2 hover:bg-surfaceAlt transition-colors no-underline shadow-sm"
-            >
-              {socialConfig.unlock_url_label || 'Access Link'} →
-            </a>
+            <div className="w-full flex flex-col gap-2 mt-2">
+              <a
+                href={socialConfig.unlock_url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="w-full h-10 bg-brand text-white rounded-md text-[14px] font-bold flex items-center justify-center gap-2 hover:bg-brandHover transition-colors shadow-sm"
+              >
+                {socialConfig.unlock_url_label || 'Access Link'} <ExternalLink size={16} />
+              </a>
+            </div>
           )}
 
           {file && (
-            <div className="w-full flex items-center justify-between py-3 border-t border-border mt-2">
-              <div className="flex items-center gap-3 min-w-0">
-                <div className="text-2xl shrink-0">
-                  {getFileEmoji(file.original_name, file.mime_type)}
+            <div className="w-full flex flex-col gap-2">
+              <h3 className="text-[12px] font-bold text-textLight uppercase tracking-wider mb-1 mt-2">File</h3>
+              <div className="w-full flex items-center justify-between py-4 border-y border-border">
+                <div className="flex items-center gap-3 min-w-0 pr-4">
+                  <div className="text-2xl shrink-0">
+                    {getFileEmoji(file.original_name, file.mime_type)}
+                  </div>
+                  <div className="flex flex-col min-w-0">
+                    <span className="text-[15px] font-bold text-text truncate">
+                      {link.title || file.original_name}
+                    </span>
+                    <span className="text-[13px] text-textMid">
+                      {formatFileSize(file.size_bytes)}
+                    </span>
+                  </div>
                 </div>
-                <div className="flex flex-col min-w-0">
-                  <span className="text-[14px] font-black text-text truncate">
-                    {link.title}
-                  </span>
-                  <span className="text-[12px] text-textLight font-medium">
-                    {formatFileSize(file.size_bytes)}
-                  </span>
-                </div>
+                <button
+                  onClick={handleDownload}
+                  disabled={!downloadUrl}
+                  className={`h-10 px-4 rounded-md text-[13px] font-bold transition-colors shrink-0 flex items-center gap-2 ${
+                    downloadStarted 
+                      ? 'bg-successBg text-success border border-success/20' 
+                      : !downloadUrl 
+                        ? 'bg-surfaceAlt text-textLight border border-border' 
+                        : (socialConfig?.unlock_url 
+                            ? 'bg-white text-text border border-border hover:bg-surfaceAlt' 
+                            : 'bg-brand text-white hover:bg-brandHover shadow-sm')
+                  }`}
+                >
+                  {!downloadUrl ? 'Wait' : downloadStarted ? 'Downloaded' : <><Download size={14} /> Download</>}
+                </button>
               </div>
-              <button
-                onClick={handleDownload}
-                disabled={!downloadUrl}
-                className={`h-10 px-4 rounded-lg text-[13px] font-bold transition-all shrink-0 ml-4 ${
-                  downloadStarted ? 'bg-success text-white' : !downloadUrl ? 'bg-border text-textLight' : 'bg-brand text-white hover:bg-brandHover shadow-sm'
-                }`}
-              >
-                {!downloadUrl ? 'Wait' : downloadStarted ? 'Got it' : 'Download'}
-              </button>
             </div>
           )}
         </div>
@@ -241,35 +257,42 @@ const SocialFollowUnlock = ({ link, currentUser, isLoggedIn, sessionKey, onUnloc
   }
 
   return (
-    <div className="w-full flex flex-col items-center">
+    <div className="w-full flex flex-col items-center animate-fadeIn">
 
+      <div className="w-12 h-12 bg-surfaceAlt text-text rounded-full flex items-center justify-center mb-6 border border-border">
+        <Users size={24} strokeWidth={2.5} />
+      </div>
       
-      <h2 className="text-2xl font-black text-text mb-3 text-center leading-tight">
-        {socialConfig?.custom_heading || 'Follow to unlock'}
+      <h2 className="text-[24px] md:text-[28px] tracking-tight font-black text-text mb-3 text-center leading-tight">
+        {socialConfig?.custom_heading || 'Complete steps to unlock'}
       </h2>
       
       {socialConfig?.follow_description && (
-        <p className="text-[14px] text-textMid text-center max-w-[320px] mb-8 leading-relaxed">
+        <p className="text-[15px] text-textMid text-center max-w-[320px] mb-8 leading-relaxed">
           {socialConfig.follow_description}
         </p>
       )}
 
-      <div className="w-full max-w-[400px]">
+      {!socialConfig?.follow_description && (
+        <div className="mb-8 p-0" />
+      )}
+
+      <div className="w-full max-w-[340px]">
         <div className="flex justify-between items-center mb-2 px-1">
-          <span className="text-[11px] font-black text-textMid uppercase tracking-wider">
+          <span className="text-[12px] font-bold text-textMid uppercase tracking-wider">
             Progress: {visitedCount}/{totalTargets}
           </span>
-          {allVisited && <span className="text-[11px] font-black text-success uppercase tracking-wider">Complete ✓</span>}
+          {allVisited && <span className="text-[12px] font-bold text-success uppercase tracking-wider">Complete ✓</span>}
         </div>
         
-        <div className="h-1.5 bg-surfaceAlt rounded-full overflow-hidden mb-6">
+        <div className="h-[6px] bg-surfaceAlt rounded-full overflow-hidden mb-8 border border-border">
           <div 
             className={`h-full transition-all duration-500 rounded-full ${allVisited ? 'bg-success' : 'bg-brand'}`}
             style={{ width: `${progressPercent}%` }}
           />
         </div>
 
-        <div className="flex flex-col gap-0 mb-6 border-t border-border">
+        <div className="flex flex-col gap-0 mb-8 border-t border-border">
           {followTargets.map((target) => (
             <FollowTargetCard
               key={target.id}
@@ -280,24 +303,22 @@ const SocialFollowUnlock = ({ link, currentUser, isLoggedIn, sessionKey, onUnloc
           ))}
         </div>
 
-        <button
-          onClick={handleUnlock}
-          disabled={!allVisited || isUnlocking}
-          className={`w-full h-12 rounded-xl text-[15px] font-black flex items-center justify-center gap-2 transition-all shadow-sm ${
-            allVisited 
-              ? 'bg-brand hover:bg-brandHover text-white active:scale-[0.98]' 
-              : 'bg-surfaceAlt text-textLight cursor-not-allowed hidden'
-          }`}
-        >
-          {isUnlocking ? (
-            <>
-              <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-              Unlocking...
-            </>
-          ) : (
-            'Continue to Resource →'
-          )}
-        </button>
+        {allVisited && (
+          <button
+            onClick={handleUnlock}
+            disabled={isUnlocking}
+            className={`w-full h-10 rounded-md text-[14px] font-bold flex items-center justify-center gap-2 transition-transform shadow-sm bg-brand hover:bg-brandHover text-white active:scale-[0.98] animate-in slide-in-from-bottom-2 fade-in duration-300 disabled:opacity-50`}
+          >
+            {isUnlocking ? (
+              <>
+                <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                Unlocking...
+              </>
+            ) : (
+              'Get Instant Access'
+            )}
+          </button>
+        )}
 
         {error && <p className="text-[12px] font-bold text-error mt-4 text-center">{error}</p>}
       </div>
@@ -308,18 +329,17 @@ const SocialFollowUnlock = ({ link, currentUser, isLoggedIn, sessionKey, onUnloc
 const FollowTargetCard = ({ target, isVisited, onClick }) => {
   const icon = getTargetIcon(target)
   const label = getTargetLabel(target)
-  const platformInfo = target.type === 'platform' ? PLATFORM_INFO[target.platform] : null
 
   return (
     <button
       onClick={onClick}
-      className="w-full h-16 flex items-center gap-4 py-2 border-b border-border transition-colors text-left bg-transparent hover:bg-surfaceAlt group"
+      className={`w-full h-[64px] flex items-center gap-4 py-2 border-b border-border transition-colors text-left bg-white hover:bg-surfaceAlt group px-3 -mx-3 rounded-md ${isVisited ? 'opacity-70' : ''}`}
     >
       <div className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors shrink-0 ${
-        isVisited ? 'bg-success/10 text-success' : 'bg-surfaceAlt text-textMid group-hover:bg-white border border-border/50'
+        isVisited ? 'bg-successBg text-success border border-success/20' : 'bg-surfaceAlt text-textMid group-hover:bg-white border border-border'
       }`}>
         {isVisited ? (
-          <span className="text-lg">✓</span>
+          <CheckCircle2 size={18} strokeWidth={3} />
         ) : (target.type === 'platform' && socialIcons[target.platform]) ? (
           <img 
             src={socialIcons[target.platform]} 
@@ -331,11 +351,11 @@ const FollowTargetCard = ({ target, isVisited, onClick }) => {
         )}
       </div>
       <div className="flex-1 min-w-0 flex flex-col justify-center">
-        <div className={`text-[14px] font-[700] truncate ${isVisited ? 'text-textMid line-through' : 'text-text'}`}>
+        <div className={`text-[15px] font-[800] truncate ${isVisited ? 'text-textMid line-through' : 'text-text'}`}>
           {label}
         </div>
         {target.instruction_text && !isVisited && (
-          <div className="text-[12px] font-medium text-textLight truncate">
+          <div className="text-[13px] font-medium text-textLight truncate mt-0.5">
             {target.instruction_text}
           </div>
         )}

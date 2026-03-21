@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ArrowRight, Mail } from 'lucide-react';
+import { Mail, Lock } from 'lucide-react';
 import type { EmailConfigData } from '../dashboard/EmailConfigForm';
 
 interface EmailUnlockProps {
@@ -24,50 +24,75 @@ export const EmailUnlock = ({ config, onComplete }: EmailUnlockProps) => {
     };
 
     return (
-        <form onSubmit={handleSubmit} className="w-full flex flex-col gap-4 animate-fadeIn">
-            <div className="text-center mb-2">
-                <div className="w-12 h-12 bg-[#F3F1EC] rounded-full flex items-center justify-center mx-auto mb-3 text-brand">
-                    <Mail size={24} />
-                </div>
-                <h2 className="text-[20px] font-black text-[#111] mb-1 leading-tight">
-                    {config.newsletterName || "Join the newsletter"}
-                </h2>
-                <p className="text-[14px] font-[600] text-textMid">
-                    {config.incentiveText || "Subscribe to unlock this resource."}
-                </p>
-                {config.totalSubscribers ? (
-                    <div className="mt-3 inline-flex items-center gap-1.5 px-3 py-1 bg-brandTint text-brand rounded-full text-[12px] font-bold">
-                        <span className="w-2 h-2 rounded-full bg-brand animate-pulse"></span>
-                        Join {config.totalSubscribers.toLocaleString()}+ subscribers
-                    </div>
-                ) : null}
+        <div className="w-full flex flex-col items-center animate-fadeIn">
+            <div className="w-12 h-12 bg-surfaceAlt text-text rounded-full flex items-center justify-center mb-6 border border-border">
+                <Mail size={24} strokeWidth={2.5} />
             </div>
+            
+            {config.newsletterName && (
+                <span className="text-[12px] font-bold text-textMid uppercase tracking-wider mb-2">
+                    {config.newsletterName}
+                </span>
+            )}
+            
+            <h2 className="text-[20px] md:text-[24px] tracking-tight font-black text-text mb-3 text-center leading-tight">
+                {config.incentiveText || "Unlock this resource instantly"}
+            </h2>
+            
+            {config.newsletterDescription && (
+                <p className="text-[14px] text-textMid text-center max-w-[320px] mb-8 leading-relaxed">
+                    {config.newsletterDescription}
+                </p>
+            )}
 
-            <div className="flex flex-col gap-2">
-                <input
-                    type="email"
-                    required
-                    placeholder="Enter your email address"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    className="w-full h-[54px] bg-surfaceAlt border border-border rounded-[14px] px-4 font-[600] text-[15px] focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand transition-all placeholder:text-textLight"
-                />
+            {!config.newsletterDescription && (
+                <div className="mb-8 p-0" />
+            )}
+
+            {config.totalSubscribers ? (
+                <div className="mb-6 -mt-4 inline-flex items-center gap-1.5 px-3 py-1 bg-surfaceAlt border border-border text-text rounded-full text-[12px] font-bold">
+                    <span className="w-2 h-2 rounded-full bg-success animate-pulse"></span>
+                    Join {config.totalSubscribers.toLocaleString()}+ subscribers
+                </div>
+            ) : null}
+
+            <form onSubmit={handleSubmit} className="w-full max-w-[340px]">
+                <div className="mb-4 w-full">
+                    <div className="relative">
+                        <input
+                            type="email"
+                            required
+                            placeholder="Enter your best email..."
+                            value={email}
+                            onChange={(e) => setEmail(e.target.value)}
+                            disabled={isLoading}
+                            className={`w-full h-10 bg-white border border-border rounded-md px-4 text-[15px] outline-none focus:border-brand focus:ring-1 focus:ring-brand transition-all placeholder:text-textLight ${isLoading ? 'bg-surfaceAlt text-textLight' : 'text-text'}`}
+                        />
+                        {isLoading && (
+                            <div className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 border-2 border-border border-t-brand rounded-full animate-spin" />
+                        )}
+                    </div>
+                </div>
+
                 <button
                     type="submit"
                     disabled={isLoading || !email}
-                    className="w-full h-[54px] bg-[#E8312A] hover:bg-[#C0392B] text-white font-black text-[15px] rounded-[14px] flex items-center justify-center gap-2 shadow-sm transition-transform active:scale-[0.98] disabled:opacity-50 disabled:active:scale-100"
+                    className="w-full h-10 bg-brand hover:bg-brandHover text-white rounded-md text-[14px] font-bold flex items-center justify-center gap-2 active:scale-[0.98] transition-transform disabled:opacity-50 disabled:active:scale-100"
                 >
                     {isLoading ? (
-                        <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                        <>
+                            <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                            Please wait...
+                        </>
                     ) : (
-                        <>Subscribe & Unlock <ArrowRight size={18} /></>
+                        "Get Instant Access"
                     )}
                 </button>
-            </div>
-            
-            <p className="text-center text-[11px] font-[600] text-textLight mt-2">
-                By subscribing, you agree to receive emails from this creator.
-            </p>
-        </form>
+
+                <p className="text-[12px] font-medium text-textLight text-center mt-5 flex items-center justify-center gap-1.5">
+                    <Lock size={12} /> 100% free • Unsubscribe anytime
+                </p>
+            </form>
+        </div>
     );
 };

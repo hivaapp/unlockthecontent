@@ -239,7 +239,7 @@ export const LinksTab = ({ searchQuery, setSearchQuery }: { searchQuery: string,
         }
     };
 
-    const sorts = ['All', 'Most Viewed', 'Newest', 'Disabled'];
+    const sorts = ['All', 'Most Viewed', 'Newest', 'Disabled', 'Email', 'Social Follow', 'Sponsor', 'Follower Pairing'];
 
     // Derived state
     const filteredLinks = links
@@ -247,6 +247,10 @@ export const LinksTab = ({ searchQuery, setSearchQuery }: { searchQuery: string,
         .filter(l => {
             if (activeSort === 'All') return true;
             if (activeSort === 'Disabled') return l.status === 'disabled';
+            if (activeSort === 'Email') return l.unlockType === 'email_subscribe';
+            if (activeSort === 'Social Follow') return l.unlockType === 'social_follow';
+            if (activeSort === 'Sponsor') return l.unlockType === 'custom_sponsor';
+            if (activeSort === 'Follower Pairing') return l.unlockType === 'follower_pairing';
             return true;
         })
         .sort((a, b) => {

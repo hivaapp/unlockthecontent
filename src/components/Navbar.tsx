@@ -5,7 +5,7 @@ import { useMessaging } from '../context/MessagingContext';
 
 import { Link, useLocation } from 'react-router-dom';
 import { AuthBottomSheet } from './AuthBottomSheet';
-import { Menu, X, Lightbulb, Briefcase, Compass, Tag, ChevronRight } from 'lucide-react';
+import { Menu, X, Lightbulb, Briefcase, Tag, ChevronRight } from 'lucide-react';  // Removed Compass for lint fix
 import { useNavigate } from 'react-router-dom';
 import { getAvatarColor } from '../lib/utils';
 
@@ -47,7 +47,6 @@ export const Navbar = () => {
     const location = useLocation();
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [isMenuOpen, setIsMenuOpen] = useState(false);
-    const isExplore = location.pathname === '/explore';
     const [authScreen, setAuthScreen] = useState<'signin' | 'signup'>('signin');
     const navigate = useNavigate();
 
@@ -81,14 +80,12 @@ export const Navbar = () => {
     const DESKTOP_LINKS = [
         { label: 'How It Works', href: '/how-it-works' },
         { label: 'Use Cases', href: '/use-cases' },
-        { label: 'Explore', href: '/explore' },
         { label: 'Pricing', href: '/pricing' },
     ];
 
     const MOBILE_LINKS = [
         { label: 'How It Works', href: '/how-it-works', icon: <Lightbulb size={20} className="text-textMid absolute left-0" /> },
         { label: 'Use Cases', href: '/use-cases', icon: <Briefcase size={20} className="text-textMid absolute left-0" /> },
-        { label: 'Explore', href: '/explore', icon: <Compass size={20} className="text-textMid absolute left-0" /> },
         { label: 'Pricing', href: '/pricing', icon: <Tag size={20} className="text-textMid absolute left-0" /> },
     ];
 
@@ -102,10 +99,7 @@ export const Navbar = () => {
                         UC
                     </div>
                     <div className="flex flex-col sm:flex-row sm:items-center sm:gap-4">
-                        <span className={`font-black text-[17px] tracking-tighter text-text ${isExplore ? 'hidden sm:block' : ''}`}>UnlockTheContent</span>
-                        {isExplore && (
-                            <span className="text-[11px] font-bold text-textMid flex sm:hidden hover:text-text transition-colors mt-0.5">Explore Resources</span>
-                        )}
+                        <span className="font-black text-[17px] tracking-tighter text-text">UnlockTheContent</span>
                         {isMarketingPage && (
                             <span className="text-[11px] font-bold text-textMid flex sm:hidden hover:text-text transition-colors mt-0.5">← Back to Home</span>
                         )}
@@ -143,7 +137,6 @@ export const Navbar = () => {
                     ) : (
                         isDashboard ? (
                             <div className="flex items-center gap-3">
-                                <Link to="/explore" className="font-bold text-brand hover:text-brand-hover transition-colors px-2 py-2 text-[13px]">Explore</Link>
                                 {/* Chat icon */}
                                 <button
                                     onClick={() => navigate('/chats')}
@@ -191,20 +184,14 @@ export const Navbar = () => {
                             <ChatNavBadge count={totalUnread} />
                         </button>
                     )}
-                    {isExplore ? (
-                        <Link to="/dashboard" className="btn-primary h-9 px-3 text-[12px] flex items-center shadow-sm">
-                            Dashboard
-                        </Link>
-                    ) : (
-                        <button
-                            className="w-10 h-10 flex items-center justify-center text-text"
-                            onClick={() => setIsMenuOpen(!isMenuOpen)}
-                            aria-label="Toggle navigation menu"
-                            aria-expanded={isMenuOpen}
-                        >
-                            {isMenuOpen ? <X size={24} /> : <Menu size={24} />}
-                        </button>
-                    )}
+                    <button
+                        className="w-10 h-10 flex items-center justify-center text-text"
+                        onClick={() => setIsMenuOpen(!isMenuOpen)}
+                        aria-label="Toggle navigation menu"
+                        aria-expanded={isMenuOpen}
+                    >
+                        {isMenuOpen ? <X size={24} /> : <Menu size={24} />}
+                    </button>
                 </div>
             </nav>
 

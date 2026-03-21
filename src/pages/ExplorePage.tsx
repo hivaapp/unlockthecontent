@@ -86,8 +86,8 @@ export const ExplorePage = () => {
                     unlockCount: l.unlock_count || 0,
                     category: 'All', // We don't have explicit category in DB yet, so we'll filter by title/desc locally
                     unlockType: l.unlock_type || (l.mode === 'follower_pairing' ? 'follower_pairing' : undefined),
-                    sponsorName: l.sponsor_config?.brand_name,
-                    requiresClick: l.sponsor_config?.requires_click,
+                    sponsorName: Array.isArray(l.sponsor_config) ? l.sponsor_config[0]?.brand_name : l.sponsor_config?.brand_name,
+                    requiresClick: Array.isArray(l.sponsor_config) ? l.sponsor_config[0]?.requires_click : l.sponsor_config?.requires_click,
                 }));
 
                 setResources(formatted);
@@ -153,7 +153,9 @@ export const ExplorePage = () => {
             const q = selectedCategory.toLowerCase();
             res = res.filter(r => 
                 r.title.toLowerCase().includes(q) || 
-                (r.category && r.category.toLowerCase().includes(q))
+                (r.category && r.category.toLowerCase().includes(q)) ||
+                (r.unlockType && r.unlockType.toLowerCase().includes(q)) ||
+                (r.sponsorName && r.sponsorName.toLowerCase().includes(q))
             );
         }
         if (sortBy === 'Sponsored First') {
@@ -249,7 +251,12 @@ export const ExplorePage = () => {
             <div className="w-full max-w-[800px] px-4 mb-6">
                 <div className="flex flex-wrap gap-2 items-center">
                     <span className="text-[12px] font-bold text-textMid flex items-center mr-1">Trending:</span>
-                    <button className="h-[26px] px-3 rounded-[14px] font-bold text-[11px] bg-[#EDE9FE] text-[#4C1D95] border border-[#C4B5FD] transition-colors hover:bg-[#DDD6FE]">✨ Brand Sponsors</button>
+                    <button 
+                        onClick={() => setSearchQuery('Sponsor')}
+                        className="h-[26px] px-3 rounded-[14px] font-bold text-[11px] bg-[#EDE9FE] text-[#4C1D95] border border-[#C4B5FD] transition-colors hover:bg-[#DDD6FE]"
+                    >
+                        ✨ Brand Sponsors
+                    </button>
                     <button className="h-[26px] px-3 rounded-[14px] font-bold text-[11px] bg-[#EDE9FE] text-[#4C1D95] border border-[#C4B5FD] transition-colors hover:bg-[#DDD6FE]">💼 Creator Deals</button>
                     <button className="h-[26px] px-3 rounded-[14px] font-bold text-[11px] bg-surfaceAlt text-textMid border border-border hover:bg-border transition-colors">Notion Templates</button>
                     <button className="h-[26px] px-3 rounded-[14px] font-bold text-[11px] bg-surfaceAlt text-textMid border border-border hover:bg-border transition-colors">UI Kits</button>
@@ -356,7 +363,7 @@ export const ExplorePage = () => {
 
                                         <div className="flex items-center gap-1.5 mb-3 flex-wrap">
                                             <span className="text-[10px] sm:text-[11px] font-bold px-1.5 py-0.5 bg-surfaceAlt rounded-[14px] uppercase tracking-wide">{r.fileType}</span>
-                                            {(!r.unlockType || r.unlockType === 'custom_sponsor') ? (
+                                            {r.unlockType === 'custom_sponsor' ? (
                                                 <span className="text-[10px] sm:text-[11px] font-bold px-1.5 py-0.5 bg-[#EDE9FE] text-[#4C1D95] rounded-[14px] flex items-center gap-1"><Sparkles size={10} /> {r.requiresClick ? 'Watch \u2192 Click' : 'Video Only'} · {r.sponsorName}</span>
                                             ) : r.unlockType === 'email_subscribe' ? (
                                                 <span className="text-[10px] sm:text-[11px] font-bold px-1.5 py-0.5 bg-[#166534] text-white rounded-[14px] flex items-center gap-1 shadow-sm"><Mail size={10} /> Email Subscribe</span>
@@ -364,7 +371,9 @@ export const ExplorePage = () => {
                                                 <span className="text-[10px] sm:text-[11px] font-bold px-1.5 py-0.5 bg-[#2563EB] text-white rounded-[14px] flex items-center gap-1 shadow-sm"><Share2 size={10} /> Social Follow</span>
                                             ) : r.unlockType === 'follower_pairing' ? (
                                                 <span className="text-[10px] sm:text-[11px] font-bold px-1.5 py-0.5 bg-[#92400E] text-white rounded-[14px] flex items-center gap-1 shadow-sm"><Handshake size={10} /> Accountability</span>
-                                            ) : null}
+                                            ) : (
+                                                <span className="text-[10px] sm:text-[11px] font-bold px-1.5 py-0.5 bg-[#EBF5EE] text-[#417A55] rounded-[14px] flex items-center gap-1 shadow-sm">🆓 Free</span>
+                                            )}
                                         </div>
 
                                         <div className="mt-auto flex items-center justify-between">
@@ -390,7 +399,7 @@ export const ExplorePage = () => {
                                     <div className="flex flex-col flex-1 min-w-0 pr-2">
                                         <div className="flex items-center gap-2">
                                             <h3 className="font-extrabold text-[14px] leading-tight truncate">{r.title}</h3>
-                                            {(!r.unlockType || r.unlockType === 'custom_sponsor') ? (
+                                            {r.unlockType === 'custom_sponsor' ? (
                                                 <span className="text-[9px] bg-[#FAF0EB] text-[#C1644A] border border-[#E6E2D9] font-black px-2 py-0.5 rounded-full uppercase tracking-widest">✨ Sponsored</span>
                                             ) : (
                                                 <span className="text-[9px] bg-[#EBF5EE] text-[#417A55] border border-[#E6E2D9] font-black px-2 py-0.5 rounded-full uppercase tracking-widest">🆓 Free</span>
@@ -408,7 +417,7 @@ export const ExplorePage = () => {
                                         </button>
                                     </div>
                                     <div className="flex flex-col items-end shrink-0 mr-3">
-                                        {(!r.unlockType || r.unlockType === 'custom_sponsor') ? (
+                                        {r.unlockType === 'custom_sponsor' ? (
                                             <span className="flex items-center gap-1 text-[11px] font-bold px-1.5 py-0.5 bg-[#EDE9FE] text-[#4C1D95] rounded-[14px] mb-1"><Sparkles size={10} /> {r.requiresClick ? 'Watch \u2192 Click' : 'Video Only'} · {r.sponsorName}</span>
                                         ) : r.unlockType === 'email_subscribe' ? (
                                             <span className="flex items-center gap-1 text-[11px] font-bold px-1.5 py-0.5 bg-[#166534] text-white rounded-[14px] mb-1 shadow-sm"><Mail size={10} /> Email Subscribe</span>
@@ -416,7 +425,9 @@ export const ExplorePage = () => {
                                             <span className="flex items-center gap-1 text-[11px] font-bold px-1.5 py-0.5 bg-[#2563EB] text-white rounded-[14px] mb-1 shadow-sm"><Share2 size={10} /> Social Follow</span>
                                         ) : r.unlockType === 'follower_pairing' ? (
                                             <span className="flex items-center gap-1 text-[11px] font-bold px-1.5 py-0.5 bg-[#92400E] text-white rounded-[14px] mb-1 shadow-sm"><Handshake size={10} /> Accountability</span>
-                                        ) : null}
+                                        ) : (
+                                            <span className="flex items-center gap-1 text-[11px] font-bold px-1.5 py-0.5 bg-[#EBF5EE] text-[#417A55] rounded-[14px] mb-1 shadow-sm">🆓 Free</span>
+                                        )}
                                         <span className="text-[11px] font-bold text-textLight">{r.unlockCount} unlocks</span>
                                     </div>
                                     <ChevronRight className="text-textLight group-hover:text-text transition-colors" size={20} />

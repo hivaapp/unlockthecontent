@@ -140,6 +140,38 @@ const ResourceUnlockPage = () => {
     }
   }
 
+  const getViralCopy = (unlockType) => {
+    switch (unlockType) {
+      case 'email_subscribe':
+        return {
+          title: "You just grew their email list.",
+          subtitle: "Want to collect deeply engaged emails for your own content?"
+        };
+      case 'social_follow':
+        return {
+          title: "You just boosted their follower count.",
+          subtitle: "Want to grow your own audience on autopilot?"
+        };
+      case 'custom_sponsor':
+        return {
+          title: "They just got paid for you unlocking this.",
+          subtitle: "Want to start monetizing your free content with sponsors?"
+        };
+      case 'follower_pairing':
+        return {
+          title: "You just joined an accountable community.",
+          subtitle: "Build your own community challenges around your content."
+        };
+      default:
+        return {
+          title: "Want to grow your audience automatically?",
+          subtitle: "Join creators earning with UnlockTheContent."
+        };
+    }
+  };
+
+  const viralData = link ? getViralCopy(link.unlock_type || link.mode) : null;
+
   return (
     <div style={{ background: '#FAF9F7', minHeight: '100vh' }}>
       <header style={{
@@ -299,6 +331,50 @@ const ResourceUnlockPage = () => {
             flexShrink: 0,
           }}>
              {renderContent()}
+          </div>
+        )}
+
+        {/* Viral PLG Banner (Post-Unlock) */}
+        {link?.is_unlocked && link?.mode !== 'follower_pairing' && viralData && (
+          <div style={{
+            marginTop: '24px',
+            width: '100%',
+            background: '#FAF0EB',
+            border: '1px solid rgba(217, 119, 87, 0.3)',
+            borderRadius: '16px',
+            padding: '24px',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            textAlign: 'center',
+            boxShadow: '0 2px 8px rgba(0,0,0,0.02)',
+            position: 'relative',
+            overflow: 'hidden',
+          }}>
+            <div style={{
+              position: 'absolute', top: 0, right: 0, background: '#D97757', color: 'white',
+              fontSize: '10px', fontWeight: 800, padding: '4px 10px', borderBottomLeftRadius: '12px',
+              textTransform: 'uppercase', letterSpacing: '0.5px'
+            }}>
+              Powered by UnlockTheContent
+            </div>
+            <h3 style={{ fontWeight: 900, fontSize: '18px', color: '#111', margin: '14px 0 6px', letterSpacing: '-0.3px', lineHeight: 1.2 }}>
+              {viralData.title}
+            </h3>
+            <p style={{ fontSize: '14px', fontWeight: 700, color: '#D97757', margin: '0 0 20px', maxWidth: '300px', lineHeight: 1.4 }}>
+              {viralData.subtitle}
+            </p>
+            <Link to="/signup" style={{
+              width: '100%', background: '#D97757', color: 'white', fontWeight: 900, fontSize: '15px',
+              height: '48px', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center',
+              textDecoration: 'none', transition: 'all 0.2s',
+              boxShadow: '0 2px 4px rgba(217,119,87,0.2)'
+            }}
+            onMouseEnter={(e) => { e.currentTarget.style.transform = 'scale(1.02)'; e.currentTarget.style.background = '#C4663F'; }}
+            onMouseLeave={(e) => { e.currentTarget.style.transform = 'scale(1)'; e.currentTarget.style.background = '#D97757'; }}
+            >
+              Lock Your First File Free
+            </Link>
           </div>
         )}
 

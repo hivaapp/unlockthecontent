@@ -426,7 +426,7 @@ export const CreatorProfile = () => {
                                     </div>
                                 ) : (
                                     resources.map((r: any) => {
-                                        const ut = r.unlock_type || r.unlockType || 'custom_sponsor';
+                                        const ut = r.unlock_type || r.unlockType;
                                         let bgClass = '';
                                         let badgeColor = '';
                                         let typeColor = '';
@@ -490,7 +490,7 @@ export const CreatorProfile = () => {
                                     campaigns.map((c: any) => {
                                         const config = c.followerPairingConfig || c.pairing_config;
                                         if (!config) return null;
-                                        const isOpen = config.isAcceptingParticipants;
+                                        const isOpen = config.is_accepting !== false && config.isAcceptingParticipants !== false;
                                         return (
                                             <div key={c.id} className="w-full bg-white border-[1.5px] border-[#FDE68A] rounded-[14px] p-[20px] flex flex-col">
                                                 <div className="flex items-start justify-between mb-3">

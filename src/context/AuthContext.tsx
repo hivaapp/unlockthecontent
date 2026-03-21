@@ -127,6 +127,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
                 active_pairing_links_count,
                 trust_score,
                 created_at,
+                last_activity_cleared_at,
                 social_handles (
                     platform,
                     handle,
@@ -174,6 +175,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             followerPairingLinkCount: data.active_pairing_links_count,
             socialHandles,
             joinedDate: data.created_at,
+            lastActivityClearedAt: data.last_activity_cleared_at,
         };
     }, []);
 

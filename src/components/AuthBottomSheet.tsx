@@ -316,7 +316,7 @@ export const AuthBottomSheet: React.FC<AuthBottomSheetProps> = ({
                       if (error) setError(null);
                     }}
                     placeholder="Email address"
-                    className="w-full h-[52px] border-[1.5px] border-[#E8E8E8] rounded-[12px] px-4 text-[16px] text-[#111] focus:border-[#E8312A] focus:ring-[3px] focus:ring-[#E8312A14] transition-all outline-none"
+                    className="w-full h-10 border border-[#E6E2D9] rounded-md px-4 text-[16px] text-[#21201C] focus:border-[#D97757] focus:ring-0 transition-all outline-none"
                   />
                 </div>
 
@@ -331,7 +331,7 @@ export const AuthBottomSheet: React.FC<AuthBottomSheetProps> = ({
                       if (error) setError(null);
                     }}
                     placeholder="Password"
-                    className="w-full h-[52px] border-[1.5px] border-[#E8E8E8] rounded-[12px] px-4 text-[16px] text-[#111] focus:border-[#E8312A] focus:ring-[3px] focus:ring-[#E8312A14] transition-all outline-none pr-12"
+                    className="w-full h-10 border border-[#E6E2D9] rounded-md px-4 text-[16px] text-[#21201C] focus:border-[#D97757] focus:ring-0 transition-all outline-none pr-12"
                   />
                   <button
                     type="button"
@@ -352,7 +352,7 @@ export const AuthBottomSheet: React.FC<AuthBottomSheetProps> = ({
                   <button
                     type="button"
                     onClick={goToForgotPassword}
-                    className="text-[12px] font-bold text-[#E8312A]"
+                    className="text-[12px] font-bold text-[#D97757]"
                   >
                     Forgot password?
                   </button>
@@ -361,7 +361,7 @@ export const AuthBottomSheet: React.FC<AuthBottomSheetProps> = ({
                 <button
                   type="submit"
                   disabled={isLoading}
-                  className="w-full h-[52px] bg-[#E8312A] text-white rounded-[12px] font-black text-[16px] flex items-center justify-center gap-2 hover:bg-[#C4663F] transition-colors disabled:opacity-70"
+                  className="w-full h-10 bg-[#D97757] text-white rounded-md font-black text-[16px] flex items-center justify-center gap-2 hover:bg-[#C4663F] transition-colors disabled:opacity-70"
                 >
                   {isLoading ? (
                     <Loader2 size={20} className="animate-spin" />
@@ -381,7 +381,7 @@ export const AuthBottomSheet: React.FC<AuthBottomSheetProps> = ({
                 <button
                   type="button"
                   onClick={handleGoogle}
-                  className="w-full h-[52px] bg-white border-[1.5px] border-[#E8E8E8] rounded-[12px] font-extrabold text-[#333] text-[14px] flex items-center justify-center gap-2.5 hover:bg-[#F6F6F6] transition-colors"
+                  className="w-full h-10 bg-white border border-[#E6E2D9] rounded-md font-extrabold text-[#21201C] text-[14px] flex items-center justify-center gap-2.5 hover:bg-[#F3F1EC] transition-colors"
                 >
                   <svg width="20" height="20" viewBox="0 0 24 24">
                     <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" fill="#4285F4" />
@@ -397,7 +397,7 @@ export const AuthBottomSheet: React.FC<AuthBottomSheetProps> = ({
                 <span className="text-[13px] text-[#888]">Don't have an account? </span>
                 <button
                   onClick={() => setScreen('signup')}
-                  className="text-[13px] font-extrabold text-[#E8312A]"
+                  className="text-[13px] font-extrabold text-[#D97757]"
                 >
                   Create one →
                 </button>
@@ -429,11 +429,11 @@ export const AuthBottomSheet: React.FC<AuthBottomSheetProps> = ({
                       if (errors.name) setErrors({ ...errors, name: '' });
                     }}
                     placeholder="Your name"
-                    className={`w-full h-[52px] border-[1.5px] rounded-[12px] px-4 text-[16px] text-[#111] focus:ring-[3px] focus:ring-[#E8312A14] transition-all outline-none ${
-                      errors.name ? 'border-[#E8312A]' : 'border-[#E8E8E8] focus:border-[#E8312A]'
+                    className={`w-full h-10 border rounded-md px-4 text-[16px] text-[#21201C] focus:ring-0 transition-all outline-none ${
+                      errors.name ? 'border-[#C0392B]' : 'border-[#E6E2D9] focus:border-[#D97757]'
                     }`}
                   />
-                  {errors.name && <p className="text-[11px] font-bold text-[#E8312A] mt-1 ml-1">{errors.name}</p>}
+                  {errors.name && <p className="text-[11px] font-bold text-[#C0392B] mt-1 ml-1">{errors.name}</p>}
                 </div>
 
                 <div className={errors.email ? 'animate-shake' : ''}>
@@ -447,11 +447,11 @@ export const AuthBottomSheet: React.FC<AuthBottomSheetProps> = ({
                       if (errors.email) setErrors({ ...errors, email: '' });
                     }}
                     placeholder="Email address"
-                    className={`w-full h-[52px] border-[1.5px] rounded-[12px] px-4 text-[16px] text-[#111] focus:ring-[3px] focus:ring-[#E8312A14] transition-all outline-none ${
-                      errors.email ? 'border-[#E8312A]' : 'border-[#E8E8E8] focus:border-[#E8312A]'
+                    className={`w-full h-10 border rounded-md px-4 text-[16px] text-[#21201C] focus:ring-0 transition-all outline-none ${
+                      errors.email ? 'border-[#C0392B]' : 'border-[#E6E2D9] focus:border-[#D97757]'
                     }`}
                   />
-                  {errors.email && <p className="text-[11px] font-bold text-[#E8312A] mt-1 ml-1">{errors.email}</p>}
+                  {errors.email && <p className="text-[11px] font-bold text-[#C0392B] mt-1 ml-1">{errors.email}</p>}
                 </div>
 
                 <div className={errors.password ? 'animate-shake' : ''}>
@@ -466,8 +466,8 @@ export const AuthBottomSheet: React.FC<AuthBottomSheetProps> = ({
                         if (errors.password) setErrors({ ...errors, password: '' });
                       }}
                       placeholder="Password"
-                      className={`w-full h-[52px] border-[1.5px] rounded-[12px] px-4 pr-12 text-[16px] text-[#111] focus:ring-[3px] focus:ring-[#E8312A14] transition-all outline-none ${
-                        errors.password ? 'border-[#E8312A]' : 'border-[#E8E8E8] focus:border-[#E8312A]'
+                      className={`w-full h-10 border rounded-md px-4 pr-12 text-[16px] text-[#21201C] focus:ring-0 transition-all outline-none ${
+                        errors.password ? 'border-[#C0392B]' : 'border-[#E6E2D9] focus:border-[#D97757]'
                       }`}
                     />
                     <button
@@ -478,7 +478,7 @@ export const AuthBottomSheet: React.FC<AuthBottomSheetProps> = ({
                       {showSignUpPassword ? <EyeOff size={20} /> : <Eye size={20} />}
                     </button>
                   </div>
-                  {errors.password && <p className="text-[11px] font-bold text-[#E8312A] mt-1 ml-1">{errors.password}</p>}
+                  {errors.password && <p className="text-[11px] font-bold text-[#C0392B] mt-1 ml-1">{errors.password}</p>}
                   
                   {(signUpPassword || errors.password) && (
                     <div className="mt-2.5 px-1">
@@ -512,8 +512,8 @@ export const AuthBottomSheet: React.FC<AuthBottomSheetProps> = ({
                         if (errors.confirmPassword) setErrors({ ...errors, confirmPassword: '' });
                       }}
                       placeholder="Confirm password"
-                      className={`w-full h-[52px] border-[1.5px] rounded-[12px] px-4 pr-12 text-[16px] text-[#111] focus:ring-[3px] focus:ring-[#E8312A14] transition-all outline-none ${
-                        errors.confirmPassword ? 'border-[#E8312A]' : 'border-[#E8E8E8] focus:border-[#E8312A]'
+                      className={`w-full h-10 border rounded-md px-4 pr-12 text-[16px] text-[#21201C] focus:ring-0 transition-all outline-none ${
+                        errors.confirmPassword ? 'border-[#C0392B]' : 'border-[#E6E2D9] focus:border-[#D97757]'
                       }`}
                     />
                     <div className="absolute right-1 top-1 w-[44px] h-[44px] flex items-center justify-center">
@@ -532,7 +532,7 @@ export const AuthBottomSheet: React.FC<AuthBottomSheetProps> = ({
                       )}
                     </div>
                   </div>
-                  {errors.confirmPassword && <p className="text-[11px] font-bold text-[#E8312A] mt-1 ml-1">{errors.confirmPassword}</p>}
+                  {errors.confirmPassword && <p className="text-[11px] font-bold text-[#C0392B] mt-1 ml-1">{errors.confirmPassword}</p>}
                 </div>
 
                 {error && error === 'already_exists' && (
@@ -542,7 +542,7 @@ export const AuthBottomSheet: React.FC<AuthBottomSheetProps> = ({
                       <button
                         type="button"
                         onClick={() => { setScreen('signin'); setSignInEmail(signUpEmail); setError(null); }}
-                        className="text-[#E8312A] font-extrabold underline"
+                        className="text-[#D97757] font-extrabold underline"
                       >
                         Sign in instead →
                       </button>
@@ -559,7 +559,7 @@ export const AuthBottomSheet: React.FC<AuthBottomSheetProps> = ({
                 <button
                   type="submit"
                   disabled={isLoading}
-                  className="w-full h-[52px] bg-[#E8312A] text-white rounded-[12px] font-black text-[16px] flex items-center justify-center gap-2 hover:bg-[#C4663F] transition-colors mt-2 disabled:opacity-70"
+                  className="w-full h-10 bg-[#D97757] text-white rounded-md font-black text-[16px] flex items-center justify-center gap-2 hover:bg-[#C4663F] transition-colors mt-2 disabled:opacity-70"
                 >
                   {isLoading ? (
                     <Loader2 size={20} className="animate-spin" />
@@ -579,7 +579,7 @@ export const AuthBottomSheet: React.FC<AuthBottomSheetProps> = ({
                 <button
                   type="button"
                   onClick={handleGoogle}
-                  className="w-full h-[52px] bg-white border-[1.5px] border-[#E8E8E8] rounded-[12px] font-extrabold text-[#333] text-[14px] flex items-center justify-center gap-2.5 hover:bg-[#F6F6F6] transition-colors"
+                  className="w-full h-10 bg-white border border-[#E6E2D9] rounded-md font-extrabold text-[#21201C] text-[14px] flex items-center justify-center gap-2.5 hover:bg-[#F3F1EC] transition-colors"
                 >
                   <svg width="20" height="20" viewBox="0 0 24 24">
                     <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" fill="#4285F4" />
@@ -595,7 +595,7 @@ export const AuthBottomSheet: React.FC<AuthBottomSheetProps> = ({
                 <span className="text-[13px] text-[#888]">Already have an account? </span>
                 <button
                   onClick={() => setScreen('signin')}
-                  className="text-[13px] font-extrabold text-[#E8312A]"
+                  className="text-[13px] font-extrabold text-[#D97757]"
                 >
                   Sign in →
                 </button>
@@ -604,9 +604,9 @@ export const AuthBottomSheet: React.FC<AuthBottomSheetProps> = ({
               <div className="text-center mt-6 mb-8 px-8">
                 <p className="text-[11px] leading-relaxed text-[#AAAAAA]">
                   By creating an account you agree to our{' '}
-                  <a href="/terms" target="_blank" rel="noopener noreferrer" className="font-bold text-[#E8312A]">Terms</a>
+                  <a href="/terms" target="_blank" rel="noopener noreferrer" className="font-bold text-[#D97757]">Terms</a>
                   {' '}and{' '}
-                  <a href="/privacy" target="_blank" rel="noopener noreferrer" className="font-bold text-[#E8312A]">Privacy Policy</a>
+                  <a href="/privacy" target="_blank" rel="noopener noreferrer" className="font-bold text-[#D97757]">Privacy Policy</a>
                 </p>
               </div>
             </div>
@@ -616,7 +616,7 @@ export const AuthBottomSheet: React.FC<AuthBottomSheetProps> = ({
               <div className="px-4 mt-2">
                 <button
                   onClick={() => setScreen('signin')}
-                  className="flex items-center gap-1.5 text-[13px] font-bold text-[#E8312A] mb-4"
+                  className="flex items-center gap-1.5 text-[13px] font-bold text-[#D97757] mb-4"
                 >
                   <ArrowLeft size={16} /> Back to Sign In
                 </button>
@@ -639,11 +639,11 @@ export const AuthBottomSheet: React.FC<AuthBottomSheetProps> = ({
                             if (errors.resetEmail) setErrors({ ...errors, resetEmail: '' });
                           }}
                           placeholder="Email address"
-                          className={`w-full h-[52px] border-[1.5px] rounded-[12px] px-4 text-[16px] text-[#111] focus:ring-[3px] focus:ring-[#E8312A14] transition-all outline-none ${
-                            errors.resetEmail ? 'border-[#E8312A]' : 'border-[#E8E8E8] focus:border-[#E8312A]'
+                          className={`w-full h-10 border rounded-md px-4 text-[16px] text-[#21201C] focus:ring-0 transition-all outline-none ${
+                            errors.resetEmail ? 'border-[#C0392B]' : 'border-[#E6E2D9] focus:border-[#D97757]'
                           }`}
                         />
-                        {errors.resetEmail && <p className="text-[11px] font-bold text-[#E8312A] mt-1 ml-1">{errors.resetEmail}</p>}
+                        {errors.resetEmail && <p className="text-[11px] font-bold text-[#C0392B] mt-1 ml-1">{errors.resetEmail}</p>}
                       </div>
 
                       {error && screen === 'forgot' && (
@@ -655,7 +655,7 @@ export const AuthBottomSheet: React.FC<AuthBottomSheetProps> = ({
                       <button
                         type="submit"
                         disabled={isLoading}
-                        className="w-full h-[52px] bg-[#E8312A] text-white rounded-[12px] font-black text-[16px] flex items-center justify-center gap-2 hover:bg-[#C4663F] transition-colors disabled:opacity-70"
+                        className="w-full h-10 bg-[#D97757] text-white rounded-md font-black text-[16px] flex items-center justify-center gap-2 hover:bg-[#C4663F] transition-colors disabled:opacity-70"
                       >
                         {isLoading ? (
                           <Loader2 size={20} className="animate-spin" />
@@ -667,7 +667,7 @@ export const AuthBottomSheet: React.FC<AuthBottomSheetProps> = ({
                   </>
                 ) : (
                   <div className="text-center py-8">
-                    <div className="w-16 h-16 bg-[#FAF0EB] text-[#E8312A] rounded-full flex items-center justify-center mx-auto mb-6">
+                    <div className="w-16 h-16 bg-[#FAF0EB] text-[#D97757] rounded-full flex items-center justify-center mx-auto mb-6">
                       <span className="text-3xl">✉️</span>
                     </div>
                     
@@ -677,7 +677,7 @@ export const AuthBottomSheet: React.FC<AuthBottomSheetProps> = ({
 
                     <button
                       onClick={() => setScreen('signin')}
-                      className="w-full h-[52px] bg-white border-[1.5px] border-[#E8E8E8] rounded-[12px] font-bold text-[#333] text-[16px] hover:bg-[#F6F6F6] transition-colors mb-4"
+                      className="w-full h-10 bg-white border border-[#E6E2D9] rounded-md font-bold text-[#21201C] text-[16px] hover:bg-[#F3F1EC] transition-colors mb-4"
                     >
                       Back to Sign In
                     </button>
@@ -690,7 +690,7 @@ export const AuthBottomSheet: React.FC<AuthBottomSheetProps> = ({
                       ) : (
                         <button
                           onClick={() => handleResetPassword()}
-                          className="text-[12px] font-extrabold text-[#E8312A]"
+                          className="text-[12px] font-extrabold text-[#D97757]"
                         >
                           Didn't receive it? Resend →
                         </button>
@@ -722,7 +722,7 @@ export const AuthBottomSheet: React.FC<AuthBottomSheetProps> = ({
                     href="https://mail.google.com"
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="w-full h-[48px] bg-white border-[1.5px] border-[#E8E8E8] rounded-[12px] font-bold text-[#333] text-[14px] flex items-center justify-center gap-2 hover:bg-[#F6F6F6] transition-colors"
+                    className="w-full h-10 bg-white border border-[#E6E2D9] rounded-md font-bold text-[#21201C] text-[14px] flex items-center justify-center gap-2 hover:bg-[#F3F1EC] transition-colors"
                   >
                     Open Gmail →
                   </a>
@@ -730,7 +730,7 @@ export const AuthBottomSheet: React.FC<AuthBottomSheetProps> = ({
                     href="https://outlook.live.com"
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="w-full h-[48px] bg-white border-[1.5px] border-[#E8E8E8] rounded-[12px] font-bold text-[#333] text-[14px] flex items-center justify-center gap-2 hover:bg-[#F6F6F6] transition-colors"
+                    className="w-full h-10 bg-white border border-[#E6E2D9] rounded-md font-bold text-[#21201C] text-[14px] flex items-center justify-center gap-2 hover:bg-[#F3F1EC] transition-colors"
                   >
                     Open Outlook →
                   </a>
@@ -744,7 +744,7 @@ export const AuthBottomSheet: React.FC<AuthBottomSheetProps> = ({
                   ) : (
                     <button
                       onClick={handleResendConfirmation}
-                      className="text-[12px] font-extrabold text-[#E8312A]"
+                      className="text-[12px] font-extrabold text-[#D97757]"
                     >
                       Didn't receive it? Resend →
                     </button>
@@ -753,7 +753,7 @@ export const AuthBottomSheet: React.FC<AuthBottomSheetProps> = ({
 
                 <button
                   onClick={() => { setScreen('signin'); setError(null); }}
-                  className="text-[13px] font-bold text-[#E8312A] mt-2"
+                  className="text-[13px] font-bold text-[#D97757] mt-2"
                 >
                   <ArrowLeft size={14} className="inline mr-1" />
                   Back to Sign In

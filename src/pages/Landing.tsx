@@ -4,6 +4,7 @@ import { Link as LinkIcon, Lock, Check, Loader2, Star, Settings, X } from 'lucid
 
 import { AuthBottomSheet } from '../components/AuthBottomSheet';
 import { setContentFile, setSponsorVideo } from '../stores/pendingFileStore';
+import { supabase } from '../lib/supabase';
 import { createLink } from '../services/linksService';
 import { CustomSponsorForm, type CustomAdData } from '../components/CustomSponsorForm';
 import { useNavigate, Link, useSearchParams } from 'react-router-dom';
@@ -32,6 +33,8 @@ export const Landing = () => {
         searchParams.get('forgot') === 'true' ? 'forgot' : 'signin'
     );
     const [pendingMessage, setPendingMessage] = useState<string | null>(null);
+
+    const stripeProLink = import.meta.env.VITE_STRIPE_PRO_LINK || 'https://buy.stripe.com/test_00weVfdKm42Agwj4QafIs00';
 
     // Content state
     const [contentData, setContentData] = useState<ContentData>({
@@ -354,13 +357,36 @@ export const Landing = () => {
         return () => window.removeEventListener('SELECT_UNLOCK_TYPE', handleSelectUnlockType);
     }, []);
 
-    const handleSignInSuccess = () => {
+    // Simple ref — survives closures and re-renders, no race conditions
+    const proPendingRef = useRef(false);
+
+    const handleStartPro = () => {
+        if (isLoggedIn && currentUser) {
+            // Already logged in — go straight to Stripe
+            window.location.href = `${stripeProLink}?client_reference_id=${currentUser.id}&prefilled_email=${encodeURIComponent(currentUser.email || '')}`;
+        } else {
+            // Mark that we want Pro, then open auth
+            proPendingRef.current = true;
+            setPendingMessage("Create an account to upgrade to Pro and unlock unlimited Follower Pairing.");
+            setIsAuthOpen(true);
+        }
+    };
+
+    const handleSignInSuccess = async () => {
+        if (proPendingRef.current) {
+            proPendingRef.current = false;
+            // Get session directly from Supabase — no React state dependency
+            const { data: { session } } = await supabase.auth.getSession();
+            if (session?.user) {
+                window.location.href = `${stripeProLink}?client_reference_id=${session.user.id}&prefilled_email=${encodeURIComponent(session.user.email || '')}`;
+                return; // Don't navigate — browser will redirect
+            }
+        }
+
         const returnTo = searchParams.get('returnTo');
         if (returnTo) {
             navigate(returnTo);
         } else {
-            // Always navigate to dashboard — PendingLinkContext will handle recovery
-            // and redirect to /dashboard?tab=home&newLink=<slug> automatically
             navigate('/dashboard?tab=home');
         }
     };
@@ -382,53 +408,41 @@ export const Landing = () => {
     return (
         <div className="flex flex-col items-center w-full min-h-screen bg-bg selection:bg-brandTint selection:text-brand">
             {/* Hero Section */}
-            <div className="w-full max-w-[800px] px-4 pt-[32px] pb-[20px] flex flex-col items-center text-center animate-fadeIn">
-                <h1
-                    className="w-full text-center"
-                    style={{
-                        fontFamily: '"Nunito", sans-serif',
-                        fontWeight: 900,
-                        fontSize: 'clamp(22px, 6vw, 36px)',
-                        color: '#111111',
-                        lineHeight: 1.2,
-                        maxWidth: '560px',
-                        margin: '0 auto'
-                    }}
-                >
-                    Lock your best content. Your followers unlock it free. You build something real.
+            <div className="w-full max-w-[800px] px-[24px] md:px-[32px] pt-[48px] md:pt-[64px] pb-[32px] md:pb-[48px] flex flex-col items-center text-center animate-fadeIn">
+                <div className="flex items-center gap-3 mb-8 bg-surfaceAlt border border-border px-4 py-2 rounded-full cursor-pointer hover:bg-border transition-colors duration-200">
+                    <div className="flex -space-x-2">
+                        <div className="w-8 h-8 rounded-full bg-brandTint border-2 border-surface flex items-center justify-center text-[12px]">👩‍🎨</div>
+                        <div className="w-8 h-8 rounded-full bg-successBg border-2 border-surface flex items-center justify-center text-[12px]">👨‍💻</div>
+                        <div className="w-8 h-8 rounded-full bg-warningBg border-2 border-surface flex items-center justify-center text-[12px]">📸</div>
+                    </div>
+                    <span className="text-[13px] md:text-[14px] font-bold text-textMid">Join <strong className="text-text">10,000+</strong> creators growing faster</span>
+                </div>
+
+                <h1 className="w-full text-center text-[clamp(36px,8vw,56px)] font-black text-text leading-[1.05] max-w-[720px] tracking-tight">
+                    Turn your free content into <span className="text-brand">real growth.</span>
                 </h1>
 
-                <div className="h-[12px]" />
+                <div className="h-[24px]" />
 
-                <p
-                    className="text-center mx-auto"
-                    style={{
-                        fontFamily: '"Nunito", sans-serif',
-                        fontWeight: 600,
-                        fontSize: '15px',
-                        color: '#666666',
-                        maxWidth: '400px',
-                        lineHeight: 1.7
-                    }}
-                >
-                    Lock videos, photos, files, or run a challenge. Your followers unlock everything free by subscribing, following, or watching your sponsor's ad.
+                <p className="text-center mx-auto text-[16px] md:text-[18px] font-medium text-textMid max-w-[540px] leading-[1.6]">
+                    Gate your photos, files, or videos. Your audience unlocks them for free by subscribing to your email list, following your socials, or watching an ad.
                 </p>
             </div>
 
             {/* Generator Component */}
-            <div className="w-full max-w-[600px] px-4 mb-24 relative z-10" id="generator">
+            <div className="w-full max-w-[600px] px-[24px] md:px-[32px] mb-24 relative z-10" id="generator">
                 {/* Desktop Step Layout */}
-                <div className="hidden sm:flex bg-white rounded-[24px] border border-border shadow-md p-4 sm:p-6 flex-col gap-6">
+                <div className="hidden sm:flex bg-surface rounded-lg border border-border p-6 flex-col gap-6">
                     {/* Step 1 */}
                     <div className="flex flex-col gap-3">
                         <div className="flex items-center gap-3 mb-4">
-                            <div className="w-6 h-6 bg-text text-white rounded-full flex items-center justify-center font-black text-[12px]">1</div>
+                            <div className="w-6 h-6 bg-text text-surface rounded-full flex items-center justify-center font-black text-[12px]">1</div>
                             <h3 className="font-black text-text text-[18px] tracking-tight">Create your resource</h3>
                         </div>
 
                         {unlockType === 'follower_pairing' ? (
-                            <div className="w-full bg-[#FFFBEB] rounded-[10px] p-[12px] border border-[#FDE68A] h-auto flex flex-col justify-center animate-in slide-in-from-top-2 fade-in duration-200">
-                                <span className="text-[12px] font-[700] text-[#92400E]">🤝 No file needed for Follower Pairing. Your followers pair up and support each other.</span>
+                            <div className="w-full bg-warningBg rounded-md p-4 border border-warning/20 h-auto flex flex-col justify-center animate-in slide-in-from-top-2 fade-in duration-200">
+                                <span className="text-[13px] font-bold text-warning">🤝 No file needed for Follower Pairing. Your followers pair up and support each other.</span>
                             </div>
                         ) : (
                             <ContentBuilder 
@@ -444,23 +458,23 @@ export const Landing = () => {
 
                     {/* Section B — Mode Switch */}
                     <div className="flex flex-col gap-2">
-                        <div className="w-full flex items-center p-1 border-[1.5px] border-[#E8E8E8] rounded-[12px] h-[52px] bg-white mx-auto shadow-sm">
+                        <div className="w-full flex items-center p-1 border border-border rounded-md h-[52px] bg-surfaceAlt mx-auto">
                             <button
                                 onClick={() => { if (unlockType === 'follower_pairing') setUnlockType('custom_sponsor'); }}
-                                className={`flex-1 flex items-center justify-center gap-[8px] h-[44px] rounded-[10px] transition-all duration-200 ${unlockType !== 'follower_pairing' ? 'bg-[#111] text-white shadow-[0_1px_4px_rgba(0,0,0,0.15)]' : 'bg-transparent text-[#666]'}`}
+                                className={`flex-1 flex items-center justify-center gap-[8px] h-[44px] rounded-md transition-colors duration-200 cursor-pointer ${unlockType !== 'follower_pairing' ? 'bg-surface text-text border border-border' : 'bg-transparent text-textMid'}`}
                             >
                                 <span className="text-[16px]">🔒</span>
                                 <span className="text-[14px] font-[800]">Lock Content</span>
                             </button>
                             <button
                                 onClick={() => setUnlockType('follower_pairing')}
-                                className={`flex-1 flex items-center justify-center gap-[8px] h-[44px] rounded-[10px] transition-all duration-200 ${unlockType === 'follower_pairing' ? 'bg-[#111] text-white shadow-[0_1px_4px_rgba(0,0,0,0.15)]' : 'bg-transparent text-[#666]'}`}
+                                className={`flex-1 flex items-center justify-center gap-[8px] h-[44px] rounded-md transition-colors duration-200 cursor-pointer ${unlockType === 'follower_pairing' ? 'bg-surface text-text border border-border' : 'bg-transparent text-textMid'}`}
                             >
                                 <span className="text-[16px]">🤝</span>
                                 <span className="text-[14px] font-[800]">Follower Pairing</span>
                             </button>
                         </div>
-                        <div className="text-[11px] font-[600] text-[#AAAAAA] text-center mt-[8px]">
+                        <div className="text-[12px] font-medium text-textLight text-center mt-2">
                             {unlockType !== 'follower_pairing' ? 
                                 "Upload content your followers unlock by subscribing, following, or watching a sponsor." : 
                                 "No file needed. Pair your followers as accountability partners for a set duration."}
@@ -476,7 +490,7 @@ export const Landing = () => {
                                 <label className="text-[12px] font-extrabold text-textMid uppercase tracking-wide">Resource Title</label>
                                 <input
                                     type="text"
-                                    className={`input-field h-[48px] text-[15px] font-bold ${title.length > 50 ? 'border-error/50 focus:border-error focus:ring-error focus:ring-1' : ''}`}
+                                    className={`h-10 px-4 w-full border rounded-md text-[15px] font-bold outline-none transition-colors duration-200 ${title.length > 50 ? 'border-error focus:border-error focus:ring-1 focus:ring-error' : 'border-border focus:border-brand'}`}
                                     value={title}
                                     onChange={(e) => setTitle(e.target.value)}
                                     maxLength={60}
@@ -490,7 +504,7 @@ export const Landing = () => {
                             <div className="flex flex-col gap-1.5 relative">
                                 <label className="text-[12px] font-extrabold text-textMid uppercase tracking-wide">Description <span className="text-textLight font-semibold capitalize tracking-normal">(optional)</span></label>
                                 <textarea
-                                    className={`w-full border border-border rounded-[12px] p-3 text-[14px] font-semibold bg-white focus:outline-none focus:ring-1 focus:ring-brand focus:border-brand transition-colors h-[80px] resize-none ${desc.length > 140 ? 'border-error/50 focus:border-error focus:ring-error focus:ring-1' : ''}`}
+                                    className={`w-full border rounded-md p-3 text-[14px] font-semibold bg-surface focus:outline-none focus:border-brand transition-colors duration-200 h-[80px] resize-none ${desc.length > 140 ? 'border-error focus:border-error focus:ring-1 focus:ring-error' : 'border-border'}`}
                                     value={desc}
                                     onChange={(e) => setDesc(e.target.value)}
                                     maxLength={150}
@@ -506,7 +520,7 @@ export const Landing = () => {
                     <div className="h-px w-full bg-border my-2" />
 
                     {/* Section C - Config */}
-                    <div className={`flex flex-col gap-3 min-h-[0px] p-4 -m-4 rounded-[20px] transition-colors bg-transparent`}>
+                    <div className={`flex flex-col gap-3 min-h-[0px] rounded-lg transition-colors bg-transparent`}>
                         <div className="flex flex-col gap-4">
                             {unlockType !== 'follower_pairing' && (
                                 <UnlockTypeSelector value={unlockType} onChange={setUnlockType} />
@@ -549,7 +563,7 @@ export const Landing = () => {
                         </div>
                     </div>
 
-                    <div className="h-px w-full bg-border" />
+                    <div className="h-px w-full bg-border my-2" />
 
                     {/* Generate Action */}
                     <div className="flex flex-col gap-2 mt-2">
@@ -557,7 +571,7 @@ export const Landing = () => {
                             <button
                                 onClick={handleGenerate}
                                 disabled={isGenerateDisabled}
-                                className={`h-[56px] rounded-[14px] font-black text-[16px] flex items-center justify-center gap-2 transition-all ${!isGenerateDisabled ? 'bg-brand text-white hover:bg-brandHover shadow-sm' : 'bg-surfaceAlt text-textLight cursor-not-allowed disabled:opacity-50 disabled:grayscale-[50%]'}`}
+                                className={`h-[48px] rounded-md px-4 font-black text-[16px] flex items-center justify-center gap-2 transition-all cursor-pointer ${!isGenerateDisabled ? 'bg-brand text-white hover:bg-brandHover' : 'bg-surfaceAlt text-textLight cursor-not-allowed opacity-50'}`}
                             >
                                 {isGenerating ? (
                                     <Loader2 size={24} className="animate-spin" />
@@ -574,30 +588,43 @@ export const Landing = () => {
                                 <div className="flex gap-2">
                                     {linkRevealed ? (
                                         <>
-                                            <div className="flex-1 h-[56px] rounded-[14px] border-2 px-4 flex items-center relative overflow-hidden transition-colors bg-brandTint border-brand/30">
-                                                <span className="text-[14px] sm:text-[15px] font-[900] text-black bg-[#F3F1EC] px-3 sm:px-4 py-2 sm:py-[10px] rounded-lg border-2 border-[#E6E2D9] tracking-tight">
+                                            <div className="flex-1 h-[48px] rounded-md border border-brand/30 px-4 flex items-center relative overflow-hidden transition-colors bg-brandTint">
+                                                <span className="text-[14px] sm:text-[15px] font-[900] text-text bg-surfaceAlt px-3 sm:px-4 py-1.5 sm:py-[8px] rounded-md border border-border tracking-tight">
                                     {window.location.origin}/r/{generatedSlug}
                                 </span>            </div>
-                                            <button onClick={copyToClipboard} className={`h-[56px] w-[56px] rounded-[14px] flex items-center justify-center text-white transition-colors shrink-0 shadow-sm ${isCopied ? 'bg-success' : 'bg-brand hover:bg-brand-hover'}`}>
-                                                {isCopied ? <Check size={24} /> : <LinkIcon size={24} />}
+                                            <button onClick={copyToClipboard} className={`h-[48px] w-[48px] rounded-md flex items-center justify-center text-white cursor-pointer transition-colors shrink-0 ${isCopied ? 'bg-success hover:bg-success/90' : 'bg-brand hover:bg-brandHover'}`}>
+                                                {isCopied ? <Check size={20} /> : <LinkIcon size={20} />}
                                             </button>
                                         </>
                                     ) : (
-                                        <div className="flex-1 h-[56px] rounded-[14px] border-2 px-4 flex items-center justify-between relative overflow-hidden transition-colors bg-[#F3F1EC] border-[#E6E2D9] group cursor-pointer shadow-sm" onClick={() => setIsAuthOpen(true)}>
-                                            <div className="w-[65%] h-[20px] bg-[#E6E2D9] rounded animate-pulse"></div>
-                                            <button onClick={(e) => { e.stopPropagation(); setIsAuthOpen(true); }} className="relative z-10 px-4 h-[36px] bg-brand text-white rounded-[10px] font-black text-[13px] flex items-center justify-center gap-1.5 shadow-sm hover:bg-brandHover transition-colors">
-                                                <Lock size={14} /> Reveal Link
+                                        <div className="flex-1 h-[48px] rounded-md border border-border px-4 flex items-center justify-between relative overflow-hidden transition-colors bg-surfaceAlt group cursor-pointer" onClick={() => setIsAuthOpen(true)}>
+                                            <div className="w-[65%] h-[20px] bg-border rounded animate-pulse"></div>
+                                            <button onClick={(e) => { e.stopPropagation(); setIsAuthOpen(true); }} className="relative z-10 px-4 h-[32px] bg-brand text-white rounded-md font-black text-[13px] flex items-center justify-center gap-1.5 hover:bg-brandHover transition-colors cursor-pointer">
+                                                <Lock size={14} /> Sign up to Reveal
                                             </button>
                                             <div className="absolute inset-0 bg-white/20 backdrop-blur-[1px] pointer-events-none transition-all group-hover:bg-transparent"></div>
                                         </div>
                                     )}
                                 </div>
                                 <div className="flex items-center gap-2 mt-3 flex-wrap">
-                                    <div className="h-[24px] px-2 rounded-full bg-[#6366F1] flex items-center gap-1.5 text-white shadow-sm">
-                                        <Star size={10} fill="currentColor" />
-                                        <span className="text-[12px] font-[700] uppercase tracking-wider">Custom Sponsor</span>
+                                    <div className={`h-[24px] px-2 rounded-full flex items-center gap-1.5 border ${
+                                        unlockType === 'custom_sponsor' ? 'bg-brandTint border-brand/20 text-brand' :
+                                        unlockType === 'email_subscribe' ? 'bg-successBg border-success/20 text-success' :
+                                        unlockType === 'social_follow' ? 'bg-[#EFF6FF] border-[#93C5FD] text-[#2563EB]' :
+                                        'bg-warningBg border-warning/20 text-warning'
+                                    }`}>
+                                        {unlockType === 'custom_sponsor' ? <Star size={10} fill="currentColor" /> :
+                                         unlockType === 'email_subscribe' ? <span>📧</span> :
+                                         unlockType === 'social_follow' ? <span>👥</span> :
+                                         <span>🤝</span>}
+                                        <span className="text-[12px] font-[700] uppercase tracking-wider">
+                                            {unlockType === 'custom_sponsor' ? 'Custom Sponsor' :
+                                             unlockType === 'email_subscribe' ? 'Email Subscribe' :
+                                             unlockType === 'social_follow' ? 'Social Follow' :
+                                             'Follower Pairing'}
+                                        </span>
                                     </div>
-                                    <div className="h-[24px] px-2 rounded-full bg-surfaceAlt border border-border flex items-center text-textMid shadow-sm">
+                                    <div className="h-[24px] px-2 rounded-full bg-surfaceAlt border border-border flex items-center text-textMid">
                                         <span className="text-[12px] font-[700] uppercase">
                                             {contentData.contentMode === 'file' ? (contentData.file ? contentData.file.name : "File") :
                                              contentData.contentMode === 'text' ? (contentData.links.length > 0 && contentData.textContent.trim().length === 0 ? `${contentData.links.length} Link${contentData.links.length > 1 ? 's' : ''}` : "Text Content") :
@@ -606,7 +633,7 @@ export const Landing = () => {
                                     </div>
                                 </div>
                                 {!linkRevealed && (
-                                    <p className="text-[12px] font-bold text-brand mt-2 flex items-center gap-1.5 bg-brandTint p-2 rounded-[14px]">
+                                    <p className="text-[12px] font-bold text-brand mt-3 flex items-center gap-1.5 bg-brandTint p-2.5 rounded-md border border-brand/20">
                                         <span className="text-[16px]">👆</span> Sign in or create an account to claim and share this link.
                                     </p>
                                 )}
@@ -616,11 +643,11 @@ export const Landing = () => {
                 </div>
 
                 {/* Mobile Compact Layout */}
-                <div ref={generationAreaRef} className="sm:hidden flex flex-col w-full">
+                <div ref={generationAreaRef} className="sm:hidden flex flex-col w-full bg-surface border border-border rounded-lg p-4">
                     {/* Mobile Create Section */}
                     {unlockType === 'follower_pairing' ? (
-                        <div className="w-full bg-[#FFFBEB] rounded-[10px] p-[12px] border border-[#FDE68A] h-auto flex flex-col justify-center animate-in slide-in-from-top-2 fade-in duration-200">
-                            <span className="text-[12px] font-[700] text-[#92400E]">🤝 No file needed for Follower Pairing. Your followers pair up and support each other.</span>
+                        <div className="w-full bg-warningBg rounded-md p-4 border border-warning/20 h-auto flex flex-col justify-center animate-in slide-in-from-top-2 fade-in duration-200 mb-4">
+                            <span className="text-[13px] font-bold text-warning">🤝 No file needed for Follower Pairing. Your followers pair up and support each other.</span>
                         </div>
                     ) : (
                         <ContentBuilder 
@@ -633,17 +660,17 @@ export const Landing = () => {
 
                     {/* Mode Switch Mobile */}
                     <div className="flex flex-col gap-2 mt-4 mb-2">
-                        <div className="w-full flex items-center p-1 border-[1.5px] border-[#E8E8E8] rounded-[12px] h-[52px] bg-white mx-auto shadow-sm">
+                        <div className="w-full flex items-center p-1 border border-border rounded-md h-[52px] bg-surface mx-auto">
                             <button
                                 onClick={() => { if (unlockType === 'follower_pairing') setUnlockType('custom_sponsor'); }}
-                                className={`flex-1 flex items-center justify-center gap-[8px] h-[44px] rounded-[10px] transition-all duration-200 ${unlockType !== 'follower_pairing' ? 'bg-[#111] text-white shadow-[0_1px_4px_rgba(0,0,0,0.15)]' : 'bg-transparent text-[#666]'}`}
+                                className={`flex-1 flex items-center justify-center gap-[8px] h-[44px] rounded-md transition-colors duration-200 cursor-pointer ${unlockType !== 'follower_pairing' ? 'bg-surface text-text border border-border' : 'bg-transparent text-textMid'}`}
                             >
                                 <span className="text-[16px]">🔒</span>
                                 <span className="text-[14px] font-[800]">Lock</span>
                             </button>
                             <button
                                 onClick={() => setUnlockType('follower_pairing')}
-                                className={`flex-1 flex items-center justify-center gap-[8px] h-[44px] rounded-[10px] transition-all duration-200 ${unlockType === 'follower_pairing' ? 'bg-[#111] text-white shadow-[0_1px_4px_rgba(0,0,0,0.15)]' : 'bg-transparent text-[#666]'}`}
+                                className={`flex-1 flex items-center justify-center gap-[8px] h-[44px] rounded-md transition-colors duration-200 cursor-pointer ${unlockType === 'follower_pairing' ? 'bg-surface text-text border border-border' : 'bg-transparent text-textMid'}`}
                             >
                                 <span className="text-[16px]">🤝</span>
                                 <span className="text-[14px] font-[800]">Pairing</span>
@@ -658,7 +685,7 @@ export const Landing = () => {
                                 <label className="text-[12px] font-extrabold text-textMid uppercase tracking-wide">Resource Title</label>
                                 <input
                                     type="text"
-                                    className={`input-field h-[48px] text-[15px] font-bold ${title.length > 50 ? 'border-error/50 focus:border-error focus:ring-error focus:ring-1' : ''}`}
+                                    className={`h-10 px-4 w-full border rounded-md text-[15px] font-bold outline-none transition-colors duration-200 ${title.length > 50 ? 'border-error focus:border-error focus:ring-1 focus:ring-error' : 'border-border focus:border-brand'}`}
                                     value={title}
                                     onChange={(e) => setTitle(e.target.value)}
                                     maxLength={60}
@@ -672,7 +699,7 @@ export const Landing = () => {
                             <div className="flex flex-col gap-1.5 relative">
                                 <label className="text-[12px] font-extrabold text-textMid uppercase tracking-wide">Description <span className="text-textLight font-semibold capitalize tracking-normal">(optional)</span></label>
                                 <textarea
-                                    className={`w-full border border-border rounded-[12px] p-3 text-[14px] font-semibold bg-white focus:outline-none focus:ring-1 focus:ring-brand focus:border-brand transition-colors h-[80px] resize-none ${desc.length > 140 ? 'border-error/50 focus:border-error focus:ring-error focus:ring-1' : ''}`}
+                                    className={`w-full border rounded-md p-3 text-[14px] font-semibold bg-surface focus:outline-none focus:border-brand transition-colors duration-200 h-[80px] resize-none ${desc.length > 140 ? 'border-error focus:border-error focus:ring-1 focus:ring-error' : 'border-border'}`}
                                     value={desc}
                                     onChange={(e) => setDesc(e.target.value)}
                                     maxLength={150}
@@ -686,42 +713,41 @@ export const Landing = () => {
                     )}
 
                     {/* The Settings Summary Bar */}
-                    <div className="w-full h-[52px] bg-white rounded-[14px] mt-[8px] flex overflow-hidden shadow-[0_1px_3px_rgba(0,0,0,0.06)] border border-[#E6E2D9]">
+                    <div className="w-full h-[52px] bg-surface rounded-md mt-2 flex overflow-hidden border border-border">
                         {/* Ad Setup Item */}
-                        <button onClick={() => setIsConfigExpanded(!isConfigExpanded)} className={`flex-1 flex flex-col justify-center items-center relative ${hasPulsed ? 'bg-[#FFF0EF] transition-colors duration-300' : 'bg-white'}`}>
+                        <button onClick={() => setIsConfigExpanded(!isConfigExpanded)} className={`flex-1 flex flex-col justify-center items-center relative ${hasPulsed ? 'bg-brandTint transition-colors duration-300' : 'bg-surface'}`}>
                             <div className="flex items-center gap-1">
                                 {hasConfiguredAdSetup ? (
                                     <>
-                                        {unlockType === 'custom_sponsor' && <Star size={10} className="text-[#6366F1]" />}
+                                        {unlockType === 'custom_sponsor' && <Star size={10} className="text-brand" />}
                                         {unlockType === 'email_subscribe' && <span className="text-[10px]">📧</span>}
                                         {unlockType === 'social_follow' && <span className="text-[10px]">👥</span>}
                                         {unlockType === 'follower_pairing' && <span className="text-[10px]">🤝</span>}
                                     </>
                                 ) : (
-                                    <Settings size={10} className="text-[#AAA49C]" />
+                                    <Settings size={10} className="text-textLight" />
                                 )}
                                 <span className="text-[11px] text-textMid">{unlockType === 'follower_pairing' ? 'Pairing Details' : 'Unlock Type'}</span>
-                                {hasConfiguredAdSetup && <div className={`absolute top-2 right-2 w-1.5 h-1.5 rounded-full ${unlockType === 'custom_sponsor' ? 'bg-[#6366F1]' : unlockType === 'email_subscribe' ? 'bg-[#166534]' : unlockType === 'social_follow' ? 'bg-[#2563EB]' : 'bg-[#92400E]'}`} />}
                             </div>
                             {hasConfiguredAdSetup ? (
-                                <span className="text-[11px] sm:text-[12px] font-[800] text-[#111] truncate px-1 max-w-[140px]">
+                                <span className="text-[11px] sm:text-[12px] font-[800] text-text truncate px-1 max-w-[140px]">
                                     {unlockType === 'custom_sponsor' ? (customAd?.brandName || 'Sponsor') :
                                      unlockType === 'email_subscribe' ? (emailConfig?.newsletterName || 'Newsletter') :
                                      unlockType === 'social_follow' ? (socialConfig?.customHeading || 'Socials') :
                                      (followerPairingConfig?.durationDays ? `${followerPairingConfig.durationDays} Days` : 'Pairing')}
                                 </span>
                             ) : (
-                                <span className="text-[12px] italic text-[#BBBBBB]">Tap to set</span>
+                                <span className="text-[12px] italic text-textLight">Tap to set</span>
                             )}
                         </button>
                     </div>
 
                     {/* Expandable Configuration Flow */}
                     {isConfigExpanded && (
-                        <div className="w-full mt-2 bg-white rounded-[16px] p-4 border border-[#E6E2D9] shadow-sm animate-in slide-in-from-top-2 fade-in duration-300 relative flex flex-col">
+                        <div className="w-full mt-2 bg-surface rounded-md p-4 border border-border animate-in slide-in-from-top-2 fade-in duration-300 relative flex flex-col">
                             <div className="flex justify-between items-center mb-4">
-                                <h3 className="text-[14px] font-[800] text-[#111]">Configure Unlock Setup</h3>
-                                <button onClick={() => setIsConfigExpanded(false)} className="w-[32px] h-[32px] rounded-full bg-[#f6f6f6] flex items-center justify-center text-[#888]">
+                                <h3 className="text-[14px] font-[800] text-text">Configure Unlock Setup</h3>
+                                <button onClick={() => setIsConfigExpanded(false)} className="w-8 h-8 rounded-full bg-surfaceAlt flex items-center justify-center text-textMid hover:bg-border transition-colors cursor-pointer">
                                     <X size={16} />
                                 </button>
                             </div>
@@ -769,7 +795,7 @@ export const Landing = () => {
                                 )}
                             </div>
 
-                            <div className="flex items-center gap-3 mt-4 pt-4 border-t border-[#E8E8E8]">
+                            <div className="flex items-center gap-3 mt-4 pt-4 border-t border-border">
                                 <button
                                     onClick={() => {
                                         if (unlockType === 'custom_sponsor' && hasCustomAdErrors) {
@@ -784,11 +810,11 @@ export const Landing = () => {
                                         (unlockType === 'social_follow' && hasSocialErrors) ||
                                         (unlockType === 'follower_pairing' && hasFollowerPairingErrors)
                                     }
-                                    className="flex-1 h-[44px] bg-[#2563EB] text-white font-[800] text-[15px] rounded-[12px] shadow-sm disabled:opacity-50 transition-opacity flex items-center justify-center"
+                                    className="flex-1 h-[44px] bg-brand text-white font-[800] text-[15px] rounded-md transition-opacity flex items-center justify-center cursor-pointer hover:bg-brandHover disabled:opacity-50 disabled:cursor-not-allowed"
                                 >
                                     Apply
                                 </button>
-                                <button onClick={() => setIsConfigExpanded(false)} className="flex-1 h-[44px] bg-[#F6F6F6] text-[#888] font-[800] text-[15px] rounded-[12px] transition-colors hover:bg-[#E8E8E8]">
+                                <button onClick={() => setIsConfigExpanded(false)} className="flex-1 h-[44px] bg-surfaceAlt text-textMid font-[800] text-[15px] rounded-md transition-colors hover:bg-border cursor-pointer">
                                     Cancel
                                 </button>
                             </div>
@@ -806,8 +832,8 @@ export const Landing = () => {
                                 handleGenerate();
                             }}
                             disabled={isGenerateDisabled}
-                            className={`w-full h-[52px] rounded-[14px] font-[800] text-[16px] flex items-center justify-center gap-2 transition-all shadow-[0_1px_3px_rgba(0,0,0,0.06)] disabled:opacity-50 disabled:grayscale-[50%]
-                            ${(!isGenerateDisabled || !hasConfiguredAdSetup) ? 'bg-[#E8312A] text-white' : 'bg-[#E8312A]/50 text-white'}`}
+                            className={`w-full h-[48px] rounded-md font-[800] text-[16px] flex items-center justify-center gap-2 transition-all cursor-pointer disabled:cursor-not-allowed
+                            ${(!isGenerateDisabled || !hasConfiguredAdSetup) ? 'bg-brand text-white hover:bg-brandHover' : 'bg-surfaceAlt text-textLight opacity-50'}`}
                         >
                             {isGenerating ? (
                                 <>
@@ -829,28 +855,28 @@ export const Landing = () => {
 
                     {/* Generated Link Output (Mobile) Inline */}
                     {isGenerated && !isConfigExpanded && (
-                        <div ref={outputCardRef} className="mt-[10px] bg-white rounded-[14px] p-[14px] shadow-[0_1px_3px_rgba(0,0,0,0.06)] border border-[#E6E2D9] animate-in slide-in-from-bottom-4 fade-in duration-300">
+                        <div ref={outputCardRef} className="mt-[10px] bg-surface rounded-md p-4 border border-border animate-in slide-in-from-bottom-4 fade-in duration-300">
                             <div className="flex items-center gap-1.5 mb-2">
-                                <div className="w-4 h-4 rounded-full bg-[#EBF5EE] text-[#417A55] flex items-center justify-center">
+                                <div className="w-4 h-4 rounded-full bg-successBg text-success flex items-center justify-center">
                                     <Check size={10} strokeWidth={4} />
                                 </div>
-                                <span className="text-[12px] font-[700] text-[#417A55]">Your link is ready</span>
+                                <span className="text-[12px] font-[700] text-success">Your link is ready</span>
                             </div>
 
                             <div className="flex gap-2">
                                 {isLoggedIn ? (
                                     <>
-                                        <div className="flex-1 h-[40px] rounded-[10px] px-3 flex items-center relative overflow-hidden transition-colors bg-[#F3F1EC]">
+                                        <div className="flex-1 h-[40px] rounded-md px-3 flex items-center relative overflow-hidden transition-colors bg-surfaceAlt border border-border">
                                             <span className="font-bold font-mono text-[13px] truncate text-text">{window.location.host}/r/{generatedSlug}</span>
                                         </div>
-                                        <button onClick={copyToClipboard} className={`w-[40px] h-[40px] rounded-full flex items-center justify-center text-white transition-colors shrink-0 shadow-sm ${isCopied ? 'bg-success' : 'bg-[#E8312A]'}`}>
+                                        <button onClick={copyToClipboard} className={`w-[40px] h-[40px] rounded-md flex items-center justify-center text-white transition-colors shrink-0 cursor-pointer ${isCopied ? 'bg-success hover:bg-success/90' : 'bg-brand hover:bg-brandHover'}`}>
                                             {isCopied ? <Check size={18} /> : <LinkIcon size={18} />}
                                         </button>
                                     </>
                                 ) : (
-                                    <div className="flex-1 h-[40px] rounded-[10px] px-3 flex items-center justify-between relative overflow-hidden transition-colors bg-[#F3F1EC] border border-[#E6E2D9] group cursor-pointer shadow-sm" onClick={() => setIsAuthOpen(true)}>
-                                        <div className="w-[60%] h-[16px] bg-[#E6E2D9] rounded animate-pulse"></div>
-                                        <button onClick={(e) => { e.stopPropagation(); setIsAuthOpen(true); }} className="relative z-10 px-3 h-[28px] bg-[#E8312A] text-white rounded-[8px] font-black text-[11px] flex items-center justify-center gap-1.5 shadow-sm">
+                                    <div className="flex-1 h-[40px] rounded-md px-3 flex items-center justify-between relative overflow-hidden transition-colors bg-surfaceAlt border border-border group cursor-pointer" onClick={() => setIsAuthOpen(true)}>
+                                        <div className="w-[60%] h-[16px] bg-border rounded animate-pulse"></div>
+                                        <button onClick={(e) => { e.stopPropagation(); setIsAuthOpen(true); }} className="relative z-10 px-3 h-[28px] bg-brand text-white rounded-md font-black text-[11px] flex items-center justify-center gap-1.5 hover:bg-brandHover cursor-pointer">
                                             <Lock size={12} /> Reveal
                                         </button>
                                     </div>
@@ -859,12 +885,12 @@ export const Landing = () => {
 
                             {/* Ad Type Badges Mobile */}
                             <div className="flex items-center gap-1.5 mt-3">
-                                <div className={`h-[22px] px-2 rounded-full flex items-center gap-1 shadow-sm border
-                                    ${unlockType === 'custom_sponsor' ? 'bg-[#F5F3FF] border-[#C4B5FD] text-[#6366F1]' : 
-                                      unlockType === 'email_subscribe' ? 'bg-[#F0FDF4] border-[#86EFAC] text-[#166534]' : 
-                                      unlockType === 'social_follow' ? 'bg-[#EFF6FF] border-[#93C5FD] text-[#2563EB]' : 
-                                      'bg-[#FFFBEB] border-[#FDE68A] text-[#92400E]'}`}
-                                >
+                                <div className={`h-[22px] px-2 rounded-full flex items-center gap-1 border ${
+                                    unlockType === 'custom_sponsor' ? 'bg-[#F5F3FF] border-[#C4B5FD] text-[#6366F1]' : 
+                                    unlockType === 'email_subscribe' ? 'bg-successBg border-success/30 text-success' : 
+                                    unlockType === 'social_follow' ? 'bg-[#EFF6FF] border-[#93C5FD] text-[#2563EB]' : 
+                                    'bg-warningBg border-warning/30 text-warning'
+                                }`}>
                                     {unlockType === 'custom_sponsor' ? <Star size={10} fill="currentColor" /> :
                                      unlockType === 'email_subscribe' ? <span className="text-[10px]">📧</span> :
                                      unlockType === 'social_follow' ? <span className="text-[10px]">👥</span> :
@@ -879,17 +905,17 @@ export const Landing = () => {
                             </div>
 
                             {/* Mobile Compact How It Works Row */}
-                            <div className="mt-[12px] h-[48px] bg-[#F8F8F8] rounded-[10px] flex items-center">
+                            <div className="mt-[12px] h-[48px] bg-surfaceAlt rounded-[10px] flex items-center">
                                 <div className="flex-1 flex flex-col items-center justify-center gap-0.5">
                                     <span className="text-[18px]">🔗</span>
                                     <span className="text-[10px] font-[700] text-textMid">Click link</span>
                                 </div>
-                                <div className="w-[1px] h-[24px] bg-[#E8E8E8]" />
+                                <div className="w-[1px] h-[24px] bg-border" />
                                 <div className="flex-1 flex flex-col items-center justify-center gap-0.5">
                                     <span className="text-[18px]">✨</span>
                                     <span className="text-[10px] font-[700] text-textMid">View Sponsor/Unlock</span>
                                 </div>
-                                <div className="w-[1px] h-[24px] bg-[#E8E8E8]" />
+                                <div className="w-[1px] h-[24px] bg-border" />
                                 <div className="flex-1 flex flex-col items-center justify-center gap-0.5">
                                     <span className="text-[18px]">🎁</span>
                                     <span className="text-[10px] font-[700] text-textMid">Free content</span>
@@ -901,11 +927,11 @@ export const Landing = () => {
             </div>
 
             {/* Below The Fold Sections */}
-            <BelowTheFold />
+            <BelowTheFold onStartPro={handleStartPro} />
 
 
             {/* Standard Footer */}
-            <footer className="w-full bg-white border-t border-border py-12 px-4 flex flex-col items-center">
+            <footer className="w-full bg-surface border-t border-border py-12 px-4 flex flex-col items-center">
                 <div className="w-full max-w-[1000px] flex flex-col md:flex-row justify-between items-center gap-6">
                     <div className="flex items-center gap-2 opacity-80">
                         <div className="w-6 h-6 rounded-[14px] bg-text text-white flex items-center justify-center font-black text-[10px] leading-none shrink-0">
